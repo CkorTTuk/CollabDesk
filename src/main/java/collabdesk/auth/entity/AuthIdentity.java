@@ -2,11 +2,13 @@ package collabdesk.auth.entity;
 
 import collabdesk.user.entity.User;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.NotBlank;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 import java.sql.Timestamp;
+import java.util.Objects;
 
 @Entity
 @Table(name = "auth_identities")
@@ -27,6 +29,7 @@ public class AuthIdentity {
     private AuthProvider provider;
 
     @Column( name = "provider_subject", nullable = false, length = 320)
+    @NotBlank
     private String providerSubject;
 
     @Column( name = "password_hash", length = 255)
@@ -35,7 +38,7 @@ public class AuthIdentity {
     @Column( name = "created_at", nullable = false)
     private Timestamp createdAt;
 
-    public AuthIdentity(
+    private AuthIdentity(
             User user,
             AuthProvider provider,
             String providerSubject,
@@ -46,5 +49,57 @@ public class AuthIdentity {
         this.providerSubject = providerSubject;
         this.passwordHash = passwordHash;
         this.createdAt = new Timestamp(System.currentTimeMillis());
+    }
+    public static AuthIdentity local(
+            User user,
+            String providerSubject,
+            String passwordHash
+    ) {
+        Objects.requireNonNull(user, "user must not be null");
+
+        if (providerSubject == null || providerSubject.isBlank()) {
+            throw new IllegalArgumentException(
+                    "providerSubject must not be blank"
+            );
+        }
+
+        if (passwordHash == null || passwordHash.isBlank()) {
+            throw new IllegalArgumentException(
+                    "passwordHash must not be blank"
+            );
+        }
+
+        return new AuthIdentity(
+                user,
+                AuthProvider.LOCAL,
+                providerSubject,
+                passwordHash
+        );
+    }
+    public static AuthIdentity google(
+            User user,
+            String providerSubject,
+            String passwordHash
+    ) {
+        Objects.requireNonNull(user, "user must not be null");
+
+        if (providerSubject == null || providerSubject.isBlank()) {
+            throw new IllegalArgumentException(
+                    "providerSubject must not be blank"
+            );
+        }
+
+        if (passwordHash == null || passwordHash.isBlank()) {
+            throw new IllegalArgumentException(
+                    "passwordHash must not be blank"
+            );
+        }
+
+        return new AuthIdentity(
+                user,
+                AuthProvider.GOOGLE,
+                providerSubject,
+                passwordHash
+        );
     }
 }

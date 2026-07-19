@@ -126,9 +126,8 @@ class AuthIdentityRepositoryTest {
         User savedUser = saveUser("email@gmail.com");
         saveLocalIdentity(savedUser, "email@gmail.com");
 
-        AuthIdentity duplicate = new AuthIdentity(
+        AuthIdentity duplicate = AuthIdentity.local(
                 savedUser,
-                AuthProvider.LOCAL,
                 "email@gmail.com",
                 PASSWORD_HASH
         );
@@ -142,25 +141,22 @@ class AuthIdentityRepositoryTest {
     @Test
     void rejectsLocalIdentityWithoutPasswordHash() {
         User savedUser = saveUser("email@gmail.com");
-        AuthIdentity identity = new AuthIdentity(
-                savedUser,
-                AuthProvider.LOCAL,
-                "email@gmail.com",
-                null
-        );
 
         assertThrows(
-                DataIntegrityViolationException.class,
-                () -> authIdentityRepository.saveAndFlush(identity)
+                IllegalArgumentException.class,
+                () -> AuthIdentity.local(
+                        savedUser,
+                        "email@gmail.com",
+                        null
+                )
         );
     }
 
     @Test
     void rejectsExternalIdentityWithPasswordHash() {
         User savedUser = saveUser("email@gmail.com");
-        AuthIdentity identity = new AuthIdentity(
+        AuthIdentity identity = AuthIdentity.google(
                 savedUser,
-                AuthProvider.GOOGLE,
                 "google-subject-123",
                 PASSWORD_HASH
         );
@@ -179,9 +175,8 @@ class AuthIdentityRepositoryTest {
 
     private AuthIdentity saveLocalIdentity(User user, String providerSubject) {
         return authIdentityRepository.saveAndFlush(
-                new AuthIdentity(
+                AuthIdentity.local(
                         user,
-                        AuthProvider.LOCAL,
                         providerSubject,
                         PASSWORD_HASH
                 )

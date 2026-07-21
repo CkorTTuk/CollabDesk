@@ -78,8 +78,7 @@ public class AuthIdentity {
     }
     public static AuthIdentity google(
             User user,
-            String providerSubject,
-            String passwordHash
+            String providerSubject
     ) {
         Objects.requireNonNull(user, "user must not be null");
 
@@ -89,17 +88,12 @@ public class AuthIdentity {
             );
         }
 
-        if (passwordHash == null || passwordHash.isBlank()) {
-            throw new IllegalArgumentException(
-                    "passwordHash must not be blank"
-            );
-        }
 
         return new AuthIdentity(
                 user,
                 AuthProvider.GOOGLE,
                 providerSubject,
-                passwordHash
+                null
         );
     }
 }

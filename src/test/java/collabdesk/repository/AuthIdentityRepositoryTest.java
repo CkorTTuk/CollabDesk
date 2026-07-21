@@ -152,21 +152,6 @@ class AuthIdentityRepositoryTest {
         );
     }
 
-    @Test
-    void rejectsExternalIdentityWithPasswordHash() {
-        User savedUser = saveUser("email@gmail.com");
-        AuthIdentity identity = AuthIdentity.google(
-                savedUser,
-                "google-subject-123",
-                PASSWORD_HASH
-        );
-
-        assertThrows(
-                DataIntegrityViolationException.class,
-                () -> authIdentityRepository.saveAndFlush(identity)
-        );
-    }
-
     private User saveUser(String email) {
         return userRepository.saveAndFlush(
                 new User(email, "User")

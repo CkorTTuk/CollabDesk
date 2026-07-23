@@ -84,9 +84,12 @@ class HttpExceptionTest {
                                   "displayName": "Student",
                                   "password": "password123"
                                 }
-                                """))
+                """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.title").value("Validation failed"));
+                .andExpect(jsonPath("$.title").value("Validation failed"))
+                .andExpect(jsonPath("$.errors.email").value("must be a well-formed email address"))
+                .andExpect(jsonPath("$.errors.displayName").doesNotExist())
+                .andExpect(jsonPath("$.errors.password").doesNotExist());
 
         verifyNoInteractions(registrationService);
     }
@@ -101,9 +104,12 @@ class HttpExceptionTest {
                                   "displayName": "   ",
                                   "password": "password123"
                                 }
-                                """))
+                """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.title").value("Validation failed"));
+                .andExpect(jsonPath("$.title").value("Validation failed"))
+                .andExpect(jsonPath("$.errors.displayName").value("must not be blank"))
+                .andExpect(jsonPath("$.errors.email").doesNotExist())
+                .andExpect(jsonPath("$.errors.password").doesNotExist());
 
         verifyNoInteractions(registrationService);
     }
@@ -118,9 +124,12 @@ class HttpExceptionTest {
                                   "displayName": "Student",
                                   "password": "short"
                                 }
-                                """))
+                """))
                 .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.title").value("Validation failed"));
+                .andExpect(jsonPath("$.title").value("Validation failed"))
+                .andExpect(jsonPath("$.errors.password").value("size must be between 8 and 64"))
+                .andExpect(jsonPath("$.errors.email").doesNotExist())
+                .andExpect(jsonPath("$.errors.displayName").doesNotExist());
 
         verifyNoInteractions(registrationService);
     }

@@ -1,7 +1,6 @@
-package collabdesk.passwordEncode;
+package collabdesk.auth.passwordEncode;
 
 
-import collabdesk.TestcontainersConfiguration;
 import collabdesk.auth.config.PasswordEncoderConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

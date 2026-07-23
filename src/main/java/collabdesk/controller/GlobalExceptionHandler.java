@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 import java.util.HashMap;
+import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler{
@@ -24,10 +25,11 @@ public class GlobalExceptionHandler{
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ProblemDetail handleMethodArgumentNotValidException(MethodArgumentNotValidException ex) {
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
-        HashMap<String, Object> errors = new HashMap<>();
-        errors.put("Must be a well-formed email address", "email");
-        errors.put("Size must be between 8 and 64", "password");
-        problem.setProperties(errors);
+        Map<String, String> errors =  new HashMap<>();
+        ex.getBindingResult().getFieldErrors().forEach(error -> {
+            errors.put(error.getField(), error.getDefaultMessage());
+        });
+        problem.setProperty("errors", errors);
         problem.setTitle("Validation failed");
         return problem;
     }

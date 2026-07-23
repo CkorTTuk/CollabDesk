@@ -1,4 +1,4 @@
-package collabdesk.security;
+package collabdesk.auth.security;
 
 import collabdesk.auth.config.SecurityConfig;
 import collabdesk.auth.registration.RegistrationResult;
@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -42,6 +43,12 @@ class SecurityMvcTest {
 
     @MockitoBean
     private RegistrationService registrationService;
+
+    @MockitoBean
+    private LocalUserDetailsService localUserDetailsService;
+
+    @MockitoBean
+    private PasswordEncoder passwordEncoder;
 
     @Test
     void csrfEndpointIsAvailableToAnonymousUser() throws Exception {
@@ -106,7 +113,7 @@ class SecurityMvcTest {
     @Test
     void anyOtherRequestRequiresAuthentication() throws Exception {
         mockMvc.perform(get("/private-test-route"))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
 
         verifyNoInteractions(registrationService);
     }

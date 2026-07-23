@@ -1,10 +1,13 @@
 package collabdesk.controller;
 
+import collabdesk.auth.dto.CurrentUserResponse;
 import collabdesk.auth.dto.RegisterRequest;
 import collabdesk.auth.dto.RegisterResponse;
 import collabdesk.auth.registration.RegistrationService;
+import collabdesk.auth.security.AuthenticatedUserPrincipal;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -24,5 +27,10 @@ public class AuthController {
                 )
         );
     }
-
+    @GetMapping("/me")
+    public CurrentUserResponse currentUser(
+            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+    ) {
+        return CurrentUserResponse.from(principal);
+    }
 }

@@ -7,7 +7,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import java.util.Optional;
 
 public interface AuthIdentityRepository extends JpaRepository<AuthIdentity, Long> {
-    Optional<AuthIdentity> findByProviderSubjectAndProvider(String providerSubject, AuthProvider provider);
+    Optional<AuthIdentity> findByProviderAndProviderSubject(AuthProvider provider,String  providerSubject);
 
-    boolean existsByProviderSubjectAndProvider(String providerSubject,  AuthProvider provider);
+    boolean existsByProviderAndProviderSubject(AuthProvider provider,String  providerSubject);
 }

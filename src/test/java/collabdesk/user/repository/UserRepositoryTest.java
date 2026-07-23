@@ -1,9 +1,8 @@
-package collabdesk.repository;
+package collabdesk.user.repository;
 
 import collabdesk.TestcontainersConfiguration;
 import collabdesk.user.entity.User;
 import collabdesk.user.entity.UserStatus;
-import collabdesk.user.repository.UserRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

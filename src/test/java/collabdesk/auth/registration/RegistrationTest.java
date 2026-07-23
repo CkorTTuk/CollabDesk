@@ -1,4 +1,4 @@
-package collabdesk.registration;
+package collabdesk.auth.registration;
 
 import collabdesk.TestcontainersConfiguration;
 import collabdesk.auth.config.PasswordEncoderConfig;

@@ -1,9 +1,8 @@
-package collabdesk.repository;
+package collabdesk.auth.repository;
 
 import collabdesk.TestcontainersConfiguration;
 import collabdesk.auth.entity.AuthIdentity;
 import collabdesk.auth.entity.AuthProvider;
-import collabdesk.auth.repository.AuthIdentityRepository;
 import collabdesk.user.entity.User;
 import collabdesk.user.repository.UserRepository;
 import jakarta.persistence.EntityManager;
@@ -73,9 +72,10 @@ class AuthIdentityRepositoryTest {
         entityManager.clear();
 
         AuthIdentity foundIdentity = authIdentityRepository
-                .findByProviderSubjectAndProvider(
-                        "email@gmail.com",
-                        AuthProvider.LOCAL
+                .findByProviderAndProviderSubject(
+                        AuthProvider.LOCAL,
+                        "email@gmail.com"
+
                 )
                 .orElseThrow();
 
@@ -86,9 +86,9 @@ class AuthIdentityRepositoryTest {
     void returnsEmptyWhenProviderAndSubjectDoNotExist() {
         assertTrue(
                 authIdentityRepository
-                        .findByProviderSubjectAndProvider(
-                                "missing@gmail.com",
-                                AuthProvider.LOCAL
+                        .findByProviderAndProviderSubject(
+                                AuthProvider.LOCAL,
+                                "missing@gmail.com"
                         )
                         .isEmpty()
         );
@@ -103,9 +103,9 @@ class AuthIdentityRepositoryTest {
 
         assertTrue(
                 authIdentityRepository
-                        .existsByProviderSubjectAndProvider(
-                                "email@gmail.com",
-                                AuthProvider.LOCAL
+                        .existsByProviderAndProviderSubject(
+                                AuthProvider.LOCAL,
+                                "email@gmail.com"
                         )
         );
     }
@@ -114,9 +114,10 @@ class AuthIdentityRepositoryTest {
     void returnsFalseWhenProviderAndSubjectDoNotExist() {
         assertFalse(
                 authIdentityRepository
-                        .existsByProviderSubjectAndProvider(
-                                "missing@gmail.com",
-                                AuthProvider.LOCAL
+                        .existsByProviderAndProviderSubject(
+                                AuthProvider.LOCAL,
+                                "missing@gmail.com"
+
                         )
         );
     }

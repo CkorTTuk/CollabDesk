@@ -1,6 +1,7 @@
 package collabdesk.controller;
 
 import collabdesk.auth.registration.EmailAlreadyExistsException;
+import collabdesk.workspace.service.WorkspaceAccessDeniedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -31,6 +32,18 @@ public class GlobalExceptionHandler{
         });
         problem.setProperty("errors", errors);
         problem.setTitle("Validation failed");
+        return problem;
+    }
+
+    @ExceptionHandler(WorkspaceAccessDeniedException.class)
+    public ProblemDetail handleWorkspaceAccessDeniedException(
+            WorkspaceAccessDeniedException ex
+    ) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_FOUND,
+                "Workspace was not found or is not accessible"
+        );
+        problem.setTitle("Workspace not found");
         return problem;
     }
 

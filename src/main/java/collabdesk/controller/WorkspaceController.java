@@ -5,7 +5,6 @@ import collabdesk.workspace.dto.CreateWorkspaceRequest;
 import collabdesk.workspace.dto.WorkspaceResponse;
 import collabdesk.workspace.service.WorkspaceService;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;

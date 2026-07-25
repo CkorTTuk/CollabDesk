@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import {
   getCurrentUser,
   loginUser,
@@ -9,6 +9,7 @@ import {
   createWorkspace,
   getWorkspaces,
 } from './api/workspaceApi.js'
+import { createProject, getProjects } from './api/projectApi.js'
 import './App.css'
 
 const EMPTY_LOGIN = {
@@ -392,6 +393,7 @@ function Dashboard({ user, onLogout }) {
 
 function WorkspaceSection() {
   const [workspaces, setWorkspaces] = useState([])
+  const [selectedWorkspace, setSelectedWorkspace] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isCreating, setIsCreating] = useState(false)
   const [isFormOpen, setIsFormOpen] = useState(false)
@@ -406,7 +408,20 @@ function WorkspaceSection() {
     setIsLoading(true)
 
     try {
-      setWorkspaces(await getWorkspaces())
+      const loadedWorkspaces = await getWorkspaces()
+      setWorkspaces(loadedWorkspaces)
+
+      const storedWorkspaceId = Number(
+        localStorage.getItem('collabdesk.selectedWorkspaceId'),
+      )
+      const storedWorkspace = loadedWorkspaces.find(
+        (workspace) => workspace.id === storedWorkspaceId,
+      )
+      setSelectedWorkspace(storedWorkspace ?? null)
+
+      if (!storedWorkspace) {
+        localStorage.removeItem('collabdesk.selectedWorkspaceId')
+      }
     } catch (loadError) {
       if (loadError.status === 404) {
         setModuleUnavailable(true)
@@ -443,6 +458,19 @@ function WorkspaceSection() {
     }
   }
 
+  function openWorkspace(workspace) {
+    localStorage.setItem(
+      'collabdesk.selectedWorkspaceId',
+      String(workspace.id),
+    )
+    setSelectedWorkspace(workspace)
+  }
+
+  function closeWorkspace() {
+    localStorage.removeItem('collabdesk.selectedWorkspaceId')
+    setSelectedWorkspace(null)
+  }
+
   if (isLoading) {
     return (
       <section className="workspace-panel workspace-loading">
@@ -473,6 +501,15 @@ function WorkspaceSection() {
           Проверить снова
         </button>
       </section>
+    )
+  }
+
+  if (selectedWorkspace) {
+    return (
+      <ProjectSection
+        workspace={selectedWorkspace}
+        onBack={closeWorkspace}
+      />
     )
   }
 
@@ -568,7 +605,12 @@ function WorkspaceSection() {
       ) : (
         <div className="workspace-grid">
           {workspaces.map((workspace) => (
-            <article className="workspace-card" key={workspace.id}>
+            <button
+              className="workspace-card"
+              key={workspace.id}
+              type="button"
+              onClick={() => openWorkspace(workspace)}
+            >
               <div className="workspace-card-top">
                 <div className="workspace-letter" aria-hidden="true">
                   {workspace.name.trim().charAt(0).toUpperCase()}
@@ -586,7 +628,195 @@ function WorkspaceSection() {
               </p>
               <div className="workspace-card-footer">
                 <span>ID #{workspace.id}</span>
-                <span>Открыть позже →</span>
+                <span>Открыть →</span>
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function ProjectSection({ workspace, onBack }) {
+  const [projects, setProjects] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isCreating, setIsCreating] = useState(false)
+  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
+  const [form, setForm] = useState({ name: '', description: '' })
+
+  const loadProjects = useCallback(async () => {
+    setError('')
+    setIsLoading(true)
+
+    try {
+      setProjects(await getProjects(workspace.id))
+    } catch (loadError) {
+      setError(
+        loadError.message ||
+          'Не удалось загрузить проекты рабочего пространства.',
+      )
+    } finally {
+      setIsLoading(false)
+    }
+  }, [workspace.id])
+
+  useEffect(() => {
+    loadProjects()
+  }, [loadProjects])
+
+  async function handleCreate(event) {
+    event.preventDefault()
+    setError('')
+    setFieldErrors({})
+    setIsCreating(true)
+
+    try {
+      const project = await createProject(workspace.id, form)
+      setProjects((current) => [...current, project])
+      setForm({ name: '', description: '' })
+      setIsFormOpen(false)
+    } catch (createError) {
+      setFieldErrors(createError.fieldErrors ?? {})
+      setError(createError.message || 'Не удалось создать проект.')
+    } finally {
+      setIsCreating(false)
+    }
+  }
+
+  return (
+    <section className="workspace-panel project-panel">
+      <button className="project-back" type="button" onClick={onBack}>
+        ← Все workspace
+      </button>
+
+      <div className="workspace-panel-header project-panel-header">
+        <div>
+          <p className="eyebrow">Workspace #{workspace.id}</p>
+          <h2>{workspace.name}</h2>
+          <p>
+            {workspace.description ||
+              'Проекты и будущие задачи этого рабочего пространства.'}
+          </p>
+        </div>
+        <button
+          className="secondary-button"
+          type="button"
+          onClick={() => {
+            setError('')
+            setFieldErrors({})
+            setIsFormOpen((current) => !current)
+          }}
+        >
+          {isFormOpen ? 'Закрыть' : '+ Создать project'}
+        </button>
+      </div>
+
+      {isFormOpen && (
+        <form className="workspace-form" onSubmit={handleCreate}>
+          <div className="workspace-form-grid">
+            <FormField
+              id="project-name"
+              label="Название проекта"
+              type="text"
+              placeholder="Например, CollabDesk MVP"
+              minLength={2}
+              maxLength={100}
+              value={form.name}
+              onChange={(value) =>
+                setForm((current) => ({ ...current, name: value }))
+              }
+              error={fieldErrors.name}
+            />
+            <label className="form-field" htmlFor="project-description">
+              <span>
+                Описание <em>необязательно</em>
+              </span>
+              <textarea
+                id="project-description"
+                maxLength={500}
+                placeholder="Какой результат должен дать этот проект?"
+                value={form.description}
+                aria-invalid={Boolean(fieldErrors.description)}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    description: event.target.value,
+                  }))
+                }
+              />
+              {fieldErrors.description && (
+                <small className="field-error">
+                  {fieldErrors.description}
+                </small>
+              )}
+            </label>
+          </div>
+
+          {error && (
+            <div className="form-message error" role="alert">
+              {error}
+            </div>
+          )}
+
+          <div className="workspace-form-actions">
+            <span>Project будет создан внутри {workspace.name}.</span>
+            <button className="primary-button" disabled={isCreating}>
+              {isCreating ? 'Создаём…' : 'Создать project'}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {!isFormOpen && error && (
+        <div className="project-load-error">
+          <div className="form-message error" role="alert">
+            {error}
+          </div>
+          <button className="secondary-button" onClick={loadProjects}>
+            Повторить
+          </button>
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="project-loading">
+          <span className="loading-spinner" aria-hidden="true" />
+          <p>Загружаем проекты…</p>
+        </div>
+      ) : projects.length === 0 && !error ? (
+        <div className="workspace-empty project-empty">
+          <div className="project-empty-mark" aria-hidden="true">
+            P
+          </div>
+          <h3>В этом workspace пока нет проектов</h3>
+          <p>Создайте первый project и он сохранится в MySQL.</p>
+        </div>
+      ) : (
+        <div className="project-grid">
+          {projects.map((project) => (
+            <article className="project-card" key={project.id}>
+              <div className="project-card-top">
+                <span className="project-status">
+                  <span aria-hidden="true" />
+                  {project.status === 'ACTIVE'
+                    ? 'Активен'
+                    : project.status}
+                </span>
+                <span>#{project.id}</span>
+              </div>
+              <h3>{project.name}</h3>
+              <p>
+                {project.description ||
+                  'Описание проекта пока не добавлено.'}
+              </p>
+              <div className="project-card-footer">
+                <span>Workspace #{project.workspaceId}</span>
+                <time dateTime={project.createdAt}>
+                  {formatProjectDate(project.createdAt)}
+                </time>
               </div>
             </article>
           ))}
@@ -594,6 +824,20 @@ function WorkspaceSection() {
       )}
     </section>
   )
+}
+
+function formatProjectDate(createdAt) {
+  const date = new Date(createdAt)
+
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+
+  return new Intl.DateTimeFormat('ru-RU', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  }).format(date)
 }
 
 function LoadingScreen() {

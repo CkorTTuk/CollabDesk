@@ -45,6 +45,7 @@ public class SecurityConfig {
                             "/api/v1/auth/me"
                     ).authenticated()
 
+
                     .anyRequest().authenticated()
             )
             .exceptionHandling(exception ->

@@ -1,6 +1,8 @@
 package collabdesk.controller;
 
 import collabdesk.auth.registration.EmailAlreadyExistsException;
+import collabdesk.project.service.ProjectNotFoundException;
+import collabdesk.task.service.TaskNotFoundException;
 import collabdesk.workspace.service.WorkspaceAccessDeniedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -44,6 +46,30 @@ public class GlobalExceptionHandler{
                 "Workspace was not found or is not accessible"
         );
         problem.setTitle("Workspace not found");
+        return problem;
+    }
+
+    @ExceptionHandler(ProjectNotFoundException.class)
+    public ProblemDetail handleProjectNotFoundException(
+            ProjectNotFoundException ex
+    ) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_FOUND,
+                "Project was not found or is not accessible"
+        );
+        problem.setTitle("Project not found");
+        return problem;
+    }
+
+    @ExceptionHandler(TaskNotFoundException.class)
+    public ProblemDetail handleTaskNotFoundException(
+            TaskNotFoundException ex
+    ) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_FOUND,
+                "Task was not found or is not accessible"
+        );
+        problem.setTitle("Task not found");
         return problem;
     }
 

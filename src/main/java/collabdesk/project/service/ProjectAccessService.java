@@ -1,0 +1,43 @@
+package collabdesk.project.service;
+
+import collabdesk.project.entity.Project;
+import collabdesk.project.repository.ProjectRepository;
+import collabdesk.workspace.entity.WorkspaceMember;
+import collabdesk.workspace.service.WorkspaceAccessService;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+@Service
+public class ProjectAccessService {
+
+    private final WorkspaceAccessService workspaceAccessService;
+    private final ProjectRepository projectRepository;
+
+    public ProjectAccessService(
+            WorkspaceAccessService workspaceAccessService,
+            ProjectRepository projectRepository
+    ) {
+        this.workspaceAccessService = workspaceAccessService;
+        this.projectRepository = projectRepository;
+    }
+
+    @Transactional(readOnly = true)
+    public AccessibleProject requireAccessibleProject(
+            Long workspaceId,
+            Long projectId,
+            Long currentUserId
+    ) {
+        WorkspaceMember membership = workspaceAccessService.requireMember(
+                workspaceId,
+                currentUserId
+        );
+
+        Project project = projectRepository
+                .findByIdAndWorkspace_Id(projectId, workspaceId)
+                .orElseThrow(() -> new ProjectNotFoundException(
+                        "Project was not found"
+                ));
+
+        return new AccessibleProject(project, membership);
+    }
+}

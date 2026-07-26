@@ -10,6 +10,11 @@ import {
   getWorkspaces,
 } from './api/workspaceApi.js'
 import { createProject, getProjects } from './api/projectApi.js'
+import {
+  changeTaskStatus,
+  createTask,
+  getTasks,
+} from './api/taskApi.js'
 import './App.css'
 
 const EMPTY_LOGIN = {
@@ -22,6 +27,12 @@ const EMPTY_REGISTRATION = {
   displayName: '',
   password: '',
 }
+
+const TASK_COLUMNS = [
+  { status: 'TODO', title: 'К выполнению' },
+  { status: 'IN_PROGRESS', title: 'В работе' },
+  { status: 'DONE', title: 'Готово' },
+]
 
 function Brand() {
   return (
@@ -421,6 +432,7 @@ function WorkspaceSection() {
 
       if (!storedWorkspace) {
         localStorage.removeItem('collabdesk.selectedWorkspaceId')
+        localStorage.removeItem('collabdesk.selectedProjectId')
       }
     } catch (loadError) {
       if (loadError.status === 404) {
@@ -468,6 +480,7 @@ function WorkspaceSection() {
 
   function closeWorkspace() {
     localStorage.removeItem('collabdesk.selectedWorkspaceId')
+    localStorage.removeItem('collabdesk.selectedProjectId')
     setSelectedWorkspace(null)
   }
 
@@ -640,6 +653,7 @@ function WorkspaceSection() {
 
 function ProjectSection({ workspace, onBack }) {
   const [projects, setProjects] = useState([])
+  const [selectedProject, setSelectedProject] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isCreating, setIsCreating] = useState(false)
   const [isFormOpen, setIsFormOpen] = useState(false)
@@ -652,7 +666,20 @@ function ProjectSection({ workspace, onBack }) {
     setIsLoading(true)
 
     try {
-      setProjects(await getProjects(workspace.id))
+      const loadedProjects = await getProjects(workspace.id)
+      setProjects(loadedProjects)
+
+      const storedProjectId = Number(
+        localStorage.getItem('collabdesk.selectedProjectId'),
+      )
+      const storedProject = loadedProjects.find(
+        (project) => project.id === storedProjectId,
+      )
+      setSelectedProject(storedProject ?? null)
+
+      if (!storedProject) {
+        localStorage.removeItem('collabdesk.selectedProjectId')
+      }
     } catch (loadError) {
       setError(
         loadError.message ||
@@ -684,6 +711,29 @@ function ProjectSection({ workspace, onBack }) {
     } finally {
       setIsCreating(false)
     }
+  }
+
+  function openProject(project) {
+    localStorage.setItem(
+      'collabdesk.selectedProjectId',
+      String(project.id),
+    )
+    setSelectedProject(project)
+  }
+
+  function closeProject() {
+    localStorage.removeItem('collabdesk.selectedProjectId')
+    setSelectedProject(null)
+  }
+
+  if (selectedProject) {
+    return (
+      <TaskBoard
+        workspace={workspace}
+        project={selectedProject}
+        onBack={closeProject}
+      />
+    )
   }
 
   return (
@@ -797,7 +847,12 @@ function ProjectSection({ workspace, onBack }) {
       ) : (
         <div className="project-grid">
           {projects.map((project) => (
-            <article className="project-card" key={project.id}>
+            <button
+              className="project-card"
+              key={project.id}
+              type="button"
+              onClick={() => openProject(project)}
+            >
               <div className="project-card-top">
                 <span className="project-status">
                   <span aria-hidden="true" />
@@ -814,12 +869,255 @@ function ProjectSection({ workspace, onBack }) {
               </p>
               <div className="project-card-footer">
                 <span>Workspace #{project.workspaceId}</span>
-                <time dateTime={project.createdAt}>
-                  {formatProjectDate(project.createdAt)}
-                </time>
+                <span>Открыть задачи →</span>
               </div>
-            </article>
+            </button>
           ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function TaskBoard({ workspace, project, onBack }) {
+  const [tasks, setTasks] = useState([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isCreating, setIsCreating] = useState(false)
+  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [updatingTaskId, setUpdatingTaskId] = useState(null)
+  const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
+  const [form, setForm] = useState({ title: '', description: '' })
+
+  const loadTasks = useCallback(async () => {
+    setError('')
+    setIsLoading(true)
+
+    try {
+      setTasks(await getTasks(workspace.id, project.id))
+    } catch (loadError) {
+      setError(loadError.message || 'Не удалось загрузить задачи.')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [workspace.id, project.id])
+
+  useEffect(() => {
+    loadTasks()
+  }, [loadTasks])
+
+  async function handleCreate(event) {
+    event.preventDefault()
+    setError('')
+    setFieldErrors({})
+    setIsCreating(true)
+
+    try {
+      const task = await createTask(workspace.id, project.id, form)
+      setTasks((current) => [...current, task])
+      setForm({ title: '', description: '' })
+      setIsFormOpen(false)
+    } catch (createError) {
+      setFieldErrors(createError.fieldErrors ?? {})
+      setError(createError.message || 'Не удалось создать задачу.')
+    } finally {
+      setIsCreating(false)
+    }
+  }
+
+  async function handleStatusChange(taskId, status) {
+    setError('')
+    setUpdatingTaskId(taskId)
+
+    try {
+      const updatedTask = await changeTaskStatus(
+        workspace.id,
+        project.id,
+        taskId,
+        status,
+      )
+      setTasks((current) =>
+        current.map((task) =>
+          task.id === updatedTask.id ? updatedTask : task,
+        ),
+      )
+    } catch (updateError) {
+      setError(
+        updateError.message || 'Не удалось изменить статус задачи.',
+      )
+    } finally {
+      setUpdatingTaskId(null)
+    }
+  }
+
+  return (
+    <section className="workspace-panel task-panel">
+      <button className="project-back" type="button" onClick={onBack}>
+        ← Проекты workspace
+      </button>
+
+      <div className="workspace-panel-header task-panel-header">
+        <div>
+          <p className="eyebrow">
+            {workspace.name} · Project #{project.id}
+          </p>
+          <h2>{project.name}</h2>
+          <p>
+            {project.description ||
+              'Управляйте задачами и их текущим статусом.'}
+          </p>
+        </div>
+        <button
+          className="secondary-button"
+          type="button"
+          onClick={() => {
+            setError('')
+            setFieldErrors({})
+            setIsFormOpen((current) => !current)
+          }}
+        >
+          {isFormOpen ? 'Закрыть' : '+ Создать task'}
+        </button>
+      </div>
+
+      {isFormOpen && (
+        <form className="workspace-form task-form" onSubmit={handleCreate}>
+          <div className="workspace-form-grid">
+            <FormField
+              id="task-title"
+              label="Название задачи"
+              type="text"
+              placeholder="Например, добавить API-клиент"
+              minLength={2}
+              maxLength={150}
+              value={form.title}
+              onChange={(value) =>
+                setForm((current) => ({ ...current, title: value }))
+              }
+              error={fieldErrors.title}
+            />
+            <label className="form-field" htmlFor="task-description">
+              <span>
+                Описание <em>необязательно</em>
+              </span>
+              <textarea
+                id="task-description"
+                maxLength={1000}
+                placeholder="Что именно нужно сделать?"
+                value={form.description}
+                aria-invalid={Boolean(fieldErrors.description)}
+                onChange={(event) =>
+                  setForm((current) => ({
+                    ...current,
+                    description: event.target.value,
+                  }))
+                }
+              />
+              {fieldErrors.description && (
+                <small className="field-error">
+                  {fieldErrors.description}
+                </small>
+              )}
+            </label>
+          </div>
+
+          {error && (
+            <div className="form-message error" role="alert">
+              {error}
+            </div>
+          )}
+
+          <div className="workspace-form-actions">
+            <span>Новая задача появится в колонке «К выполнению».</span>
+            <button className="primary-button" disabled={isCreating}>
+              {isCreating ? 'Создаём…' : 'Создать task'}
+            </button>
+          </div>
+        </form>
+      )}
+
+      {!isFormOpen && error && (
+        <div className="project-load-error">
+          <div className="form-message error" role="alert">
+            {error}
+          </div>
+          <button className="secondary-button" onClick={loadTasks}>
+            Обновить доску
+          </button>
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="project-loading">
+          <span className="loading-spinner" aria-hidden="true" />
+          <p>Загружаем задачи…</p>
+        </div>
+      ) : (
+        <div className="task-board">
+          {TASK_COLUMNS.map((column) => {
+            const columnTasks = tasks.filter(
+              (task) => task.status === column.status,
+            )
+
+            return (
+              <section
+                className={`task-column task-column-${column.status.toLowerCase()}`}
+                key={column.status}
+              >
+                <div className="task-column-header">
+                  <div>
+                    <span aria-hidden="true" />
+                    <h3>{column.title}</h3>
+                  </div>
+                  <strong>{columnTasks.length}</strong>
+                </div>
+
+                <div className="task-list">
+                  {columnTasks.length === 0 ? (
+                    <p className="task-column-empty">Задач пока нет</p>
+                  ) : (
+                    columnTasks.map((task) => (
+                      <article className="task-card" key={task.id}>
+                        <div className="task-card-meta">
+                          <span>Task #{task.id}</span>
+                          <time dateTime={task.createdAt}>
+                            {formatProjectDate(task.createdAt)}
+                          </time>
+                        </div>
+                        <h4>{task.title}</h4>
+                        <p>
+                          {task.description ||
+                            'Описание задачи пока не добавлено.'}
+                        </p>
+                        <label className="task-status-control">
+                          <span>Статус</span>
+                          <select
+                            value={task.status}
+                            disabled={updatingTaskId === task.id}
+                            onChange={(event) =>
+                              handleStatusChange(
+                                task.id,
+                                event.target.value,
+                              )
+                            }
+                          >
+                            {TASK_COLUMNS.map((option) => (
+                              <option
+                                key={option.status}
+                                value={option.status}
+                              >
+                                {option.title}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                      </article>
+                    ))
+                  )}
+                </div>
+              </section>
+            )
+          })}
         </div>
       )}
     </section>

@@ -6,8 +6,8 @@ import collabdesk.project.entity.ProjectStatus;
 import collabdesk.project.repository.ProjectRepository;
 import collabdesk.user.entity.User;
 import collabdesk.workspace.entity.Workspace;
-import collabdesk.workspace.entity.WorkspaceMember;
-import collabdesk.workspace.service.WorkspaceAccessDeniedException;
+import collabdesk.workspacemember.entity.WorkspaceMember;
+import collabdesk.workspace.service.exceptions.WorkspaceAccessDeniedException;
 import collabdesk.workspace.service.WorkspaceAccessService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,7 +54,7 @@ class ProjectServiceTest {
         User currentUser = user(7L, "member@test.com");
         Workspace workspace = workspace(11L, currentUser);
         WorkspaceMember membership = WorkspaceMember.member(workspace, currentUser);
-        when(workspaceAccessService.requireMember(11L, 7L))
+        when(workspaceAccessService.requireContributor(11L, 7L))
                 .thenReturn(membership);
         when(projectRepository.save(any(Project.class)))
                 .thenAnswer(invocation -> {
@@ -87,7 +87,7 @@ class ProjectServiceTest {
 
     @Test
     void nonMemberCannotCreateAndRepositoryIsNotCalled() {
-        when(workspaceAccessService.requireMember(11L, 8L))
+        when(workspaceAccessService.requireContributor(11L, 8L))
                 .thenThrow(new WorkspaceAccessDeniedException(
                         "Workspace membership not found"
                 ));

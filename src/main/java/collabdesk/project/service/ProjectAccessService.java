@@ -2,7 +2,7 @@ package collabdesk.project.service;
 
 import collabdesk.project.entity.Project;
 import collabdesk.project.repository.ProjectRepository;
-import collabdesk.workspace.entity.WorkspaceMember;
+import collabdesk.workspacemember.entity.WorkspaceMember;
 import collabdesk.workspace.service.WorkspaceAccessService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,12 +32,34 @@ public class ProjectAccessService {
                 currentUserId
         );
 
-        Project project = projectRepository
+        return new AccessibleProject(
+                findProject(workspaceId, projectId),
+                membership
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public AccessibleProject requireWritableProject(
+            Long workspaceId,
+            Long projectId,
+            Long currentUserId
+    ) {
+        WorkspaceMember membership = workspaceAccessService.requireContributor(
+                workspaceId,
+                currentUserId
+        );
+
+        return new AccessibleProject(
+                findProject(workspaceId, projectId),
+                membership
+        );
+    }
+
+    private Project findProject(Long workspaceId, Long projectId) {
+        return projectRepository
                 .findByIdAndWorkspace_Id(projectId, workspaceId)
                 .orElseThrow(() -> new ProjectNotFoundException(
                         "Project was not found"
                 ));
-
-        return new AccessibleProject(project, membership);
     }
 }

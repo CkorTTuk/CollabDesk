@@ -1,6 +1,8 @@
-package collabdesk.workspace.entity;
+package collabdesk.workspacemember.entity;
 
 import collabdesk.user.entity.User;
+import collabdesk.workspace.entity.Workspace;
+import collabdesk.workspace.entity.WorkspaceRole;
 import jakarta.persistence.*;
 import lombok.AccessLevel;
 import lombok.Getter;
@@ -51,5 +53,34 @@ public class WorkspaceMember {
     }
     public static WorkspaceMember member(Workspace workspace, User user) {
         return new WorkspaceMember(workspace, user, WorkspaceRole.MEMBER);
+    }
+    public static WorkspaceMember collaborator(
+            Workspace workspace,
+            User user,
+            WorkspaceRole role
+    ) {
+        if (role == WorkspaceRole.OWNER) {
+            throw new IllegalArgumentException(
+                    "OWNER cannot be assigned through member management"
+            );
+        }
+
+        return new WorkspaceMember(workspace, user, role);
+    }
+    public void changeRole(WorkspaceRole newRole) {
+        Objects.requireNonNull(newRole);
+
+        if (role == WorkspaceRole.OWNER) {
+            throw new IllegalStateException(
+                    "Owner role cannot be changed"
+            );
+        }
+        if (newRole == WorkspaceRole.OWNER) {
+            throw new IllegalArgumentException(
+                    "Owner role cannot be assigned"
+            );
+        }
+
+        role = newRole;
     }
 }

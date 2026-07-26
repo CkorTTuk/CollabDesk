@@ -3,7 +3,7 @@ package collabdesk.controller;
 import collabdesk.auth.registration.EmailAlreadyExistsException;
 import collabdesk.project.service.ProjectNotFoundException;
 import collabdesk.task.service.TaskNotFoundException;
-import collabdesk.workspace.service.WorkspaceAccessDeniedException;
+import collabdesk.workspace.service.exceptions.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -72,5 +72,60 @@ public class GlobalExceptionHandler{
         problem.setTitle("Task not found");
         return problem;
     }
+    @ExceptionHandler(WorkspaceOperationForbiddenException.class)
+    public ProblemDetail handleWorkspaceOperationForbiddenException(
+            WorkspaceOperationForbiddenException ex
+    ) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.FORBIDDEN,
+                "Your workspace role does not allow this operation"
+        );
+        problem.setTitle("Workspace operation forbidden");
+        return problem;
+    }
+    @ExceptionHandler(WorkspaceMemberNotFoundException.class)
+    public ProblemDetail handleWorkspaceMemberNotFoundException(
+            WorkspaceMemberNotFoundException ex
+    ) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_FOUND,
+                "Workspace member was not found"
+        );
+        problem.setTitle("Workspace member not found");
+        return problem;
+    }
+    @ExceptionHandler(WorkspaceMemberAlreadyExistsException.class)
+    public ProblemDetail handleWorkspaceMemberAlreadyExistsException(
+            WorkspaceMemberAlreadyExistsException ex
+    ) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT,
+                "User is already a workspace member"
+        );
+        problem.setTitle("Workspace member already exists");
+        return problem;
+    }
+    @ExceptionHandler(WorkspaceUserNotFoundException.class)
+    public ProblemDetail handleWorkspaceUserNotFoundException(
+            WorkspaceUserNotFoundException ex
+    ) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_FOUND,
+                "Account with this email was not found"
+        );
+        problem.setTitle("Account not found");
+        return problem;
+    }
 
+    @ExceptionHandler(WorkspaceOwnerMutationException.class)
+    public ProblemDetail handleWorkspaceOwnerMutationException(
+            WorkspaceOwnerMutationException ex
+    ) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT,
+                "Owner membership cannot be changed"
+        );
+        problem.setTitle("Workspace owner conflict");
+        return problem;
+    }
 }

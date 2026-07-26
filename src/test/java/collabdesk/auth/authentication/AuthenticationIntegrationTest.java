@@ -1,4 +1,4 @@
-package collabdesk.authentication;
+package collabdesk.auth.authentication;
 
 import collabdesk.TestcontainersConfiguration;
 import collabdesk.auth.registration.RegistrationService;

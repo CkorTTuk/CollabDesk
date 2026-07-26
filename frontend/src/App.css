@@ -1081,6 +1081,164 @@
   opacity: 0.6;
 }
 
+.workspace-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.read-only-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid #ead39c;
+  border-radius: 999px;
+  color: #795411;
+  background: #fff7df;
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.members-panel {
+  margin: 18px 0 24px;
+  padding: 20px;
+  border: 1px solid #e0e5eb;
+  border-radius: 15px;
+  background: #f8fafc;
+}
+
+.members-panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.members-panel-heading h3 {
+  margin: 3px 0 0;
+  color: #253247;
+  font-size: 20px;
+}
+
+.members-panel-heading > span {
+  color: #8590a0;
+  font-size: 11px;
+}
+
+.member-add-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) minmax(130px, 0.3fr) auto;
+  align-items: end;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding: 16px;
+  border: 1px solid #e0e5eb;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.member-add-form .primary-button {
+  min-height: 44px;
+}
+
+.form-field select,
+.member-controls select {
+  width: 100%;
+  min-height: 44px;
+  padding: 0 12px;
+  border: 1px solid #dce3eb;
+  border-radius: 9px;
+  color: #34445b;
+  background: #fff;
+  font: inherit;
+}
+
+.member-list {
+  display: grid;
+  gap: 9px;
+}
+
+.member-row {
+  display: grid;
+  grid-template-columns: auto minmax(180px, 1fr) auto auto;
+  align-items: center;
+  gap: 14px;
+  padding: 13px;
+  border: 1px solid #e0e5eb;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.member-avatar {
+  display: grid;
+  width: 38px;
+  height: 38px;
+  place-items: center;
+  border-radius: 10px;
+  color: #fff;
+  background: #315bda;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.member-identity {
+  display: grid;
+  gap: 3px;
+}
+
+.member-identity strong {
+  color: #253247;
+  font-size: 12px;
+}
+
+.member-identity span,
+.member-row time {
+  color: #8590a0;
+  font-size: 10px;
+}
+
+.member-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.member-controls select {
+  min-width: 116px;
+}
+
+.danger-button {
+  min-height: 40px;
+  padding: 0 12px;
+  border: 1px solid #ecc9c9;
+  border-radius: 9px;
+  color: #a12f2f;
+  background: #fff3f3;
+  font: inherit;
+  font-size: 10px;
+  font-weight: 760;
+  cursor: pointer;
+}
+
+.danger-button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.members-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 96px;
+  color: #8590a0;
+  font-size: 11px;
+}
+
 .account-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1271,6 +1429,20 @@
   .project-grid,
   .task-board {
     grid-template-columns: 1fr;
+  }
+
+  .member-add-form,
+  .member-row {
+    grid-template-columns: 1fr;
+  }
+
+  .member-avatar {
+    display: none;
+  }
+
+  .member-controls {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .project-load-error {

@@ -34,7 +34,7 @@ public class TaskService {
             String description
     ) {
         AccessibleProject access =
-                projectAccessService.requireAccessibleProject(
+                projectAccessService.requireWritableProject(
                         workspaceId,
                         projectId,
                         currentUserId
@@ -77,7 +77,7 @@ public class TaskService {
             Long currentUserId,
             TaskStatus newStatus
     ) {
-        projectAccessService.requireAccessibleProject(
+        projectAccessService.requireWritableProject(
                 workspaceId,
                 projectId,
                 currentUserId

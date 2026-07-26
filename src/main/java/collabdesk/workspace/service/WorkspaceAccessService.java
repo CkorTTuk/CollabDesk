@@ -1,7 +1,10 @@
 package collabdesk.workspace.service;
 
-import collabdesk.workspace.entity.WorkspaceMember;
-import collabdesk.workspace.repository.WorkspaceMemberRepository;
+import collabdesk.workspace.entity.WorkspaceRole;
+import collabdesk.workspace.service.exceptions.WorkspaceAccessDeniedException;
+import collabdesk.workspace.service.exceptions.WorkspaceOperationForbiddenException;
+import collabdesk.workspacemember.entity.WorkspaceMember;
+import collabdesk.workspacemember.repository.WorkspaceMemberRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,5 +26,37 @@ public class WorkspaceAccessService {
                 .orElseThrow(() -> new WorkspaceAccessDeniedException(
                         "Workspace membership not found"
                 ));
+    }
+    @Transactional(readOnly = true)
+    public WorkspaceMember requireOwner(
+            Long workspaceId,
+            Long currentUserId
+    ) {
+        WorkspaceMember membership =
+                requireMember(workspaceId, currentUserId);
+
+        if (membership.getRole() != WorkspaceRole.OWNER) {
+            throw new WorkspaceOperationForbiddenException(
+                    "Owner role is required"
+            );
+        }
+
+        return membership;
+    }
+    @Transactional(readOnly = true)
+    public WorkspaceMember requireContributor(
+            Long workspaceId,
+            Long currentUserId
+    ) {
+        WorkspaceMember membership =
+                requireMember(workspaceId, currentUserId);
+
+        if (membership.getRole() == WorkspaceRole.VIEWER) {
+            throw new WorkspaceOperationForbiddenException(
+                    "Viewer has read-only access"
+            );
+        }
+
+        return membership;
     }
 }

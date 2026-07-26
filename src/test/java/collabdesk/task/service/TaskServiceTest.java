@@ -10,7 +10,7 @@ import collabdesk.task.entity.TaskStatus;
 import collabdesk.task.repository.TaskRepository;
 import collabdesk.user.entity.User;
 import collabdesk.workspace.entity.Workspace;
-import collabdesk.workspace.entity.WorkspaceMember;
+import collabdesk.workspacemember.entity.WorkspaceMember;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -52,7 +52,7 @@ class TaskServiceTest {
     @Test
     void memberCreatesNormalizedTodoTaskForAccessibleProject() {
         TestAccess testAccess = access();
-        when(projectAccessService.requireAccessibleProject(1L, 2L, 3L))
+        when(projectAccessService.requireWritableProject(1L, 2L, 3L))
                 .thenReturn(testAccess.accessibleProject());
         when(taskRepository.save(any(Task.class)))
                 .thenAnswer(invocation -> {
@@ -89,7 +89,7 @@ class TaskServiceTest {
 
     @Test
     void accessDeniedCreateDoesNotCallRepository() {
-        when(projectAccessService.requireAccessibleProject(1L, 2L, 3L))
+        when(projectAccessService.requireWritableProject(1L, 2L, 3L))
                 .thenThrow(new ProjectNotFoundException(
                         "Project was not found"
                 ));
@@ -160,7 +160,7 @@ class TaskServiceTest {
     void changesStatusOnlyOnTaskScopedToProject() {
         TestAccess testAccess = access();
         Task task = task(4L, testAccess, "Status task");
-        when(projectAccessService.requireAccessibleProject(1L, 2L, 3L))
+        when(projectAccessService.requireWritableProject(1L, 2L, 3L))
                 .thenReturn(testAccess.accessibleProject());
         when(taskRepository.findByIdAndProject_Id(4L, 2L))
                 .thenReturn(Optional.of(task));
@@ -182,7 +182,7 @@ class TaskServiceTest {
     @Test
     void taskOutsideProjectIsNotChanged() {
         TestAccess testAccess = access();
-        when(projectAccessService.requireAccessibleProject(1L, 2L, 3L))
+        when(projectAccessService.requireWritableProject(1L, 2L, 3L))
                 .thenReturn(testAccess.accessibleProject());
         when(taskRepository.findByIdAndProject_Id(99L, 2L))
                 .thenReturn(Optional.empty());

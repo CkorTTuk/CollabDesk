@@ -3,7 +3,7 @@ package collabdesk.project.service;
 import collabdesk.project.dto.ProjectResponse;
 import collabdesk.project.entity.Project;
 import collabdesk.project.repository.ProjectRepository;
-import collabdesk.workspace.entity.WorkspaceMember;
+import collabdesk.workspacemember.entity.WorkspaceMember;
 import collabdesk.workspace.service.WorkspaceAccessService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,7 +29,7 @@ public class ProjectService {
             String name,
             String description
     ) {
-        WorkspaceMember workspaceMember = workspaceAccessService.requireMember(workspaceId, currentUserId);
+        WorkspaceMember workspaceMember = workspaceAccessService.requireContributor(workspaceId, currentUserId);
         Project project =
                 new Project(
                 workspaceMember.getWorkspace(),

@@ -15,6 +15,12 @@ import {
   createTask,
   getTasks,
 } from './api/taskApi.js'
+import {
+  addWorkspaceMember,
+  changeWorkspaceMemberRole,
+  getWorkspaceMembers,
+  removeWorkspaceMember,
+} from './api/memberApi.js'
 import './App.css'
 
 const EMPTY_LOGIN = {
@@ -657,6 +663,7 @@ function ProjectSection({ workspace, onBack }) {
   const [isLoading, setIsLoading] = useState(true)
   const [isCreating, setIsCreating] = useState(false)
   const [isFormOpen, setIsFormOpen] = useState(false)
+  const [isMembersOpen, setIsMembersOpen] = useState(false)
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
   const [form, setForm] = useState({ name: '', description: '' })
@@ -751,18 +758,36 @@ function ProjectSection({ workspace, onBack }) {
               'Проекты и будущие задачи этого рабочего пространства.'}
           </p>
         </div>
-        <button
-          className="secondary-button"
-          type="button"
-          onClick={() => {
-            setError('')
-            setFieldErrors({})
-            setIsFormOpen((current) => !current)
-          }}
-        >
-          {isFormOpen ? 'Закрыть' : '+ Создать project'}
-        </button>
+        <div className="workspace-header-actions">
+          {workspace.role === 'VIEWER' && (
+            <span className="read-only-badge">Только просмотр</span>
+          )}
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => setIsMembersOpen((current) => !current)}
+          >
+            {isMembersOpen ? 'Скрыть участников' : 'Участники'}
+          </button>
+          {workspace.role !== 'VIEWER' && (
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => {
+                setError('')
+                setFieldErrors({})
+                setIsFormOpen((current) => !current)
+              }}
+            >
+              {isFormOpen ? 'Закрыть' : '+ Создать project'}
+            </button>
+          )}
+        </div>
       </div>
+
+      {isMembersOpen && (
+        <WorkspaceMembers workspace={workspace} />
+      )}
 
       {isFormOpen && (
         <form className="workspace-form" onSubmit={handleCreate}>
@@ -967,17 +992,24 @@ function TaskBoard({ workspace, project, onBack }) {
               'Управляйте задачами и их текущим статусом.'}
           </p>
         </div>
-        <button
-          className="secondary-button"
-          type="button"
-          onClick={() => {
-            setError('')
-            setFieldErrors({})
-            setIsFormOpen((current) => !current)
-          }}
-        >
-          {isFormOpen ? 'Закрыть' : '+ Создать task'}
-        </button>
+        <div className="workspace-header-actions">
+          {workspace.role === 'VIEWER' && (
+            <span className="read-only-badge">Только просмотр</span>
+          )}
+          {workspace.role !== 'VIEWER' && (
+            <button
+              className="secondary-button"
+              type="button"
+              onClick={() => {
+                setError('')
+                setFieldErrors({})
+                setIsFormOpen((current) => !current)
+              }}
+            >
+              {isFormOpen ? 'Закрыть' : '+ Создать task'}
+            </button>
+          )}
+        </div>
       </div>
 
       {isFormOpen && (
@@ -1093,7 +1125,10 @@ function TaskBoard({ workspace, project, onBack }) {
                           <span>Статус</span>
                           <select
                             value={task.status}
-                            disabled={updatingTaskId === task.id}
+                            disabled={
+                              workspace.role === 'VIEWER' ||
+                              updatingTaskId === task.id
+                            }
                             onChange={(event) =>
                               handleStatusChange(
                                 task.id,
@@ -1116,6 +1151,201 @@ function TaskBoard({ workspace, project, onBack }) {
                   )}
                 </div>
               </section>
+            )
+          })}
+        </div>
+      )}
+    </section>
+  )
+}
+
+function WorkspaceMembers({ workspace }) {
+  const [members, setMembers] = useState([])
+  const [form, setForm] = useState({ email: '', role: 'MEMBER' })
+  const [fieldErrors, setFieldErrors] = useState({})
+  const [error, setError] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [changingMemberId, setChangingMemberId] = useState(null)
+
+  const isOwner = workspace.role === 'OWNER'
+
+  const loadMembers = useCallback(async () => {
+    setError('')
+    setIsLoading(true)
+
+    try {
+      setMembers(await getWorkspaceMembers(workspace.id))
+    } catch (loadError) {
+      setError(loadError.message || 'Не удалось загрузить участников.')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [workspace.id])
+
+  useEffect(() => {
+    loadMembers()
+  }, [loadMembers])
+
+  async function handleAdd(event) {
+    event.preventDefault()
+    setError('')
+    setFieldErrors({})
+    setIsSubmitting(true)
+
+    try {
+      const member = await addWorkspaceMember(workspace.id, form)
+      setMembers((current) => [...current, member])
+      setForm({ email: '', role: 'MEMBER' })
+    } catch (addError) {
+      setFieldErrors(addError.fieldErrors ?? {})
+      setError(addError.message || 'Не удалось добавить участника.')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function handleRoleChange(memberId, role) {
+    setError('')
+    setChangingMemberId(memberId)
+
+    try {
+      const updated = await changeWorkspaceMemberRole(
+        workspace.id,
+        memberId,
+        role,
+      )
+      setMembers((current) =>
+        current.map((member) =>
+          member.id === updated.id ? updated : member,
+        ),
+      )
+    } catch (changeError) {
+      setError(changeError.message || 'Не удалось изменить роль.')
+    } finally {
+      setChangingMemberId(null)
+    }
+  }
+
+  async function handleRemove(memberId) {
+    setError('')
+    setChangingMemberId(memberId)
+
+    try {
+      await removeWorkspaceMember(workspace.id, memberId)
+      setMembers((current) =>
+        current.filter((member) => member.id !== memberId),
+      )
+    } catch (removeError) {
+      setError(removeError.message || 'Не удалось удалить участника.')
+    } finally {
+      setChangingMemberId(null)
+    }
+  }
+
+  return (
+    <section className="members-panel">
+      <div className="members-panel-heading">
+        <div>
+          <p className="eyebrow">Команда workspace</p>
+          <h3>Участники</h3>
+        </div>
+        {!isOwner && <span>Управление доступно владельцу</span>}
+      </div>
+
+      {isOwner && (
+        <form className="member-add-form" onSubmit={handleAdd}>
+          <FormField
+            id="member-email"
+            label="Email зарегистрированного пользователя"
+            type="email"
+            placeholder="member@example.com"
+            maxLength={320}
+            value={form.email}
+            onChange={(email) =>
+              setForm((current) => ({ ...current, email }))
+            }
+            error={fieldErrors.email}
+          />
+          <label className="form-field" htmlFor="member-role">
+            <span>Роль</span>
+            <select
+              id="member-role"
+              value={form.role}
+              onChange={(event) =>
+                setForm((current) => ({
+                  ...current,
+                  role: event.target.value,
+                }))
+              }
+            >
+              <option value="ADMIN">Admin</option>
+              <option value="MEMBER">Member</option>
+              <option value="VIEWER">Viewer</option>
+            </select>
+          </label>
+          <button className="primary-button" disabled={isSubmitting}>
+            {isSubmitting ? 'Добавляем…' : 'Добавить'}
+          </button>
+        </form>
+      )}
+
+      {error && (
+        <div className="form-message error" role="alert">
+          {error}
+        </div>
+      )}
+
+      {isLoading ? (
+        <div className="members-loading">
+          <span className="loading-spinner" aria-hidden="true" />
+          Загружаем участников…
+        </div>
+      ) : (
+        <div className="member-list">
+          {members.map((member) => {
+            const isWorkspaceOwner = member.role === 'OWNER'
+            const isChanging = changingMemberId === member.id
+
+            return (
+              <article className="member-row" key={member.id}>
+                <div className="member-avatar" aria-hidden="true">
+                  {member.displayName.slice(0, 1).toUpperCase()}
+                </div>
+                <div className="member-identity">
+                  <strong>{member.displayName}</strong>
+                  <span>{member.email}</span>
+                </div>
+                <time dateTime={member.joinedAt}>
+                  с {formatProjectDate(member.joinedAt)}
+                </time>
+                {isOwner && !isWorkspaceOwner ? (
+                  <div className="member-controls">
+                    <select
+                      aria-label={`Роль ${member.displayName}`}
+                      value={member.role}
+                      disabled={isChanging}
+                      onChange={(event) =>
+                        handleRoleChange(member.id, event.target.value)
+                      }
+                    >
+                      <option value="ADMIN">Admin</option>
+                      <option value="MEMBER">Member</option>
+                      <option value="VIEWER">Viewer</option>
+                    </select>
+                    <button
+                      className="danger-button"
+                      type="button"
+                      disabled={isChanging}
+                      onClick={() => handleRemove(member.id)}
+                    >
+                      Удалить
+                    </button>
+                  </div>
+                ) : (
+                  <span className="role-badge">{member.role}</span>
+                )}
+              </article>
             )
           })}
         </div>

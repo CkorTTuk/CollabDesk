@@ -4,8 +4,9 @@ import collabdesk.TestcontainersConfiguration;
 import collabdesk.user.entity.User;
 import collabdesk.user.repository.UserRepository;
 import collabdesk.workspace.entity.Workspace;
-import collabdesk.workspace.entity.WorkspaceMember;
+import collabdesk.workspacemember.entity.WorkspaceMember;
 import collabdesk.workspace.entity.WorkspaceRole;
+import collabdesk.workspacemember.repository.WorkspaceMemberRepository;
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -13,7 +14,9 @@ import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.test.util.ReflectionTestUtils;
 
+import java.time.Instant;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
@@ -179,6 +182,114 @@ class WorkspaceRepositoryTest {
                                 otherUser.getId()
                         )
                 )
+        );
+    }
+
+    @Test
+    void findsOnlyRequestedWorkspaceMembersOrderedByJoinedAt() {
+        User owner = saveUser("ordered-owner@test.com", "Owner");
+        User firstUser = saveUser("ordered-first@test.com", "First");
+        User secondUser = saveUser("ordered-second@test.com", "Second");
+        User foreignUser = saveUser("ordered-foreign@test.com", "Foreign");
+        Workspace workspace = saveWorkspace("Ordered workspace", owner);
+        Workspace foreignWorkspace =
+                saveWorkspace("Other ordered workspace", foreignUser);
+
+        WorkspaceMember ownerMembership = WorkspaceMember.owner(workspace, owner);
+        WorkspaceMember firstMembership =
+                WorkspaceMember.member(workspace, firstUser);
+        WorkspaceMember secondMembership =
+                WorkspaceMember.member(workspace, secondUser);
+        WorkspaceMember foreignMembership =
+                WorkspaceMember.owner(foreignWorkspace, foreignUser);
+        ReflectionTestUtils.setField(
+                ownerMembership,
+                "joinedAt",
+                Instant.parse("2026-01-01T10:00:00Z")
+        );
+        ReflectionTestUtils.setField(
+                firstMembership,
+                "joinedAt",
+                Instant.parse("2026-01-01T10:01:00Z")
+        );
+        ReflectionTestUtils.setField(
+                secondMembership,
+                "joinedAt",
+                Instant.parse("2026-01-01T10:02:00Z")
+        );
+        workspaceMemberRepository.saveAllAndFlush(List.of(
+                secondMembership,
+                foreignMembership,
+                ownerMembership,
+                firstMembership
+        ));
+
+        entityManager.clear();
+
+        List<WorkspaceMember> result = workspaceMemberRepository
+                .findByWorkspace_IdOrderByJoinedAtAsc(workspace.getId());
+
+        assertAll(
+                () -> assertEquals(3, result.size()),
+                () -> assertEquals(
+                        List.of(owner.getId(), firstUser.getId(), secondUser.getId()),
+                        result.stream()
+                                .map(member -> member.getUser().getId())
+                                .toList()
+                ),
+                () -> assertTrue(result.stream().allMatch(member ->
+                        member.getWorkspace().getId().equals(workspace.getId())
+                ))
+        );
+    }
+
+    @Test
+    void scopedMembershipLookupRejectsMemberFromAnotherWorkspace() {
+        User firstOwner = saveUser("scope-first@test.com", "First");
+        User secondOwner = saveUser("scope-second@test.com", "Second");
+        Workspace firstWorkspace = saveWorkspace("First scope", firstOwner);
+        Workspace secondWorkspace = saveWorkspace("Second scope", secondOwner);
+        WorkspaceMember secondMembership =
+                workspaceMemberRepository.saveAndFlush(
+                        WorkspaceMember.owner(secondWorkspace, secondOwner)
+                );
+
+        assertAll(
+                () -> assertTrue(
+                        workspaceMemberRepository.findByIdAndWorkspace_Id(
+                                secondMembership.getId(),
+                                secondWorkspace.getId()
+                        ).isPresent()
+                ),
+                () -> assertTrue(
+                        workspaceMemberRepository.findByIdAndWorkspace_Id(
+                                secondMembership.getId(),
+                                firstWorkspace.getId()
+                        ).isEmpty()
+                )
+        );
+    }
+
+    @Test
+    void deletingMembershipDoesNotDeleteUser() {
+        User owner = saveUser("delete-owner@test.com", "Owner");
+        User member = saveUser("delete-member@test.com", "Member");
+        Workspace workspace = saveWorkspace("Delete membership", owner);
+        WorkspaceMember membership =
+                workspaceMemberRepository.saveAndFlush(
+                        WorkspaceMember.member(workspace, member)
+                );
+        Long memberId = member.getId();
+
+        workspaceMemberRepository.delete(membership);
+        workspaceMemberRepository.flush();
+        entityManager.clear();
+
+        assertAll(
+                () -> assertFalse(
+                        workspaceMemberRepository.existsById(membership.getId())
+                ),
+                () -> assertTrue(userRepository.existsById(memberId))
         );
     }
 

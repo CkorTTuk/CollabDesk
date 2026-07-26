@@ -15,7 +15,7 @@ export async function getCurrentUser() {
   if (!response.ok) {
     throw await createApiError(
       response,
-      'Не удалось проверить текущую сессию.',
+      'Unable to check the current session.',
     )
   }
 
@@ -37,7 +37,7 @@ export async function registerUser({ email, displayName, password }) {
   if (!response.ok) {
     throw await createApiError(
       response,
-      'Не удалось создать аккаунт.',
+      'Unable to create the account.',
     )
   }
 
@@ -63,14 +63,14 @@ export async function loginUser({ email, password }) {
   if (response.status === 401) {
     throw await createApiError(
       response,
-      'Неверный email или пароль.',
+      'Incorrect email or password.',
     )
   }
 
   if (!response.ok) {
     throw await createApiError(
       response,
-      'Не удалось выполнить вход.',
+      'Unable to sign in.',
     )
   }
 
@@ -89,7 +89,7 @@ export async function logoutUser() {
   if (!response.ok) {
     throw await createApiError(
       response,
-      'Не удалось завершить сессию.',
+      'Unable to end the session.',
     )
   }
 

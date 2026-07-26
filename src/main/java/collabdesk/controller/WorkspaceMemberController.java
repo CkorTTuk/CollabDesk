@@ -1,10 +1,19 @@
 package collabdesk.controller;
 
 import collabdesk.auth.security.AuthenticatedUserPrincipal;
+import collabdesk.openapi.ApiProblemResponse;
 import collabdesk.workspacemember.dto.AddWorkspaceMemberRequest;
 import collabdesk.workspacemember.dto.UpdateWorkspaceMemberRoleRequest;
 import collabdesk.workspacemember.dto.WorkspaceMemberResponse;
 import collabdesk.workspacemember.service.WorkspaceMemberService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -22,6 +31,12 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/v1/workspaces/{workspaceId}/members")
+
+@Tag(
+        name = "Workspace members",
+        description = "Workspace membership and role management"
+)
+@SecurityRequirement(name = "sessionCookie")
 public class WorkspaceMemberController {
 
     private final WorkspaceMemberService workspaceMemberService;
@@ -33,6 +48,21 @@ public class WorkspaceMemberController {
     }
 
     @GetMapping
+    @Operation(
+            summary = "List workspace members",
+            description = "Available to every member of the workspace"
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Workspace member list"),
+            @ApiResponse(responseCode = "401", description = "Authentication required"),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Workspace is not accessible",
+                    content = @Content(schema = @Schema(
+                            implementation = ApiProblemResponse.class
+                    ))
+            )
+    })
     public List<WorkspaceMemberResponse> findAll(
             @PathVariable Long workspaceId,
             @AuthenticationPrincipal AuthenticatedUserPrincipal principal
@@ -45,6 +75,46 @@ public class WorkspaceMemberController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(
+            summary = "Add a workspace member",
+            description = """
+                    Adds an existing active CollabDesk account by email.
+                    Requires the OWNER workspace role.
+                    """
+    )
+    @Parameter(ref = "#/components/parameters/csrfToken")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Workspace member added"),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Request validation failed",
+                    content = @Content(schema = @Schema(
+                            implementation = ApiProblemResponse.class
+                    ))
+            ),
+            @ApiResponse(responseCode = "401", description = "Authentication required"),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "OWNER role required",
+                    content = @Content(schema = @Schema(
+                            implementation = ApiProblemResponse.class
+                    ))
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Workspace or account not found",
+                    content = @Content(schema = @Schema(
+                            implementation = ApiProblemResponse.class
+                    ))
+            ),
+            @ApiResponse(
+                    responseCode = "409",
+                    description = "Membership already exists or OWNER role requested",
+                    content = @Content(schema = @Schema(
+                            implementation = ApiProblemResponse.class
+                    ))
+            )
+    })
     public WorkspaceMemberResponse add(
             @PathVariable Long workspaceId,
             @Valid @RequestBody AddWorkspaceMemberRequest request,
@@ -59,6 +129,43 @@ public class WorkspaceMemberController {
     }
 
     @PatchMapping("/{memberId}/role")
+    @Operation(
+            summary = "Change a workspace member role",
+            description = "Changes a non-owner member role. Requires OWNER."
+    )
+    @Parameter(ref = "#/components/parameters/csrfToken")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Member role changed"),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Request validation failed",
+                    content = @Content(schema = @Schema(
+                            implementation = ApiProblemResponse.class
+                    ))
+            ),
+            @ApiResponse(responseCode = "401", description = "Authentication required"),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "OWNER role required",
+                    content = @Content(schema = @Schema(
+                            implementation = ApiProblemResponse.class
+                    ))
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Workspace member not found",
+                    content = @Content(schema = @Schema(
+                            implementation = ApiProblemResponse.class
+                    ))
+            ),
+            @ApiResponse(
+                    responseCode = "409",
+                    description = "OWNER membership cannot be changed",
+                    content = @Content(schema = @Schema(
+                            implementation = ApiProblemResponse.class
+                    ))
+            )
+    })
     public WorkspaceMemberResponse changeRole(
             @PathVariable Long workspaceId,
             @PathVariable Long memberId,
@@ -75,6 +182,36 @@ public class WorkspaceMemberController {
 
     @DeleteMapping("/{memberId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
+    @Operation(
+            summary = "Remove a workspace member",
+            description = "Removes a non-owner membership. The User account is preserved."
+    )
+    @Parameter(ref = "#/components/parameters/csrfToken")
+    @ApiResponses({
+            @ApiResponse(responseCode = "204", description = "Workspace member removed"),
+            @ApiResponse(responseCode = "401", description = "Authentication required"),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "OWNER role required",
+                    content = @Content(schema = @Schema(
+                            implementation = ApiProblemResponse.class
+                    ))
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Workspace member not found",
+                    content = @Content(schema = @Schema(
+                            implementation = ApiProblemResponse.class
+                    ))
+            ),
+            @ApiResponse(
+                    responseCode = "409",
+                    description = "OWNER membership cannot be removed",
+                    content = @Content(schema = @Schema(
+                            implementation = ApiProblemResponse.class
+                    ))
+            )
+    })
     public void remove(
             @PathVariable Long workspaceId,
             @PathVariable Long memberId,

@@ -11,7 +11,7 @@ export async function getWorkspaces() {
   if (!response.ok) {
     throw await createApiError(
       response,
-      'Не удалось загрузить рабочие пространства.',
+      'Unable to load workspaces.',
     )
   }
 
@@ -36,7 +36,7 @@ export async function createWorkspace({ name, description }) {
   if (!response.ok) {
     throw await createApiError(
       response,
-      'Не удалось создать рабочее пространство.',
+      'Unable to create the workspace.',
     )
   }
 

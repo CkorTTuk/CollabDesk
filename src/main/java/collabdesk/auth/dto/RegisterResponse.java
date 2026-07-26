@@ -2,7 +2,9 @@ package collabdesk.auth.dto;
 
 import collabdesk.auth.registration.RegistrationResult;
 import collabdesk.user.entity.UserStatus;
+import io.swagger.v3.oas.annotations.media.Schema;
 
+@Schema(description = "Newly registered CollabDesk account")
 public record RegisterResponse(
         Long id,
         String email,

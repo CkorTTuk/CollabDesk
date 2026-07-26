@@ -13,7 +13,7 @@ export async function getProjects(workspaceId) {
   if (!response.ok) {
     throw await createApiError(
       response,
-      'Не удалось загрузить проекты рабочего пространства.',
+      'Unable to load workspace projects.',
     )
   }
 
@@ -36,7 +36,7 @@ export async function createProject(workspaceId, { name, description }) {
   )
 
   if (!response.ok) {
-    throw await createApiError(response, 'Не удалось создать проект.')
+    throw await createApiError(response, 'Unable to create the project.')
   }
 
   return response.json()

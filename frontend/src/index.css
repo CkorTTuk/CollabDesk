@@ -8,6 +8,13 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  color: #e7edf7;
+  background: #0b1120;
+  color-scheme: dark;
 }
 
 * {
@@ -17,6 +24,11 @@
 html {
   min-width: 320px;
   background: #f4f6f9;
+}
+
+:root[data-theme='dark'],
+:root[data-theme='dark'] body {
+  background: #0b1120;
 }
 
 body {
@@ -32,7 +44,9 @@ input {
 
 button:focus-visible,
 a:focus-visible,
-input:focus-visible {
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible {
   outline: 3px solid rgba(52, 112, 187, 0.32);
   outline-offset: 2px;
 }

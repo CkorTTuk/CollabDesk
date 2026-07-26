@@ -11,7 +11,7 @@ export async function getWorkspaceMembers(workspaceId) {
   })
 
   if (!response.ok) {
-    throw await createApiError(response, 'Не удалось загрузить участников.')
+    throw await createApiError(response, 'Unable to load members.')
   }
 
   return response.json()
@@ -30,7 +30,7 @@ export async function addWorkspaceMember(workspaceId, form) {
   )
 
   if (!response.ok) {
-    throw await createApiError(response, 'Не удалось добавить участника.')
+    throw await createApiError(response, 'Unable to add the member.')
   }
 
   return response.json()
@@ -53,7 +53,7 @@ export async function changeWorkspaceMemberRole(
   )
 
   if (!response.ok) {
-    throw await createApiError(response, 'Не удалось изменить роль.')
+    throw await createApiError(response, 'Unable to update the role.')
   }
 
   return response.json()
@@ -66,6 +66,6 @@ export async function removeWorkspaceMember(workspaceId, memberId) {
   )
 
   if (!response.ok) {
-    throw await createApiError(response, 'Не удалось удалить участника.')
+    throw await createApiError(response, 'Unable to remove the member.')
   }
 }

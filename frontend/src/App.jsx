@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   getCurrentUser,
   loginUser,
@@ -35,10 +35,47 @@ const EMPTY_REGISTRATION = {
 }
 
 const TASK_COLUMNS = [
-  { status: 'TODO', title: 'К выполнению' },
-  { status: 'IN_PROGRESS', title: 'В работе' },
-  { status: 'DONE', title: 'Готово' },
+  { status: 'TODO', title: 'To do' },
+  { status: 'IN_PROGRESS', title: 'In progress' },
+  { status: 'DONE', title: 'Done' },
 ]
+
+const MEMBER_ROLES = [
+  {
+    value: 'ADMIN',
+    label: 'Admin',
+    description: 'Manage workspace content',
+  },
+  {
+    value: 'MEMBER',
+    label: 'Member',
+    description: 'Create and update work',
+  },
+  {
+    value: 'VIEWER',
+    label: 'Viewer',
+    description: 'Read-only access',
+  },
+]
+
+const THEME_STORAGE_KEY = 'collabdesk.theme'
+
+function getInitialTheme() {
+  const savedTheme = localStorage.getItem(THEME_STORAGE_KEY)
+
+  if (savedTheme === 'light' || savedTheme === 'dark') {
+    return savedTheme
+  }
+
+  return window.matchMedia('(prefers-color-scheme: dark)').matches
+    ? 'dark'
+    : 'light'
+}
+
+function clearSavedNavigation() {
+  localStorage.removeItem('collabdesk.selectedWorkspaceId')
+  localStorage.removeItem('collabdesk.selectedProjectId')
+}
 
 function Brand() {
   return (
@@ -50,6 +87,125 @@ function Brand() {
       </span>
       <span>CollabDesk</span>
     </a>
+  )
+}
+
+function ThemeToggle({ theme, onToggle }) {
+  const nextTheme = theme === 'dark' ? 'light' : 'dark'
+
+  return (
+    <button
+      className="theme-toggle"
+      type="button"
+      onClick={onToggle}
+      aria-label={`Switch to ${nextTheme} theme`}
+      title={`Switch to ${nextTheme} theme`}
+    >
+      <span aria-hidden="true">{theme === 'dark' ? '☀' : '☾'}</span>
+      <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
+    </button>
+  )
+}
+
+function RolePicker({
+  value,
+  onChange,
+  label = 'Role',
+  disabled = false,
+  compact = false,
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const pickerRef = useRef(null)
+  const selectedRole =
+    MEMBER_ROLES.find((role) => role.value === value) ?? MEMBER_ROLES[1]
+
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined
+    }
+
+    function handlePointerDown(event) {
+      if (!pickerRef.current?.contains(event.target)) {
+        setIsOpen(false)
+      }
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        setIsOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isOpen])
+
+  function selectRole(role) {
+    setIsOpen(false)
+
+    if (role.value !== value) {
+      onChange(role.value)
+    }
+  }
+
+  return (
+    <div
+      className={`role-picker${compact ? ' role-picker-compact' : ''}`}
+      ref={pickerRef}
+    >
+      {!compact && <span className="role-picker-label">{label}</span>}
+      <button
+        className="role-picker-trigger"
+        type="button"
+        disabled={disabled}
+        aria-label={compact ? label : undefined}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((current) => !current)}
+      >
+        <span
+          className={`role-dot role-dot-${selectedRole.value.toLowerCase()}`}
+          aria-hidden="true"
+        />
+        <span>{selectedRole.label}</span>
+        <span className="role-picker-chevron" aria-hidden="true">
+          {isOpen ? '↑' : '↓'}
+        </span>
+      </button>
+      {isOpen && (
+        <div className="role-picker-menu" role="listbox" aria-label={label}>
+          {MEMBER_ROLES.map((role) => (
+            <button
+              className={role.value === value ? 'selected' : ''}
+              type="button"
+              role="option"
+              aria-selected={role.value === value}
+              key={role.value}
+              onClick={() => selectRole(role)}
+            >
+              <span
+                className={`role-dot role-dot-${role.value.toLowerCase()}`}
+                aria-hidden="true"
+              />
+              <span>
+                <strong>{role.label}</strong>
+                <small>{role.description}</small>
+              </span>
+              {role.value === value && (
+                <span className="role-picker-check" aria-hidden="true">
+                  ✓
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -84,7 +240,7 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
       onAuthenticated(user)
     } catch (error) {
       setFieldErrors(error.fieldErrors ?? {})
-      setMessage(error.message || 'Не удалось выполнить вход.')
+      setMessage(error.message || 'Unable to sign in.')
       setMessageType('error')
     } finally {
       setIsSubmitting(false)
@@ -103,11 +259,11 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
       setRegistrationForm(EMPTY_REGISTRATION)
       setLoginForm((current) => ({ ...current, email: account.email }))
       onModeChange('login')
-      setMessage('Аккаунт создан. Теперь войдите с указанным паролем.')
+      setMessage('Account created. Sign in with your new credentials.')
       setMessageType('success')
     } catch (error) {
       setFieldErrors(error.fieldErrors ?? {})
-      setMessage(error.message || 'Не удалось создать аккаунт.')
+      setMessage(error.message || 'Unable to create the account.')
       setMessageType('error')
     } finally {
       setIsSubmitting(false)
@@ -116,27 +272,26 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
 
   return (
     <main className="auth-page">
-      <section className="auth-intro" aria-label="О продукте">
+      <section className="auth-intro" aria-label="About CollabDesk">
         <Brand />
 
         <div className="intro-copy">
-          <p className="eyebrow">Командная работа без лишнего шума</p>
-          <h1>Все рабочие задачи в одном понятном пространстве.</h1>
+          <p className="eyebrow">Focused teamwork, without the noise</p>
+          <h1>Projects, people, and progress in one clear workspace.</h1>
           <p className="intro-text">
-            CollabDesk объединяет проекты, задачи и обсуждения команды. Сейчас
-            доступна безопасная регистрация и вход — рабочие пространства
-            появятся следующим этапом.
+            CollabDesk keeps your teams, projects, and tasks connected. Plan
+            work, track progress, and manage access without losing context.
           </p>
         </div>
 
-        <div className="feature-list" aria-label="Возможности">
+        <div className="feature-list" aria-label="Highlights">
           <div className="feature">
             <span className="feature-icon" aria-hidden="true">
               01
             </span>
             <div>
-              <strong>Надёжная сессия</strong>
-              <span>Spring Security и CSRF-защита</span>
+              <strong>Private by default</strong>
+              <span>Controlled access for every workspace</span>
             </div>
           </div>
           <div className="feature">
@@ -144,13 +299,13 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
               02
             </span>
             <div>
-              <strong>Готово к росту</strong>
-              <span>Workspace, проекты и задачи дальше</span>
+              <strong>Built for teams</strong>
+              <span>Workspaces, projects, tasks, and roles</span>
             </div>
           </div>
         </div>
 
-        <p className="intro-footer">Java 21 · Spring Boot · React</p>
+        <p className="intro-footer">Organize · Collaborate · Deliver</p>
       </section>
 
       <section className="auth-panel">
@@ -160,12 +315,12 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
           </div>
 
           <div className="auth-heading">
-            <p className="eyebrow">{isLogin ? 'С возвращением' : 'Новый аккаунт'}</p>
-            <h2>{isLogin ? 'Войти в CollabDesk' : 'Создать аккаунт'}</h2>
+            <p className="eyebrow">{isLogin ? 'Welcome back' : 'New account'}</p>
+            <h2>{isLogin ? 'Sign in to CollabDesk' : 'Create your account'}</h2>
             <p>
               {isLogin
-                ? 'Введите данные, указанные при регистрации.'
-                : 'Начните с личного профиля — команда подключится позже.'}
+                ? 'Enter the credentials you used when registering.'
+                : 'Create your profile and start organizing team work.'}
             </p>
           </div>
 
@@ -198,10 +353,10 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
               />
               <FormField
                 id="login-password"
-                label="Пароль"
+                label="Password"
                 type="password"
                 autoComplete="current-password"
-                placeholder="Минимум 8 символов"
+                placeholder="At least 8 characters"
                 value={loginForm.password}
                 onChange={(value) =>
                   setLoginForm((current) => ({ ...current, password: value }))
@@ -209,17 +364,17 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
                 error={fieldErrors.password}
               />
               <button className="primary-button" disabled={isSubmitting}>
-                {isSubmitting ? 'Входим…' : 'Войти'}
+                {isSubmitting ? 'Signing in…' : 'Sign in'}
               </button>
             </form>
           ) : (
             <form className="auth-form" onSubmit={handleRegistration}>
               <FormField
                 id="register-name"
-                label="Как вас зовут"
+                label="Display name"
                 type="text"
                 autoComplete="name"
-                placeholder="Алексей"
+                placeholder="Alex Morgan"
                 maxLength={100}
                 value={registrationForm.displayName}
                 onChange={(value) =>
@@ -248,10 +403,10 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
               />
               <FormField
                 id="register-password"
-                label="Пароль"
+                label="Password"
                 type="password"
                 autoComplete="new-password"
-                placeholder="От 8 до 64 символов"
+                placeholder="8 to 64 characters"
                 minLength={8}
                 maxLength={64}
                 value={registrationForm.password}
@@ -264,18 +419,18 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
                 error={fieldErrors.password}
               />
               <button className="primary-button" disabled={isSubmitting}>
-                {isSubmitting ? 'Создаём аккаунт…' : 'Зарегистрироваться'}
+                {isSubmitting ? 'Creating account…' : 'Create account'}
               </button>
             </form>
           )}
 
           <p className="mode-switch">
-            {isLogin ? 'Ещё нет аккаунта?' : 'Уже зарегистрированы?'}
+            {isLogin ? 'New to CollabDesk?' : 'Already have an account?'}
             <button
               type="button"
               onClick={() => changeMode(isLogin ? 'register' : 'login')}
             >
-              {isLogin ? 'Создать' : 'Войти'}
+              {isLogin ? 'Create account' : 'Sign in'}
             </button>
           </p>
         </div>
@@ -329,7 +484,7 @@ function Dashboard({ user, onLogout }) {
       await logoutUser()
       onLogout()
     } catch (logoutError) {
-      setError(logoutError.message || 'Не удалось выйти из аккаунта.')
+      setError(logoutError.message || 'Unable to sign out.')
       setIsLoggingOut(false)
     }
   }
@@ -360,7 +515,7 @@ function Dashboard({ user, onLogout }) {
             onClick={handleLogout}
             disabled={isLoggingOut}
           >
-            {isLoggingOut ? 'Выходим…' : 'Выйти'}
+            {isLoggingOut ? 'Signing out…' : 'Sign out'}
           </button>
         </div>
       </header>
@@ -368,14 +523,10 @@ function Dashboard({ user, onLogout }) {
       <main className="dashboard-main">
         <div className="dashboard-title">
           <div>
-            <p className="eyebrow">Личный кабинет</p>
-            <h1>Добро пожаловать, {user.displayName}.</h1>
-            <p>Ваша сессия активна и восстановится после обновления страницы.</p>
+            <p className="eyebrow">Overview</p>
+            <h1>Welcome, {user.displayName}.</h1>
+            <p>Your teams and active work are ready in one place.</p>
           </div>
-          <span className="status-badge">
-            <span aria-hidden="true" />
-            {user.status === 'ACTIVE' ? 'Аккаунт активен' : user.status}
-          </span>
         </div>
 
         {error && (
@@ -385,24 +536,6 @@ function Dashboard({ user, onLogout }) {
         )}
 
         <WorkspaceSection />
-
-        <section className="account-grid">
-          <article>
-            <span className="card-label">Профиль</span>
-            <strong>{user.displayName}</strong>
-            <p>{user.email}</p>
-          </article>
-          <article>
-            <span className="card-label">Идентификатор</span>
-            <strong>#{user.id}</strong>
-            <p>Внутренний ID пользователя</p>
-          </article>
-          <article>
-            <span className="card-label">Безопасность</span>
-            <strong>Session-based</strong>
-            <p>Защищено Spring Security</p>
-          </article>
-        </section>
       </main>
     </div>
   )
@@ -427,24 +560,12 @@ function WorkspaceSection() {
     try {
       const loadedWorkspaces = await getWorkspaces()
       setWorkspaces(loadedWorkspaces)
-
-      const storedWorkspaceId = Number(
-        localStorage.getItem('collabdesk.selectedWorkspaceId'),
-      )
-      const storedWorkspace = loadedWorkspaces.find(
-        (workspace) => workspace.id === storedWorkspaceId,
-      )
-      setSelectedWorkspace(storedWorkspace ?? null)
-
-      if (!storedWorkspace) {
-        localStorage.removeItem('collabdesk.selectedWorkspaceId')
-        localStorage.removeItem('collabdesk.selectedProjectId')
-      }
+      setSelectedWorkspace(null)
     } catch (loadError) {
       if (loadError.status === 404) {
         setModuleUnavailable(true)
       } else {
-        setError(loadError.message || 'Не удалось загрузить workspaces.')
+        setError(loadError.message || 'Unable to load workspaces.')
       }
     } finally {
       setIsLoading(false)
@@ -469,7 +590,7 @@ function WorkspaceSection() {
     } catch (createError) {
       setFieldErrors(createError.fieldErrors ?? {})
       setError(
-        createError.message || 'Не удалось создать рабочее пространство.',
+        createError.message || 'Unable to create the workspace.',
       )
     } finally {
       setIsCreating(false)
@@ -477,16 +598,10 @@ function WorkspaceSection() {
   }
 
   function openWorkspace(workspace) {
-    localStorage.setItem(
-      'collabdesk.selectedWorkspaceId',
-      String(workspace.id),
-    )
     setSelectedWorkspace(workspace)
   }
 
   function closeWorkspace() {
-    localStorage.removeItem('collabdesk.selectedWorkspaceId')
-    localStorage.removeItem('collabdesk.selectedProjectId')
     setSelectedWorkspace(null)
   }
 
@@ -494,7 +609,7 @@ function WorkspaceSection() {
     return (
       <section className="workspace-panel workspace-loading">
         <span className="loading-spinner" aria-hidden="true" />
-        <p>Загружаем рабочие пространства…</p>
+        <p>Loading workspaces…</p>
       </section>
     )
   }
@@ -508,16 +623,16 @@ function WorkspaceSection() {
           <span />
         </div>
         <div>
-          <p className="eyebrow">Backend этап 7</p>
-          <h2>Workspace API ещё не подключён</h2>
+          <p className="eyebrow">Workspace API</p>
+          <h2>The workspace service is not available</h2>
           <p>
-            Интерфейс уже ожидает GET и POST на{' '}
-            <code>/api/v1/workspaces</code>. Реализуйте backend по новой
-            инструкции и повторите проверку.
+            CollabDesk expects GET and POST requests at{' '}
+            <code>/api/v1/workspaces</code>. Start the latest backend version
+            and try again.
           </p>
         </div>
         <button className="secondary-button" onClick={loadWorkspaces}>
-          Проверить снова
+          Try again
         </button>
       </section>
     )
@@ -536,9 +651,9 @@ function WorkspaceSection() {
     <section className="workspace-panel">
       <div className="workspace-panel-header">
         <div>
-          <p className="eyebrow">Рабочие пространства</p>
-          <h2>Ваши команды</h2>
-          <p>Проекты и задачи будут организованы внутри workspace.</p>
+          <p className="eyebrow">Workspaces</p>
+          <h2>Your teams</h2>
+          <p>Choose a workspace to manage its projects, tasks, and members.</p>
         </div>
         <button
           className="secondary-button"
@@ -549,18 +664,24 @@ function WorkspaceSection() {
             setIsFormOpen((current) => !current)
           }}
         >
-          {isFormOpen ? 'Закрыть' : '+ Создать workspace'}
+          {isFormOpen ? 'Cancel' : '+ New workspace'}
         </button>
       </div>
 
       {isFormOpen && (
-        <form className="workspace-form" onSubmit={handleCreate}>
+        <form
+          className="workspace-form"
+          autoComplete="off"
+          onSubmit={handleCreate}
+        >
           <div className="workspace-form-grid">
             <FormField
               id="workspace-name"
-              label="Название"
+              label="Workspace name"
               type="text"
-              placeholder="Например, Product Team"
+              name="new-workspace-name"
+              autoComplete="off"
+              placeholder="For example, Product Team"
               minLength={2}
               maxLength={100}
               value={form.name}
@@ -570,11 +691,13 @@ function WorkspaceSection() {
               error={fieldErrors.name}
             />
             <label className="form-field" htmlFor="workspace-description">
-              <span>Описание <em>необязательно</em></span>
+              <span>Description <em>optional</em></span>
               <textarea
                 id="workspace-description"
+                name="new-workspace-description"
+                autoComplete="off"
                 maxLength={500}
-                placeholder="Чем занимается эта команда?"
+                placeholder="What does this team work on?"
                 value={form.description}
                 aria-invalid={Boolean(fieldErrors.description)}
                 onChange={(event) =>
@@ -597,9 +720,9 @@ function WorkspaceSection() {
             </div>
           )}
           <div className="workspace-form-actions">
-            <span>Вы автоматически станете владельцем workspace.</span>
+            <span>You will automatically become the workspace owner.</span>
             <button className="primary-button" disabled={isCreating}>
-              {isCreating ? 'Создаём…' : 'Создать'}
+              {isCreating ? 'Creating…' : 'Create workspace'}
             </button>
           </div>
         </form>
@@ -618,8 +741,8 @@ function WorkspaceSection() {
             <span />
             <span />
           </div>
-          <h3>Пока нет ни одного workspace</h3>
-          <p>Создайте первое пространство для своей команды.</p>
+          <h3>No workspaces yet</h3>
+          <p>Create a workspace to bring your first team together.</p>
         </div>
       ) : (
         <div className="workspace-grid">
@@ -636,18 +759,17 @@ function WorkspaceSection() {
                 </div>
                 <span className="role-badge">
                   {workspace.role === 'OWNER'
-                    ? 'Владелец'
+                    ? 'Owner'
                     : workspace.role}
                 </span>
               </div>
               <h3>{workspace.name}</h3>
               <p>
                 {workspace.description ||
-                  'Описание рабочего пространства пока не добавлено.'}
+                  'No workspace description has been added yet.'}
               </p>
               <div className="workspace-card-footer">
-                <span>ID #{workspace.id}</span>
-                <span>Открыть →</span>
+                <span>Open workspace →</span>
               </div>
             </button>
           ))}
@@ -675,22 +797,11 @@ function ProjectSection({ workspace, onBack }) {
     try {
       const loadedProjects = await getProjects(workspace.id)
       setProjects(loadedProjects)
-
-      const storedProjectId = Number(
-        localStorage.getItem('collabdesk.selectedProjectId'),
-      )
-      const storedProject = loadedProjects.find(
-        (project) => project.id === storedProjectId,
-      )
-      setSelectedProject(storedProject ?? null)
-
-      if (!storedProject) {
-        localStorage.removeItem('collabdesk.selectedProjectId')
-      }
+      setSelectedProject(null)
     } catch (loadError) {
       setError(
         loadError.message ||
-          'Не удалось загрузить проекты рабочего пространства.',
+          'Unable to load workspace projects.',
       )
     } finally {
       setIsLoading(false)
@@ -714,22 +825,17 @@ function ProjectSection({ workspace, onBack }) {
       setIsFormOpen(false)
     } catch (createError) {
       setFieldErrors(createError.fieldErrors ?? {})
-      setError(createError.message || 'Не удалось создать проект.')
+      setError(createError.message || 'Unable to create the project.')
     } finally {
       setIsCreating(false)
     }
   }
 
   function openProject(project) {
-    localStorage.setItem(
-      'collabdesk.selectedProjectId',
-      String(project.id),
-    )
     setSelectedProject(project)
   }
 
   function closeProject() {
-    localStorage.removeItem('collabdesk.selectedProjectId')
     setSelectedProject(null)
   }
 
@@ -746,28 +852,28 @@ function ProjectSection({ workspace, onBack }) {
   return (
     <section className="workspace-panel project-panel">
       <button className="project-back" type="button" onClick={onBack}>
-        ← Все workspace
+        ← All workspaces
       </button>
 
       <div className="workspace-panel-header project-panel-header">
         <div>
-          <p className="eyebrow">Workspace #{workspace.id}</p>
+          <p className="eyebrow">Workspace</p>
           <h2>{workspace.name}</h2>
           <p>
             {workspace.description ||
-              'Проекты и будущие задачи этого рабочего пространства.'}
+              'Projects and tasks for this workspace.'}
           </p>
         </div>
         <div className="workspace-header-actions">
           {workspace.role === 'VIEWER' && (
-            <span className="read-only-badge">Только просмотр</span>
+            <span className="read-only-badge">View only</span>
           )}
           <button
             className="secondary-button"
             type="button"
             onClick={() => setIsMembersOpen((current) => !current)}
           >
-            {isMembersOpen ? 'Скрыть участников' : 'Участники'}
+            {isMembersOpen ? 'Hide members' : 'Members'}
           </button>
           {workspace.role !== 'VIEWER' && (
             <button
@@ -779,7 +885,7 @@ function ProjectSection({ workspace, onBack }) {
                 setIsFormOpen((current) => !current)
               }}
             >
-              {isFormOpen ? 'Закрыть' : '+ Создать project'}
+              {isFormOpen ? 'Cancel' : '+ New project'}
             </button>
           )}
         </div>
@@ -790,13 +896,19 @@ function ProjectSection({ workspace, onBack }) {
       )}
 
       {isFormOpen && (
-        <form className="workspace-form" onSubmit={handleCreate}>
+        <form
+          className="workspace-form"
+          autoComplete="off"
+          onSubmit={handleCreate}
+        >
           <div className="workspace-form-grid">
             <FormField
               id="project-name"
-              label="Название проекта"
+              label="Project name"
               type="text"
-              placeholder="Например, CollabDesk MVP"
+              name="new-project-name"
+              autoComplete="off"
+              placeholder="For example, CollabDesk MVP"
               minLength={2}
               maxLength={100}
               value={form.name}
@@ -807,12 +919,14 @@ function ProjectSection({ workspace, onBack }) {
             />
             <label className="form-field" htmlFor="project-description">
               <span>
-                Описание <em>необязательно</em>
+                Description <em>optional</em>
               </span>
               <textarea
                 id="project-description"
+                name="new-project-description"
+                autoComplete="off"
                 maxLength={500}
-                placeholder="Какой результат должен дать этот проект?"
+                placeholder="What outcome should this project deliver?"
                 value={form.description}
                 aria-invalid={Boolean(fieldErrors.description)}
                 onChange={(event) =>
@@ -837,9 +951,9 @@ function ProjectSection({ workspace, onBack }) {
           )}
 
           <div className="workspace-form-actions">
-            <span>Project будет создан внутри {workspace.name}.</span>
+            <span>The project will be created in {workspace.name}.</span>
             <button className="primary-button" disabled={isCreating}>
-              {isCreating ? 'Создаём…' : 'Создать project'}
+              {isCreating ? 'Creating…' : 'Create project'}
             </button>
           </div>
         </form>
@@ -851,7 +965,7 @@ function ProjectSection({ workspace, onBack }) {
             {error}
           </div>
           <button className="secondary-button" onClick={loadProjects}>
-            Повторить
+            Try again
           </button>
         </div>
       )}
@@ -859,15 +973,15 @@ function ProjectSection({ workspace, onBack }) {
       {isLoading ? (
         <div className="project-loading">
           <span className="loading-spinner" aria-hidden="true" />
-          <p>Загружаем проекты…</p>
+          <p>Loading projects…</p>
         </div>
       ) : projects.length === 0 && !error ? (
         <div className="workspace-empty project-empty">
           <div className="project-empty-mark" aria-hidden="true">
             P
           </div>
-          <h3>В этом workspace пока нет проектов</h3>
-          <p>Создайте первый project и он сохранится в MySQL.</p>
+          <h3>No projects in this workspace</h3>
+          <p>Create the first project to start organizing work.</p>
         </div>
       ) : (
         <div className="project-grid">
@@ -882,7 +996,7 @@ function ProjectSection({ workspace, onBack }) {
                 <span className="project-status">
                   <span aria-hidden="true" />
                   {project.status === 'ACTIVE'
-                    ? 'Активен'
+                    ? 'Active'
                     : project.status}
                 </span>
                 <span>#{project.id}</span>
@@ -890,11 +1004,10 @@ function ProjectSection({ workspace, onBack }) {
               <h3>{project.name}</h3>
               <p>
                 {project.description ||
-                  'Описание проекта пока не добавлено.'}
+                  'No project description has been added yet.'}
               </p>
               <div className="project-card-footer">
-                <span>Workspace #{project.workspaceId}</span>
-                <span>Открыть задачи →</span>
+                <span>Open tasks →</span>
               </div>
             </button>
           ))}
@@ -921,7 +1034,7 @@ function TaskBoard({ workspace, project, onBack }) {
     try {
       setTasks(await getTasks(workspace.id, project.id))
     } catch (loadError) {
-      setError(loadError.message || 'Не удалось загрузить задачи.')
+      setError(loadError.message || 'Unable to load tasks.')
     } finally {
       setIsLoading(false)
     }
@@ -944,7 +1057,7 @@ function TaskBoard({ workspace, project, onBack }) {
       setIsFormOpen(false)
     } catch (createError) {
       setFieldErrors(createError.fieldErrors ?? {})
-      setError(createError.message || 'Не удалось создать задачу.')
+      setError(createError.message || 'Unable to create the task.')
     } finally {
       setIsCreating(false)
     }
@@ -968,7 +1081,7 @@ function TaskBoard({ workspace, project, onBack }) {
       )
     } catch (updateError) {
       setError(
-        updateError.message || 'Не удалось изменить статус задачи.',
+        updateError.message || 'Unable to update the task status.',
       )
     } finally {
       setUpdatingTaskId(null)
@@ -978,7 +1091,7 @@ function TaskBoard({ workspace, project, onBack }) {
   return (
     <section className="workspace-panel task-panel">
       <button className="project-back" type="button" onClick={onBack}>
-        ← Проекты workspace
+        ← Workspace projects
       </button>
 
       <div className="workspace-panel-header task-panel-header">
@@ -989,12 +1102,12 @@ function TaskBoard({ workspace, project, onBack }) {
           <h2>{project.name}</h2>
           <p>
             {project.description ||
-              'Управляйте задачами и их текущим статусом.'}
+              'Manage project tasks and keep their status up to date.'}
           </p>
         </div>
         <div className="workspace-header-actions">
           {workspace.role === 'VIEWER' && (
-            <span className="read-only-badge">Только просмотр</span>
+            <span className="read-only-badge">View only</span>
           )}
           {workspace.role !== 'VIEWER' && (
             <button
@@ -1006,20 +1119,26 @@ function TaskBoard({ workspace, project, onBack }) {
                 setIsFormOpen((current) => !current)
               }}
             >
-              {isFormOpen ? 'Закрыть' : '+ Создать task'}
+              {isFormOpen ? 'Cancel' : '+ New task'}
             </button>
           )}
         </div>
       </div>
 
       {isFormOpen && (
-        <form className="workspace-form task-form" onSubmit={handleCreate}>
+        <form
+          className="workspace-form task-form"
+          autoComplete="off"
+          onSubmit={handleCreate}
+        >
           <div className="workspace-form-grid">
             <FormField
               id="task-title"
-              label="Название задачи"
+              label="Task title"
               type="text"
-              placeholder="Например, добавить API-клиент"
+              name="new-task-title"
+              autoComplete="off"
+              placeholder="For example, add the API client"
               minLength={2}
               maxLength={150}
               value={form.title}
@@ -1030,12 +1149,14 @@ function TaskBoard({ workspace, project, onBack }) {
             />
             <label className="form-field" htmlFor="task-description">
               <span>
-                Описание <em>необязательно</em>
+                Description <em>optional</em>
               </span>
               <textarea
                 id="task-description"
+                name="new-task-description"
+                autoComplete="off"
                 maxLength={1000}
-                placeholder="Что именно нужно сделать?"
+                placeholder="What needs to be done?"
                 value={form.description}
                 aria-invalid={Boolean(fieldErrors.description)}
                 onChange={(event) =>
@@ -1060,9 +1181,9 @@ function TaskBoard({ workspace, project, onBack }) {
           )}
 
           <div className="workspace-form-actions">
-            <span>Новая задача появится в колонке «К выполнению».</span>
+            <span>New tasks start in the “To do” column.</span>
             <button className="primary-button" disabled={isCreating}>
-              {isCreating ? 'Создаём…' : 'Создать task'}
+              {isCreating ? 'Creating…' : 'Create task'}
             </button>
           </div>
         </form>
@@ -1074,7 +1195,7 @@ function TaskBoard({ workspace, project, onBack }) {
             {error}
           </div>
           <button className="secondary-button" onClick={loadTasks}>
-            Обновить доску
+            Refresh board
           </button>
         </div>
       )}
@@ -1082,7 +1203,7 @@ function TaskBoard({ workspace, project, onBack }) {
       {isLoading ? (
         <div className="project-loading">
           <span className="loading-spinner" aria-hidden="true" />
-          <p>Загружаем задачи…</p>
+          <p>Loading tasks…</p>
         </div>
       ) : (
         <div className="task-board">
@@ -1106,23 +1227,22 @@ function TaskBoard({ workspace, project, onBack }) {
 
                 <div className="task-list">
                   {columnTasks.length === 0 ? (
-                    <p className="task-column-empty">Задач пока нет</p>
+                    <p className="task-column-empty">No tasks here</p>
                   ) : (
                     columnTasks.map((task) => (
                       <article className="task-card" key={task.id}>
                         <div className="task-card-meta">
-                          <span>Task #{task.id}</span>
                           <time dateTime={task.createdAt}>
-                            {formatProjectDate(task.createdAt)}
+                            {formatTaskDate(task.createdAt)}
                           </time>
                         </div>
                         <h4>{task.title}</h4>
                         <p>
                           {task.description ||
-                            'Описание задачи пока не добавлено.'}
+                            'No task description has been added yet.'}
                         </p>
                         <label className="task-status-control">
-                          <span>Статус</span>
+                          <span>Status</span>
                           <select
                             value={task.status}
                             disabled={
@@ -1177,7 +1297,7 @@ function WorkspaceMembers({ workspace }) {
     try {
       setMembers(await getWorkspaceMembers(workspace.id))
     } catch (loadError) {
-      setError(loadError.message || 'Не удалось загрузить участников.')
+      setError(loadError.message || 'Unable to load members.')
     } finally {
       setIsLoading(false)
     }
@@ -1199,7 +1319,7 @@ function WorkspaceMembers({ workspace }) {
       setForm({ email: '', role: 'MEMBER' })
     } catch (addError) {
       setFieldErrors(addError.fieldErrors ?? {})
-      setError(addError.message || 'Не удалось добавить участника.')
+      setError(addError.message || 'Unable to add the member.')
     } finally {
       setIsSubmitting(false)
     }
@@ -1221,13 +1341,22 @@ function WorkspaceMembers({ workspace }) {
         ),
       )
     } catch (changeError) {
-      setError(changeError.message || 'Не удалось изменить роль.')
+      setError(changeError.message || 'Unable to update the role.')
     } finally {
       setChangingMemberId(null)
     }
   }
 
   async function handleRemove(memberId) {
+    const member = members.find((item) => item.id === memberId)
+    const confirmed = window.confirm(
+      `Remove ${member?.displayName ?? 'this member'} from the workspace?`,
+    )
+
+    if (!confirmed) {
+      return
+    }
+
     setError('')
     setChangingMemberId(memberId)
 
@@ -1237,7 +1366,7 @@ function WorkspaceMembers({ workspace }) {
         current.filter((member) => member.id !== memberId),
       )
     } catch (removeError) {
-      setError(removeError.message || 'Не удалось удалить участника.')
+      setError(removeError.message || 'Unable to remove the member.')
     } finally {
       setChangingMemberId(null)
     }
@@ -1247,18 +1376,26 @@ function WorkspaceMembers({ workspace }) {
     <section className="members-panel">
       <div className="members-panel-heading">
         <div>
-          <p className="eyebrow">Команда workspace</p>
-          <h3>Участники</h3>
+          <p className="eyebrow">Workspace team</p>
+          <h3>Members</h3>
         </div>
-        {!isOwner && <span>Управление доступно владельцу</span>}
+        {!isOwner && <span>Only the owner can manage members</span>}
       </div>
 
       {isOwner && (
-        <form className="member-add-form" onSubmit={handleAdd}>
+        <form
+          className="member-add-form"
+          autoComplete="off"
+          onSubmit={handleAdd}
+        >
           <FormField
             id="member-email"
-            label="Email зарегистрированного пользователя"
+            label="Registered user email"
             type="email"
+            name="workspace-member-lookup"
+            autoComplete="off"
+            data-1p-ignore
+            data-lpignore="true"
             placeholder="member@example.com"
             maxLength={320}
             value={form.email}
@@ -1267,25 +1404,17 @@ function WorkspaceMembers({ workspace }) {
             }
             error={fieldErrors.email}
           />
-          <label className="form-field" htmlFor="member-role">
-            <span>Роль</span>
-            <select
-              id="member-role"
-              value={form.role}
-              onChange={(event) =>
-                setForm((current) => ({
-                  ...current,
-                  role: event.target.value,
-                }))
-              }
-            >
-              <option value="ADMIN">Admin</option>
-              <option value="MEMBER">Member</option>
-              <option value="VIEWER">Viewer</option>
-            </select>
-          </label>
+          <RolePicker
+            value={form.role}
+            onChange={(role) =>
+              setForm((current) => ({
+                ...current,
+                role,
+              }))
+            }
+          />
           <button className="primary-button" disabled={isSubmitting}>
-            {isSubmitting ? 'Добавляем…' : 'Добавить'}
+            {isSubmitting ? 'Adding…' : 'Add member'}
           </button>
         </form>
       )}
@@ -1299,7 +1428,7 @@ function WorkspaceMembers({ workspace }) {
       {isLoading ? (
         <div className="members-loading">
           <span className="loading-spinner" aria-hidden="true" />
-          Загружаем участников…
+          Loading members…
         </div>
       ) : (
         <div className="member-list">
@@ -1317,29 +1446,26 @@ function WorkspaceMembers({ workspace }) {
                   <span>{member.email}</span>
                 </div>
                 <time dateTime={member.joinedAt}>
-                  с {formatProjectDate(member.joinedAt)}
+                  Joined {formatProjectDate(member.joinedAt)}
                 </time>
                 {isOwner && !isWorkspaceOwner ? (
                   <div className="member-controls">
-                    <select
-                      aria-label={`Роль ${member.displayName}`}
+                    <RolePicker
+                      compact
+                      label={`Role for ${member.displayName}`}
                       value={member.role}
                       disabled={isChanging}
-                      onChange={(event) =>
-                        handleRoleChange(member.id, event.target.value)
+                      onChange={(role) =>
+                        handleRoleChange(member.id, role)
                       }
-                    >
-                      <option value="ADMIN">Admin</option>
-                      <option value="MEMBER">Member</option>
-                      <option value="VIEWER">Viewer</option>
-                    </select>
+                    />
                     <button
                       className="danger-button"
                       type="button"
                       disabled={isChanging}
                       onClick={() => handleRemove(member.id)}
                     >
-                      Удалить
+                      Remove
                     </button>
                   </div>
                 ) : (
@@ -1361,19 +1487,64 @@ function formatProjectDate(createdAt) {
     return ''
   }
 
-  return new Intl.DateTimeFormat('ru-RU', {
+  return new Intl.DateTimeFormat('en-US', {
     day: '2-digit',
     month: 'short',
     year: 'numeric',
   }).format(date)
 }
 
+function formatTaskDate(createdAt, now = new Date()) {
+  const date = new Date(createdAt)
+
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+
+  const dateDay = Date.UTC(
+    date.getFullYear(),
+    date.getMonth(),
+    date.getDate(),
+  )
+  const currentDay = Date.UTC(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  )
+  const dayDifference = Math.round((dateDay - currentDay) / 86_400_000)
+  const time = new Intl.DateTimeFormat('en-GB', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  }).format(date)
+
+  if (dayDifference === 0) {
+    return `Today at ${time}`
+  }
+
+  if (dayDifference === -1) {
+    return `Yesterday at ${time}`
+  }
+
+  if (dayDifference === 1) {
+    return `Tomorrow at ${time}`
+  }
+
+  const numericDate = [
+    String(date.getDate()).padStart(2, '0'),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    date.getFullYear(),
+  ].join('.')
+
+  return `${numericDate} at ${time}`
+}
+
 function LoadingScreen() {
   return (
     <main className="loading-screen">
       <Brand />
-      <span className="loading-spinner" aria-label="Проверяем сессию" />
-      <p>Проверяем текущую сессию…</p>
+      <span className="loading-spinner" aria-label="Checking session" />
+      <p>Checking your session…</p>
     </main>
   )
 }
@@ -1383,17 +1554,19 @@ function App() {
   const [mode, setMode] = useState('login')
   const [isLoading, setIsLoading] = useState(true)
   const [startupError, setStartupError] = useState('')
+  const [theme, setTheme] = useState(getInitialTheme)
 
   async function restoreSession() {
     setStartupError('')
     setIsLoading(true)
 
     try {
+      clearSavedNavigation()
       setUser(await getCurrentUser())
     } catch (error) {
       setStartupError(
         error.message ||
-          'Backend недоступен. Запустите MySQL и Spring Boot, затем повторите.',
+          'We could not reach CollabDesk. Please try again in a moment.',
       )
     } finally {
       setIsLoading(false)
@@ -1404,39 +1577,64 @@ function App() {
     restoreSession()
   }, [])
 
-  if (isLoading) {
-    return <LoadingScreen />
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme
+    document.documentElement.style.colorScheme = theme
+    localStorage.setItem(THEME_STORAGE_KEY, theme)
+  }, [theme])
+
+  function handleAuthenticated(nextUser) {
+    clearSavedNavigation()
+    setUser(nextUser)
   }
 
-  if (startupError) {
-    return (
+  function handleLogout() {
+    clearSavedNavigation()
+    setUser(null)
+    setMode('login')
+  }
+
+  let content
+
+  if (isLoading) {
+    content = <LoadingScreen />
+  } else if (startupError) {
+    content = (
       <main className="connection-page">
         <Brand />
         <div className="connection-card">
           <span className="connection-code">503</span>
-          <p className="eyebrow">Нет соединения</p>
-          <h1>Backend пока недоступен</h1>
+          <p className="eyebrow">Connection error</p>
+          <h1>CollabDesk is temporarily unavailable</h1>
           <p>{startupError}</p>
           <button className="primary-button" onClick={restoreSession}>
-            Повторить подключение
+            Try again
           </button>
-          <code>docker compose up -d mysql</code>
-          <code>.\mvnw.cmd spring-boot:run</code>
         </div>
       </main>
     )
-  }
-
-  if (user) {
-    return <Dashboard user={user} onLogout={() => setUser(null)} />
+  } else if (user) {
+    content = <Dashboard user={user} onLogout={handleLogout} />
+  } else {
+    content = (
+      <AuthShell
+        mode={mode}
+        onModeChange={setMode}
+        onAuthenticated={handleAuthenticated}
+      />
+    )
   }
 
   return (
-    <AuthShell
-      mode={mode}
-      onModeChange={setMode}
-      onAuthenticated={setUser}
-    />
+    <>
+      <ThemeToggle
+        theme={theme}
+        onToggle={() =>
+          setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
+        }
+      />
+      {content}
+    </>
   )
 }
 

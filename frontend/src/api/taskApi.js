@@ -11,7 +11,7 @@ export async function getTasks(workspaceId, projectId) {
   })
 
   if (!response.ok) {
-    throw await createApiError(response, 'Не удалось загрузить задачи.')
+    throw await createApiError(response, 'Unable to load tasks.')
   }
 
   return response.json()
@@ -37,7 +37,7 @@ export async function createTask(
   )
 
   if (!response.ok) {
-    throw await createApiError(response, 'Не удалось создать задачу.')
+    throw await createApiError(response, 'Unable to create the task.')
   }
 
   return response.json()
@@ -61,7 +61,7 @@ export async function changeTaskStatus(
   )
 
   if (!response.ok) {
-    throw await createApiError(response, 'Не удалось изменить статус задачи.')
+    throw await createApiError(response, 'Unable to update the task status.')
   }
 
   return response.json()

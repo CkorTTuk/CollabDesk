@@ -12,7 +12,7 @@ export async function apiFetch(input, options) {
     return await fetch(input, options)
   } catch {
     throw new ApiError(
-      'Backend недоступен. Запустите MySQL и Spring Boot, затем повторите.',
+      'The service is temporarily unavailable. Please try again.',
     )
   }
 }

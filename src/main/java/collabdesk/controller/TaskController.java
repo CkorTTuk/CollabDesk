@@ -1,10 +1,19 @@
 package collabdesk.controller;
 
 import collabdesk.auth.security.AuthenticatedUserPrincipal;
+import collabdesk.openapi.ApiProblemResponse;
 import collabdesk.task.dto.CreateTaskRequest;
 import collabdesk.task.dto.TaskResponse;
 import collabdesk.task.dto.UpdateTaskStatusRequest;
 import collabdesk.task.service.TaskService;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
+import io.swagger.v3.oas.annotations.security.SecurityRequirement;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -23,6 +32,11 @@ import java.util.List;
 @RequestMapping(
         "/api/v1/workspaces/{workspaceId}/projects/{projectId}/tasks"
 )
+@Tag(
+        name = "Tasks",
+        description = "Project tasks and their status workflow"
+)
+@SecurityRequirement(name = "sessionCookie")
 public class TaskController {
 
     private final TaskService taskService;
@@ -33,6 +47,36 @@ public class TaskController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
+    @Operation(
+            summary = "Create a task",
+            description = "Creates a TODO task. VIEWER cannot create tasks."
+    )
+    @Parameter(ref = "#/components/parameters/csrfToken")
+    @ApiResponses({
+            @ApiResponse(responseCode = "201", description = "Task created"),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Request validation failed",
+                    content = @Content(schema = @Schema(
+                            implementation = ApiProblemResponse.class
+                    ))
+            ),
+            @ApiResponse(responseCode = "401", description = "Authentication required"),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Workspace role is read-only",
+                    content = @Content(schema = @Schema(
+                            implementation = ApiProblemResponse.class
+                    ))
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Workspace or project is not accessible",
+                    content = @Content(schema = @Schema(
+                            implementation = ApiProblemResponse.class
+                    ))
+            )
+    })
     public TaskResponse create(
             @PathVariable Long workspaceId,
             @PathVariable Long projectId,
@@ -49,6 +93,21 @@ public class TaskController {
     }
 
     @GetMapping
+    @Operation(
+            summary = "List project tasks",
+            description = "Available to every workspace member, including VIEWER"
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Task list"),
+            @ApiResponse(responseCode = "401", description = "Authentication required"),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Workspace or project is not accessible",
+                    content = @Content(schema = @Schema(
+                            implementation = ApiProblemResponse.class
+                    ))
+            )
+    })
     public List<TaskResponse> findAll(
             @PathVariable Long workspaceId,
             @PathVariable Long projectId,
@@ -62,6 +121,36 @@ public class TaskController {
     }
 
     @PatchMapping("/{taskId}/status")
+    @Operation(
+            summary = "Change task status",
+            description = "Moves a task between TODO, IN_PROGRESS and DONE"
+    )
+    @Parameter(ref = "#/components/parameters/csrfToken")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Task status changed"),
+            @ApiResponse(
+                    responseCode = "400",
+                    description = "Request validation failed",
+                    content = @Content(schema = @Schema(
+                            implementation = ApiProblemResponse.class
+                    ))
+            ),
+            @ApiResponse(responseCode = "401", description = "Authentication required"),
+            @ApiResponse(
+                    responseCode = "403",
+                    description = "Workspace role is read-only",
+                    content = @Content(schema = @Schema(
+                            implementation = ApiProblemResponse.class
+                    ))
+            ),
+            @ApiResponse(
+                    responseCode = "404",
+                    description = "Workspace, project or task is not accessible",
+                    content = @Content(schema = @Schema(
+                            implementation = ApiProblemResponse.class
+                    ))
+            )
+    })
     public TaskResponse changeStatus(
             @PathVariable Long workspaceId,
             @PathVariable Long projectId,

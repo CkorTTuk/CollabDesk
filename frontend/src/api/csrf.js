@@ -14,7 +14,7 @@ export async function getCsrfToken() {
   if (!response.ok) {
     throw await createApiError(
       response,
-      'Не удалось получить защитный токен. Проверьте, запущен ли сервер.',
+      'Unable to start a secure request. Please try again.',
     )
   }
 

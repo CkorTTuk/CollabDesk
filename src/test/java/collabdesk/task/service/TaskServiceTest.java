@@ -8,6 +8,7 @@ import collabdesk.task.dto.TaskResponse;
 import collabdesk.task.entity.Task;
 import collabdesk.task.entity.TaskStatus;
 import collabdesk.task.repository.TaskRepository;
+import collabdesk.taskassignee.repository.TaskAssigneeRepository;
 import collabdesk.user.entity.User;
 import collabdesk.workspace.entity.Workspace;
 import collabdesk.workspacemember.entity.WorkspaceMember;
@@ -42,11 +43,19 @@ class TaskServiceTest {
     @Mock
     private ProjectAccessService projectAccessService;
 
+    @Mock
+    private TaskAssigneeRepository taskAssigneeRepository;
+
     private TaskService taskService;
 
     @BeforeEach
     void setUp() {
-        taskService = new TaskService(taskRepository, projectAccessService);
+        taskService = new TaskService(
+                taskRepository,
+                projectAccessService,
+                taskAssigneeRepository,
+                new TaskResponseMapper()
+        );
     }
 
     @Test
@@ -117,6 +126,9 @@ class TaskServiceTest {
                 .thenReturn(testAccess.accessibleProject());
         when(taskRepository.findByProject_IdOrderByCreatedAtAsc(2L))
                 .thenReturn(List.of(first, second));
+        when(taskAssigneeRepository
+                .findByTask_Project_IdOrderByAssignedAtAsc(2L))
+                .thenReturn(List.of());
 
         List<TaskResponse> responses =
                 taskService.findForProject(1L, 2L, 3L);
@@ -164,6 +176,8 @@ class TaskServiceTest {
                 .thenReturn(testAccess.accessibleProject());
         when(taskRepository.findByIdAndProject_Id(4L, 2L))
                 .thenReturn(Optional.of(task));
+        when(taskAssigneeRepository.findByTask_IdOrderByAssignedAtAsc(4L))
+                .thenReturn(List.of());
 
         TaskResponse response = taskService.changeStatus(
                 1L,

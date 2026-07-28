@@ -66,3 +66,30 @@ export async function changeTaskStatus(
 
   return response.json()
 }
+
+export async function replaceTaskAssignees(
+  workspaceId,
+  projectId,
+  taskId,
+  projectMemberIds,
+) {
+  const response = await apiFetch(
+    `${tasksUrl(workspaceId, projectId)}/${taskId}/assignees`,
+    await withCsrf({
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ projectMemberIds }),
+    }),
+  )
+
+  if (!response.ok) {
+    throw await createApiError(
+      response,
+      'Unable to update task assignees.',
+    )
+  }
+
+  return response.json()
+}

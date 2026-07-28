@@ -4,6 +4,8 @@ import collabdesk.project.dto.ProjectResponse;
 import collabdesk.project.entity.Project;
 import collabdesk.project.entity.ProjectStatus;
 import collabdesk.project.repository.ProjectRepository;
+import collabdesk.projectmember.entity.ProjectMember;
+import collabdesk.projectmember.repository.ProjectMemberRepository;
 import collabdesk.user.entity.User;
 import collabdesk.workspace.entity.Workspace;
 import collabdesk.workspacemember.entity.WorkspaceMember;
@@ -39,13 +41,17 @@ class ProjectServiceTest {
     @Mock
     private WorkspaceAccessService workspaceAccessService;
 
+    @Mock
+    private ProjectMemberRepository projectMemberRepository;
+
     private ProjectService projectService;
 
     @BeforeEach
     void setUp() {
         projectService = new ProjectService(
                 projectRepository,
-                workspaceAccessService
+                workspaceAccessService,
+                projectMemberRepository
         );
     }
 
@@ -72,6 +78,7 @@ class ProjectServiceTest {
 
         ArgumentCaptor<Project> captor = ArgumentCaptor.forClass(Project.class);
         verify(projectRepository).save(captor.capture());
+        verify(projectMemberRepository).save(any(ProjectMember.class));
         Project savedProject = captor.getValue();
 
         assertAll(
@@ -103,6 +110,7 @@ class ProjectServiceTest {
         );
 
         verify(projectRepository, never()).save(any(Project.class));
+        verify(projectMemberRepository, never()).save(any());
     }
 
     @Test

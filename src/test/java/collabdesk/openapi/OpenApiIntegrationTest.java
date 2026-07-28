@@ -72,6 +72,18 @@ class OpenApiIntegrationTest {
                         "$.components.schemas.TaskResponse"
                 ).exists())
                 .andExpect(jsonPath(
+                        "$.components.schemas.AddProjectMemberRequest"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.ProjectMemberResponse"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.ReplaceTaskAssigneesRequest"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.TaskAssigneeResponse"
+                ).exists())
+                .andExpect(jsonPath(
                         "$.components.schemas.ApiProblemResponse"
                 ).exists())
                 .andExpect(jsonPath(
@@ -107,6 +119,18 @@ class OpenApiIntegrationTest {
                 ).exists())
                 .andExpect(jsonPath(
                         "$.paths['/api/v1/workspaces/{workspaceId}/projects/{projectId}/tasks/{taskId}/status'].patch"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/workspaces/{workspaceId}/projects/{projectId}/members'].get"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/workspaces/{workspaceId}/projects/{projectId}/members'].post"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/workspaces/{workspaceId}/projects/{projectId}/members/{projectMemberId}'].delete"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/workspaces/{workspaceId}/projects/{projectId}/tasks/{taskId}/assignees'].put"
                 ).exists())
                 .andExpect(jsonPath("$.paths['/csrf'].get").exists());
     }

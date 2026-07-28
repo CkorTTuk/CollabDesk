@@ -3,6 +3,8 @@ package collabdesk.project.service;
 import collabdesk.project.dto.ProjectResponse;
 import collabdesk.project.entity.Project;
 import collabdesk.project.repository.ProjectRepository;
+import collabdesk.projectmember.entity.ProjectMember;
+import collabdesk.projectmember.repository.ProjectMemberRepository;
 import collabdesk.workspacemember.entity.WorkspaceMember;
 import collabdesk.workspace.service.WorkspaceAccessService;
 import org.springframework.stereotype.Service;
@@ -15,12 +17,15 @@ import java.util.List;
 public class ProjectService {
     private final ProjectRepository projectRepository;
     private final WorkspaceAccessService workspaceAccessService;
+    private final ProjectMemberRepository projectMemberRepository;
 
     public ProjectService(
             ProjectRepository projectRepository,
-            WorkspaceAccessService workspaceAccessService) {
+            WorkspaceAccessService workspaceAccessService,
+            ProjectMemberRepository projectMemberRepository) {
         this.projectRepository = projectRepository;
         this.workspaceAccessService = workspaceAccessService;
+        this.projectMemberRepository = projectMemberRepository;
     }
     @Transactional
     public ProjectResponse create(
@@ -38,6 +43,9 @@ public class ProjectService {
                         workspaceMember.getUser()
             );
         Project savedProject = projectRepository.save(project);
+        projectMemberRepository.save(
+                new ProjectMember(savedProject, workspaceMember)
+        );
         return new ProjectResponse(
                 savedProject.getId(),
                 workspaceId,

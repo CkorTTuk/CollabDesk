@@ -99,6 +99,41 @@ class WorkspaceAccessServiceTest {
     }
 
     @Test
+    void ownerAndAdminPassRequireManager() {
+        for (WorkspaceRole role : new WorkspaceRole[]{
+                WorkspaceRole.OWNER,
+                WorkspaceRole.ADMIN
+        }) {
+            WorkspaceMember membership = role == WorkspaceRole.OWNER
+                    ? WorkspaceMember.owner(workspace, user)
+                    : WorkspaceMember.collaborator(workspace, user, role);
+            membershipExists(membership);
+
+            assertSame(
+                    membership,
+                    workspaceAccessService.requireManager(11L, 7L)
+            );
+        }
+    }
+
+    @Test
+    void memberAndViewerDoNotPassRequireManager() {
+        for (WorkspaceRole role : new WorkspaceRole[]{
+                WorkspaceRole.MEMBER,
+                WorkspaceRole.VIEWER
+        }) {
+            membershipExists(
+                    WorkspaceMember.collaborator(workspace, user, role)
+            );
+
+            assertThrows(
+                    WorkspaceOperationForbiddenException.class,
+                    () -> workspaceAccessService.requireManager(11L, 7L)
+            );
+        }
+    }
+
+    @Test
     void nonMemberReceivesNeutralAccessException() {
         when(workspaceMemberRepository.findByWorkspace_IdAndUser_Id(11L, 7L))
                 .thenReturn(Optional.empty());

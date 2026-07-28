@@ -6,6 +6,8 @@ import collabdesk.task.dto.CreateTaskRequest;
 import collabdesk.task.dto.TaskResponse;
 import collabdesk.task.dto.UpdateTaskStatusRequest;
 import collabdesk.task.service.TaskService;
+import collabdesk.taskassignee.dto.ReplaceTaskAssigneesRequest;
+import collabdesk.taskassignee.service.TaskAssigneeService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -40,9 +43,14 @@ import java.util.List;
 public class TaskController {
 
     private final TaskService taskService;
+    private final TaskAssigneeService taskAssigneeService;
 
-    public TaskController(TaskService taskService) {
+    public TaskController(
+            TaskService taskService,
+            TaskAssigneeService taskAssigneeService
+    ) {
         this.taskService = taskService;
+        this.taskAssigneeService = taskAssigneeService;
     }
 
     @PostMapping
@@ -164,6 +172,35 @@ public class TaskController {
                 taskId,
                 principal.getUserId(),
                 request.status()
+        );
+    }
+
+    @PutMapping("/{taskId}/assignees")
+    @Operation(
+            summary = "Replace task assignees",
+            description = "Replaces the complete assignee list with project members. Requires workspace OWNER or ADMIN."
+    )
+    @Parameter(ref = "#/components/parameters/csrfToken")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Assignees replaced"),
+            @ApiResponse(responseCode = "400", description = "Validation failed"),
+            @ApiResponse(responseCode = "401", description = "Authentication required"),
+            @ApiResponse(responseCode = "403", description = "OWNER or ADMIN role required"),
+            @ApiResponse(responseCode = "404", description = "Task or project member not found")
+    })
+    public TaskResponse replaceAssignees(
+            @PathVariable Long workspaceId,
+            @PathVariable Long projectId,
+            @PathVariable Long taskId,
+            @Valid @RequestBody ReplaceTaskAssigneesRequest request,
+            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+    ) {
+        return taskAssigneeService.replace(
+                workspaceId,
+                projectId,
+                taskId,
+                principal.getUserId(),
+                request.projectMemberIds()
         );
     }
 }

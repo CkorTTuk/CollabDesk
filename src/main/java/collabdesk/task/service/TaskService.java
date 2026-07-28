@@ -6,6 +6,7 @@ import collabdesk.task.dto.TaskResponse;
 import collabdesk.task.entity.Task;
 import collabdesk.task.entity.TaskStatus;
 import collabdesk.task.repository.TaskRepository;
+import collabdesk.taskassignee.repository.TaskAssigneeRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,13 +17,19 @@ public class TaskService {
 
     private final TaskRepository taskRepository;
     private final ProjectAccessService projectAccessService;
+    private final TaskAssigneeRepository taskAssigneeRepository;
+    private final TaskResponseMapper taskResponseMapper;
 
     public TaskService(
             TaskRepository taskRepository,
-            ProjectAccessService projectAccessService
+            ProjectAccessService projectAccessService,
+            TaskAssigneeRepository taskAssigneeRepository,
+            TaskResponseMapper taskResponseMapper
     ) {
         this.taskRepository = taskRepository;
         this.projectAccessService = projectAccessService;
+        this.taskAssigneeRepository = taskAssigneeRepository;
+        this.taskResponseMapper = taskResponseMapper;
     }
 
     @Transactional
@@ -47,7 +54,10 @@ public class TaskService {
                 access.membership().getUser()
         );
 
-        return toResponse(taskRepository.save(task));
+        return taskResponseMapper.toResponse(
+                taskRepository.save(task),
+                List.of()
+        );
     }
 
     @Transactional(readOnly = true)
@@ -62,11 +72,11 @@ public class TaskService {
                 currentUserId
         );
 
-        return taskRepository
-                .findByProject_IdOrderByCreatedAtAsc(projectId)
-                .stream()
-                .map(this::toResponse)
-                .toList();
+        return taskResponseMapper.toResponses(
+                taskRepository.findByProject_IdOrderByCreatedAtAsc(projectId),
+                taskAssigneeRepository
+                        .findByTask_Project_IdOrderByAssignedAtAsc(projectId)
+        );
     }
 
     @Transactional
@@ -90,19 +100,10 @@ public class TaskService {
                 ));
 
         task.changeStatus(newStatus);
-        return toResponse(task);
-    }
-
-    private TaskResponse toResponse(Task task) {
-        return new TaskResponse(
-                task.getId(),
-                task.getProject().getId(),
-                task.getTitle(),
-                task.getDescription(),
-                task.getStatus(),
-                task.getCreatedBy().getId(),
-                task.getCreatedAt(),
-                task.getUpdatedAt()
+        return taskResponseMapper.toResponse(
+                task,
+                taskAssigneeRepository
+                        .findByTask_IdOrderByAssignedAtAsc(taskId)
         );
     }
 }

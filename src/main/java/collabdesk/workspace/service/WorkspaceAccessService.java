@@ -59,4 +59,19 @@ public class WorkspaceAccessService {
 
         return membership;
     }
+
+    @Transactional(readOnly = true)
+    public WorkspaceMember requireManager(
+            Long workspaceId,
+            Long currentUserId
+    ) {
+        WorkspaceMember membership = requireMember(workspaceId, currentUserId);
+        if (membership.getRole() != WorkspaceRole.OWNER
+                && membership.getRole() != WorkspaceRole.ADMIN) {
+            throw new WorkspaceOperationForbiddenException(
+                    "Owner or admin role is required"
+            );
+        }
+        return membership;
+    }
 }

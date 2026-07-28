@@ -4,6 +4,8 @@ import collabdesk.task.entity.TaskStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.Instant;
+import java.util.List;
+import collabdesk.taskassignee.dto.TaskAssigneeResponse;
 
 @Schema(description = "Task inside a project")
 public record TaskResponse(
@@ -14,6 +16,7 @@ public record TaskResponse(
         TaskStatus status,
         Long createdById,
         Instant createdAt,
-        Instant updatedAt
+        Instant updatedAt,
+        List<TaskAssigneeResponse> assignees
 ) {
 }

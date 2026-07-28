@@ -14,7 +14,13 @@ import {
   changeTaskStatus,
   createTask,
   getTasks,
+  replaceTaskAssignees,
 } from './api/taskApi.js'
+import {
+  addProjectMember,
+  getProjectMembers,
+  removeProjectMember,
+} from './api/projectMemberApi.js'
 import {
   addWorkspaceMember,
   changeWorkspaceMemberRole,
@@ -57,6 +63,34 @@ const MEMBER_ROLES = [
     description: 'Read-only access',
   },
 ]
+
+const ITEM_ACCENT_HUES = [218, 168, 28, 276, 344, 194]
+
+function getItemAccentStyle(id) {
+  const numericId = Number(id) || 0
+  const hue = ITEM_ACCENT_HUES[
+    Math.abs(numericId) % ITEM_ACCENT_HUES.length
+  ]
+
+  return { '--item-accent-hue': String(hue) }
+}
+
+function roleBadgeClassName(role, extraClass = '') {
+  return `role-badge role-${role.toLowerCase()} ${extraClass}`.trim()
+}
+
+function formatRole(role) {
+  return `${role.charAt(0)}${role.slice(1).toLowerCase()}`
+}
+
+function memberInitials(displayName = '') {
+  return displayName
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part.charAt(0).toUpperCase())
+    .join('') || '?'
+}
 
 const THEME_STORAGE_KEY = 'collabdesk.theme'
 
@@ -103,6 +137,20 @@ function ThemeToggle({ theme, onToggle }) {
     >
       <span aria-hidden="true">{theme === 'dark' ? '☀' : '☾'}</span>
       <span>{theme === 'dark' ? 'Light' : 'Dark'}</span>
+    </button>
+  )
+}
+
+function PageBackButton({ label, context, onClick }) {
+  return (
+    <button className="page-back-button" type="button" onClick={onClick}>
+      <span className="page-back-icon" aria-hidden="true">
+        ←
+      </span>
+      <span>
+        <small>{context}</small>
+        <strong>{label}</strong>
+      </span>
     </button>
   )
 }
@@ -203,6 +251,103 @@ function RolePicker({
               )}
             </button>
           ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TaskStatusPicker({ value, onChange, disabled = false }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const pickerRef = useRef(null)
+  const selectedStatus =
+    TASK_COLUMNS.find((status) => status.status === value) ?? TASK_COLUMNS[0]
+
+  useEffect(() => {
+    if (!isOpen) {
+      return undefined
+    }
+
+    function handlePointerDown(event) {
+      if (!pickerRef.current?.contains(event.target)) {
+        setIsOpen(false)
+      }
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        setIsOpen(false)
+      }
+    }
+
+    document.addEventListener('pointerdown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isOpen])
+
+  function selectStatus(status) {
+    setIsOpen(false)
+
+    if (status.status !== value) {
+      onChange(status.status)
+    }
+  }
+
+  const selectedClass = selectedStatus.status.toLowerCase()
+
+  return (
+    <div className="task-status-picker" ref={pickerRef}>
+      <button
+        className={`task-status-trigger task-status-trigger-${selectedClass}`}
+        type="button"
+        disabled={disabled}
+        aria-label={`Task status: ${selectedStatus.title}`}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((current) => !current)}
+      >
+        <span
+          className={`task-status-dot task-status-dot-${selectedClass}`}
+          aria-hidden="true"
+        />
+        <span>{selectedStatus.title}</span>
+        <span className="task-status-chevron" aria-hidden="true">
+          {isOpen ? '↑' : '↓'}
+        </span>
+      </button>
+
+      {isOpen && (
+        <div className="task-status-menu" role="listbox" aria-label="Task status">
+          {TASK_COLUMNS.map((status) => {
+            const statusClass = status.status.toLowerCase()
+            const isSelected = status.status === value
+
+            return (
+              <button
+                className={isSelected ? 'selected' : ''}
+                type="button"
+                role="option"
+                aria-selected={isSelected}
+                key={status.status}
+                onClick={() => selectStatus(status)}
+              >
+                <span
+                  className={`task-status-dot task-status-dot-${statusClass}`}
+                  aria-hidden="true"
+                />
+                <span>{status.title}</span>
+                {isSelected && (
+                  <span className="task-status-check" aria-hidden="true">
+                    ✓
+                  </span>
+                )}
+              </button>
+            )
+          })}
         </div>
       )}
     </div>
@@ -521,14 +666,6 @@ function Dashboard({ user, onLogout }) {
       </header>
 
       <main className="dashboard-main">
-        <div className="dashboard-title">
-          <div>
-            <p className="eyebrow">Overview</p>
-            <h1>Welcome, {user.displayName}.</h1>
-            <p>Your teams and active work are ready in one place.</p>
-          </div>
-        </div>
-
         {error && (
           <div className="form-message error" role="alert">
             {error}
@@ -648,7 +785,7 @@ function WorkspaceSection() {
   }
 
   return (
-    <section className="workspace-panel">
+    <section className="workspace-panel workspace-selector-panel">
       <div className="workspace-panel-header">
         <div>
           <p className="eyebrow">Workspaces</p>
@@ -751,25 +888,26 @@ function WorkspaceSection() {
               className="workspace-card"
               key={workspace.id}
               type="button"
+              style={getItemAccentStyle(workspace.id)}
               onClick={() => openWorkspace(workspace)}
             >
-              <div className="workspace-card-top">
+              <div className="workspace-card-cover">
                 <div className="workspace-letter" aria-hidden="true">
                   {workspace.name.trim().charAt(0).toUpperCase()}
                 </div>
-                <span className="role-badge">
-                  {workspace.role === 'OWNER'
-                    ? 'Owner'
-                    : workspace.role}
+                <span className={roleBadgeClassName(workspace.role)}>
+                  {formatRole(workspace.role)}
                 </span>
               </div>
-              <h3>{workspace.name}</h3>
-              <p>
-                {workspace.description ||
-                  'No workspace description has been added yet.'}
-              </p>
-              <div className="workspace-card-footer">
-                <span>Open workspace →</span>
+              <div className="workspace-card-body">
+                <h3>{workspace.name}</h3>
+                <p>
+                  {workspace.description ||
+                    'No workspace description has been added yet.'}
+                </p>
+                <div className="workspace-card-footer">
+                  <span>Open workspace →</span>
+                </div>
               </div>
             </button>
           ))}
@@ -785,7 +923,6 @@ function ProjectSection({ workspace, onBack }) {
   const [isLoading, setIsLoading] = useState(true)
   const [isCreating, setIsCreating] = useState(false)
   const [isFormOpen, setIsFormOpen] = useState(false)
-  const [isMembersOpen, setIsMembersOpen] = useState(false)
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
   const [form, setForm] = useState({ name: '', description: '' })
@@ -850,31 +987,41 @@ function ProjectSection({ workspace, onBack }) {
   }
 
   return (
-    <section className="workspace-panel project-panel">
-      <button className="project-back" type="button" onClick={onBack}>
-        ← All workspaces
-      </button>
+    <div className="detail-view">
+      <PageBackButton
+        context="Back to"
+        label="All workspaces"
+        onClick={onBack}
+      />
 
-      <div className="workspace-panel-header project-panel-header">
-        <div>
-          <p className="eyebrow">Workspace</p>
-          <h2>{workspace.name}</h2>
-          <p>
-            {workspace.description ||
-              'Projects and tasks for this workspace.'}
-          </p>
+      <div className="project-page-layout">
+        <section className="workspace-panel project-panel">
+          <div className="workspace-panel-header project-panel-header">
+        <div
+          className="project-workspace-heading"
+          style={getItemAccentStyle(workspace.id)}
+        >
+          <span className="workspace-context-mark" aria-hidden="true">
+            {workspace.name.trim().charAt(0).toUpperCase()}
+          </span>
+          <div>
+            <p className="eyebrow">Current workspace</p>
+            <h2>{workspace.name}</h2>
+            <p>
+              {workspace.description ||
+                'Projects and tasks for this workspace.'}
+            </p>
+          </div>
         </div>
         <div className="workspace-header-actions">
-          {workspace.role === 'VIEWER' && (
-            <span className="read-only-badge">View only</span>
-          )}
-          <button
-            className="secondary-button"
-            type="button"
-            onClick={() => setIsMembersOpen((current) => !current)}
+          <span
+            className={roleBadgeClassName(
+              workspace.role,
+              'context-role-badge',
+            )}
           >
-            {isMembersOpen ? 'Hide members' : 'Members'}
-          </button>
+            {formatRole(workspace.role)}
+          </span>
           {workspace.role !== 'VIEWER' && (
             <button
               className="secondary-button"
@@ -889,11 +1036,9 @@ function ProjectSection({ workspace, onBack }) {
             </button>
           )}
         </div>
-      </div>
+          </div>
 
-      {isMembersOpen && (
-        <WorkspaceMembers workspace={workspace} />
-      )}
+          <div className="project-main-column">
 
       {isFormOpen && (
         <form
@@ -990,8 +1135,10 @@ function ProjectSection({ workspace, onBack }) {
               className="project-card"
               key={project.id}
               type="button"
+              style={getItemAccentStyle(project.id + 1)}
               onClick={() => openProject(project)}
             >
+              <span className="project-card-accent" aria-hidden="true" />
               <div className="project-card-top">
                 <span className="project-status">
                   <span aria-hidden="true" />
@@ -1013,12 +1160,23 @@ function ProjectSection({ workspace, onBack }) {
           ))}
         </div>
       )}
-    </section>
+          </div>
+        </section>
+
+        <aside
+          className="workspace-members-column"
+          aria-label="Workspace members"
+        >
+          <WorkspaceMembers workspace={workspace} />
+        </aside>
+      </div>
+    </div>
   )
 }
 
 function TaskBoard({ workspace, project, onBack }) {
   const [tasks, setTasks] = useState([])
+  const [projectMembers, setProjectMembers] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [isCreating, setIsCreating] = useState(false)
   const [isFormOpen, setIsFormOpen] = useState(false)
@@ -1088,13 +1246,42 @@ function TaskBoard({ workspace, project, onBack }) {
     }
   }
 
-  return (
-    <section className="workspace-panel task-panel">
-      <button className="project-back" type="button" onClick={onBack}>
-        ← Workspace projects
-      </button>
+  async function handleAssigneesChange(taskId, projectMemberIds) {
+    setError('')
+    setUpdatingTaskId(taskId)
+    try {
+      const updatedTask = await replaceTaskAssignees(
+        workspace.id,
+        project.id,
+        taskId,
+        projectMemberIds,
+      )
+      setTasks((current) =>
+        current.map((task) =>
+          task.id === updatedTask.id ? updatedTask : task,
+        ),
+      )
+    } catch (updateError) {
+      setError(
+        updateError.message || 'Unable to update task assignees.',
+      )
+      throw updateError
+    } finally {
+      setUpdatingTaskId(null)
+    }
+  }
 
-      <div className="workspace-panel-header task-panel-header">
+  return (
+    <div className="detail-view">
+      <PageBackButton
+        context={`Back to ${workspace.name}`}
+        label="Workspace projects"
+        onClick={onBack}
+      />
+
+      <div className="task-page-layout">
+      <section className="workspace-panel task-panel">
+        <div className="workspace-panel-header task-panel-header">
         <div>
           <p className="eyebrow">
             {workspace.name} · Project #{project.id}
@@ -1106,9 +1293,14 @@ function TaskBoard({ workspace, project, onBack }) {
           </p>
         </div>
         <div className="workspace-header-actions">
-          {workspace.role === 'VIEWER' && (
-            <span className="read-only-badge">View only</span>
-          )}
+          <span
+            className={roleBadgeClassName(
+              workspace.role,
+              'context-role-badge',
+            )}
+          >
+            {formatRole(workspace.role)}
+          </span>
           {workspace.role !== 'VIEWER' && (
             <button
               className="secondary-button"
@@ -1123,7 +1315,7 @@ function TaskBoard({ workspace, project, onBack }) {
             </button>
           )}
         </div>
-      </div>
+        </div>
 
       {isFormOpen && (
         <form
@@ -1241,31 +1433,30 @@ function TaskBoard({ workspace, project, onBack }) {
                           {task.description ||
                             'No task description has been added yet.'}
                         </p>
-                        <label className="task-status-control">
+                        <TaskAssigneePicker
+                          task={task}
+                          members={projectMembers}
+                          disabled={
+                            !['OWNER', 'ADMIN'].includes(workspace.role) ||
+                            updatingTaskId === task.id
+                          }
+                          onSave={(memberIds) =>
+                            handleAssigneesChange(task.id, memberIds)
+                          }
+                        />
+                        <div className="task-status-control">
                           <span>Status</span>
-                          <select
+                          <TaskStatusPicker
                             value={task.status}
                             disabled={
                               workspace.role === 'VIEWER' ||
                               updatingTaskId === task.id
                             }
-                            onChange={(event) =>
-                              handleStatusChange(
-                                task.id,
-                                event.target.value,
-                              )
+                            onChange={(status) =>
+                              handleStatusChange(task.id, status)
                             }
-                          >
-                            {TASK_COLUMNS.map((option) => (
-                              <option
-                                key={option.status}
-                                value={option.status}
-                              >
-                                {option.title}
-                              </option>
-                            ))}
-                          </select>
-                        </label>
+                          />
+                        </div>
                       </article>
                     ))
                   )}
@@ -1275,7 +1466,317 @@ function TaskBoard({ workspace, project, onBack }) {
           })}
         </div>
       )}
+      </section>
+        <aside
+          className="workspace-members-column task-members-column"
+          aria-label="Project team"
+        >
+          <ProjectTeam
+            workspace={workspace}
+            project={project}
+            members={projectMembers}
+            onMembersChange={setProjectMembers}
+          />
+        </aside>
+      </div>
+    </div>
+  )
+}
+
+function ProjectTeam({
+  workspace,
+  project,
+  members,
+  onMembersChange,
+}) {
+  const [workspaceMembers, setWorkspaceMembers] = useState([])
+  const [selectedMemberId, setSelectedMemberId] = useState('')
+  const [isLoading, setIsLoading] = useState(true)
+  const [isAdding, setIsAdding] = useState(false)
+  const [removingId, setRemovingId] = useState(null)
+  const [isFormOpen, setIsFormOpen] = useState(false)
+  const [error, setError] = useState('')
+  const isManager =
+    workspace.role === 'OWNER' || workspace.role === 'ADMIN'
+
+  const loadMembers = useCallback(async () => {
+    setIsLoading(true)
+    setError('')
+    try {
+      const [projectTeam, workspaceTeam] = await Promise.all([
+        getProjectMembers(workspace.id, project.id),
+        getWorkspaceMembers(workspace.id),
+      ])
+      onMembersChange(projectTeam)
+      setWorkspaceMembers(workspaceTeam)
+    } catch (loadError) {
+      setError(loadError.message || 'Unable to load the project team.')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [workspace.id, project.id, onMembersChange])
+
+  useEffect(() => {
+    loadMembers()
+  }, [loadMembers])
+
+  const availableMembers = workspaceMembers.filter(
+    (workspaceMember) =>
+      !members.some(
+        (projectMember) =>
+          projectMember.workspaceMemberId === workspaceMember.id,
+      ),
+  )
+
+  async function handleAdd(event) {
+    event.preventDefault()
+    if (!selectedMemberId) return
+    setIsAdding(true)
+    setError('')
+    try {
+      const added = await addProjectMember(
+        workspace.id,
+        project.id,
+        Number(selectedMemberId),
+      )
+      onMembersChange((current) => [...current, added])
+      setSelectedMemberId('')
+      setIsFormOpen(false)
+    } catch (addError) {
+      setError(addError.message || 'Unable to add the project member.')
+    } finally {
+      setIsAdding(false)
+    }
+  }
+
+  async function handleRemove(memberId) {
+    setRemovingId(memberId)
+    setError('')
+    try {
+      await removeProjectMember(workspace.id, project.id, memberId)
+      onMembersChange((current) =>
+        current.filter((member) => member.id !== memberId),
+      )
+    } catch (removeError) {
+      setError(
+        removeError.message || 'Unable to remove the project member.',
+      )
+    } finally {
+      setRemovingId(null)
+    }
+  }
+
+  return (
+    <section className="members-panel">
+      <div className="members-panel-heading">
+        <div>
+          <p className="eyebrow">Project access</p>
+          <h3>Project team</h3>
+        </div>
+        {isManager && (
+          <button
+            className="member-add-toggle"
+            type="button"
+            disabled={availableMembers.length === 0}
+            onClick={() => setIsFormOpen((current) => !current)}
+          >
+            {isFormOpen ? 'Cancel' : '+ Add'}
+          </button>
+        )}
+      </div>
+
+      {isFormOpen && (
+        <form className="project-member-form" onSubmit={handleAdd}>
+          <label htmlFor="project-member-select">Workspace member</label>
+          <select
+            id="project-member-select"
+            value={selectedMemberId}
+            required
+            onChange={(event) => setSelectedMemberId(event.target.value)}
+          >
+            <option value="">Select a member</option>
+            {availableMembers.map((member) => (
+              <option key={member.id} value={member.id}>
+                {member.displayName} — {formatRole(member.role)}
+              </option>
+            ))}
+          </select>
+          <button
+            className="primary-button"
+            disabled={isAdding || !selectedMemberId}
+          >
+            {isAdding ? 'Adding…' : 'Add to project'}
+          </button>
+        </form>
+      )}
+
+      {error && (
+        <div className="form-message error" role="alert">
+          {error}
+        </div>
+      )}
+
+      <div className="project-team-table" aria-label="Project members">
+        <div className="project-team-table-header">
+          <span>Member</span>
+          <span>Access</span>
+        </div>
+        {isLoading ? (
+          <p className="project-team-state">Loading team…</p>
+        ) : members.length === 0 ? (
+          <p className="project-team-state">No project members yet.</p>
+        ) : (
+          <div className="project-team-list">
+            {members.map((member) => (
+              <div className="project-team-row" key={member.id}>
+                <div className="project-team-member-cell">
+                  <span
+                    className="member-avatar"
+                    aria-hidden="true"
+                  >
+                    {memberInitials(member.displayName)}
+                  </span>
+                  <div className="project-team-identity">
+                    <strong title={member.displayName}>
+                      {member.displayName}
+                    </strong>
+                    <small title={member.email}>{member.email}</small>
+                  </div>
+                </div>
+                <div className="project-team-access-cell">
+                  <span
+                    className={roleBadgeClassName(
+                      member.workspaceRole,
+                      'member-role-badge',
+                    )}
+                  >
+                    {formatRole(member.workspaceRole)}
+                  </span>
+                  {isManager && (
+                    <button
+                      className="project-member-remove"
+                      type="button"
+                      aria-label={`Remove ${member.displayName} from project`}
+                      disabled={removingId === member.id}
+                      onClick={() => handleRemove(member.id)}
+                    >
+                      ×
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </section>
+  )
+}
+
+function TaskAssigneePicker({ task, members, disabled, onSave }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [selectedIds, setSelectedIds] = useState([])
+  const [isSaving, setIsSaving] = useState(false)
+
+  useEffect(() => {
+    setSelectedIds(
+      (task.assignees ?? []).map((assignee) => assignee.projectMemberId),
+    )
+  }, [task.assignees])
+
+  function toggleMember(memberId) {
+    setSelectedIds((current) =>
+      current.includes(memberId)
+        ? current.filter((id) => id !== memberId)
+        : [...current, memberId],
+    )
+  }
+
+  async function save() {
+    setIsSaving(true)
+    try {
+      await onSave(selectedIds)
+      setIsOpen(false)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  return (
+    <div className="task-assignees">
+      <div className="task-assignee-summary">
+        <div className="task-assignee-avatars">
+          {(task.assignees ?? []).slice(0, 3).map((assignee) => (
+            <span
+              className="task-assignee-avatar"
+              title={assignee.displayName}
+              key={assignee.projectMemberId}
+            >
+              {memberInitials(assignee.displayName)}
+            </span>
+          ))}
+          {(task.assignees ?? []).length > 3 && (
+            <span className="task-assignee-more">
+              +{task.assignees.length - 3}
+            </span>
+          )}
+          {(task.assignees ?? []).length === 0 && (
+            <span className="task-unassigned">Unassigned</span>
+          )}
+        </div>
+        {!disabled && (
+          <button
+            className="task-assign-toggle"
+            type="button"
+            onClick={() => setIsOpen((current) => !current)}
+          >
+            {isOpen ? 'Close' : 'Assign'}
+          </button>
+        )}
+      </div>
+      {isOpen && (
+        <div className="task-assignee-menu">
+          {members.length === 0 ? (
+            <p>Add members to the project first.</p>
+          ) : (
+            members.map((member) => (
+              <label className="task-assignee-option" key={member.id}>
+                <input
+                  type="checkbox"
+                  checked={selectedIds.includes(member.id)}
+                  onChange={() => toggleMember(member.id)}
+                />
+                <span className="task-assignee-option-avatar" aria-hidden="true">
+                  {memberInitials(member.displayName)}
+                </span>
+                <span className="task-assignee-option-identity">
+                  <strong title={member.displayName}>
+                    {member.displayName}
+                  </strong>
+                  <small title={member.email}>{member.email}</small>
+                </span>
+                <span
+                  className={roleBadgeClassName(
+                    member.workspaceRole,
+                    'task-assignee-role',
+                  )}
+                >
+                  {formatRole(member.workspaceRole)}
+                </span>
+              </label>
+            ))
+          )}
+          <button
+            className="task-assignee-save"
+            type="button"
+            disabled={isSaving || members.length === 0}
+            onClick={save}
+          >
+            {isSaving ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      )}
+    </div>
   )
 }
 
@@ -1286,6 +1787,9 @@ function WorkspaceMembers({ workspace }) {
   const [error, setError] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isAddFormOpen, setIsAddFormOpen] = useState(false)
+  const [editingMemberId, setEditingMemberId] = useState(null)
+  const [pendingRole, setPendingRole] = useState('MEMBER')
   const [changingMemberId, setChangingMemberId] = useState(null)
 
   const isOwner = workspace.role === 'OWNER'
@@ -1317,6 +1821,7 @@ function WorkspaceMembers({ workspace }) {
       const member = await addWorkspaceMember(workspace.id, form)
       setMembers((current) => [...current, member])
       setForm({ email: '', role: 'MEMBER' })
+      setIsAddFormOpen(false)
     } catch (addError) {
       setFieldErrors(addError.fieldErrors ?? {})
       setError(addError.message || 'Unable to add the member.')
@@ -1340,6 +1845,7 @@ function WorkspaceMembers({ workspace }) {
           member.id === updated.id ? updated : member,
         ),
       )
+      setEditingMemberId(null)
     } catch (changeError) {
       setError(changeError.message || 'Unable to update the role.')
     } finally {
@@ -1372,17 +1878,39 @@ function WorkspaceMembers({ workspace }) {
     }
   }
 
+  function startRoleEdit(member) {
+    setError('')
+    setEditingMemberId(member.id)
+    setPendingRole(member.role)
+  }
+
+  function cancelRoleEdit() {
+    setEditingMemberId(null)
+    setPendingRole('MEMBER')
+  }
+
   return (
     <section className="members-panel">
       <div className="members-panel-heading">
         <div>
-          <p className="eyebrow">Workspace team</p>
           <h3>Members</h3>
         </div>
-        {!isOwner && <span>Only the owner can manage members</span>}
+        {isOwner && (
+          <button
+            className="member-add-toggle"
+            type="button"
+            onClick={() => {
+              setError('')
+              setFieldErrors({})
+              setIsAddFormOpen((current) => !current)
+            }}
+          >
+            {isAddFormOpen ? 'Cancel' : '+ Add member'}
+          </button>
+        )}
       </div>
 
-      {isOwner && (
+      {isOwner && isAddFormOpen && (
         <form
           className="member-add-form"
           autoComplete="off"
@@ -1435,6 +1963,7 @@ function WorkspaceMembers({ workspace }) {
           {members.map((member) => {
             const isWorkspaceOwner = member.role === 'OWNER'
             const isChanging = changingMemberId === member.id
+            const isEditing = editingMemberId === member.id
 
             return (
               <article className="member-row" key={member.id}>
@@ -1445,32 +1974,70 @@ function WorkspaceMembers({ workspace }) {
                   <strong>{member.displayName}</strong>
                   <span>{member.email}</span>
                 </div>
+                <span
+                  className={roleBadgeClassName(
+                    member.role,
+                    'member-role-badge',
+                  )}
+                >
+                  {formatRole(member.role)}
+                </span>
                 <time dateTime={member.joinedAt}>
                   Joined {formatProjectDate(member.joinedAt)}
                 </time>
                 {isOwner && !isWorkspaceOwner ? (
-                  <div className="member-controls">
-                    <RolePicker
-                      compact
-                      label={`Role for ${member.displayName}`}
-                      value={member.role}
-                      disabled={isChanging}
-                      onChange={(role) =>
-                        handleRoleChange(member.id, role)
-                      }
-                    />
-                    <button
-                      className="danger-button"
-                      type="button"
-                      disabled={isChanging}
-                      onClick={() => handleRemove(member.id)}
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ) : (
-                  <span className="role-badge">{member.role}</span>
-                )}
+                  isEditing ? (
+                    <div className="member-role-editor">
+                      <RolePicker
+                        compact
+                        label={`Role for ${member.displayName}`}
+                        value={pendingRole}
+                        disabled={isChanging}
+                        onChange={setPendingRole}
+                      />
+                      <div className="member-role-editor-actions">
+                        <button
+                          className="member-action-button"
+                          type="button"
+                          disabled={
+                            isChanging || pendingRole === member.role
+                          }
+                          onClick={() =>
+                            handleRoleChange(member.id, pendingRole)
+                          }
+                        >
+                          {isChanging ? 'Saving…' : 'Save role'}
+                        </button>
+                        <button
+                          className="member-action-button subtle"
+                          type="button"
+                          disabled={isChanging}
+                          onClick={cancelRoleEdit}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="member-controls">
+                      <button
+                        className="member-action-button"
+                        type="button"
+                        onClick={() => startRoleEdit(member)}
+                      >
+                        Edit role
+                      </button>
+                      <button
+                        className="danger-button"
+                        type="button"
+                        disabled={isChanging}
+                        onClick={() => handleRemove(member.id)}
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )
+                ) : null}
               </article>
             )
           })}

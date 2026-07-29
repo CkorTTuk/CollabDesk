@@ -1,13 +1,13 @@
 package collabdesk.taskassignee.service;
 
-import collabdesk.project.service.ProjectAccessService;
 import collabdesk.projectmember.entity.ProjectMember;
 import collabdesk.projectmember.repository.ProjectMemberRepository;
 import collabdesk.projectmember.service.ProjectMemberNotFoundException;
 import collabdesk.task.dto.TaskResponse;
 import collabdesk.task.entity.Task;
-import collabdesk.task.repository.TaskRepository;
-import collabdesk.task.service.TaskNotFoundException;
+import collabdesk.task.entity.TaskVisibility;
+import collabdesk.task.service.AccessibleTask;
+import collabdesk.task.service.TaskAccessService;
 import collabdesk.task.service.TaskResponseMapper;
 import collabdesk.taskassignee.entity.TaskAssignee;
 import collabdesk.taskassignee.repository.TaskAssigneeRepository;
@@ -22,27 +22,24 @@ import java.util.Set;
 @Service
 public class TaskAssigneeService {
 
-    private final TaskRepository taskRepository;
     private final ProjectMemberRepository projectMemberRepository;
     private final TaskAssigneeRepository taskAssigneeRepository;
-    private final ProjectAccessService projectAccessService;
     private final TaskResponseMapper taskResponseMapper;
     private final WorkspaceAccessService workspaceAccessService;
+    private final TaskAccessService taskAccessService;
 
     public TaskAssigneeService(
-            TaskRepository taskRepository,
             ProjectMemberRepository projectMemberRepository,
             TaskAssigneeRepository taskAssigneeRepository,
-            ProjectAccessService projectAccessService,
             TaskResponseMapper taskResponseMapper,
-            WorkspaceAccessService workspaceAccessService
+            WorkspaceAccessService workspaceAccessService,
+            TaskAccessService taskAccessService
     ) {
-        this.taskRepository = taskRepository;
         this.projectMemberRepository = projectMemberRepository;
         this.taskAssigneeRepository = taskAssigneeRepository;
-        this.projectAccessService = projectAccessService;
         this.taskResponseMapper = taskResponseMapper;
         this.workspaceAccessService = workspaceAccessService;
+        this.taskAccessService = taskAccessService;
     }
 
     @Transactional
@@ -54,15 +51,13 @@ public class TaskAssigneeService {
             Set<Long> projectMemberIds
     ) {
         workspaceAccessService.requireManager(workspaceId, currentUserId);
-        projectAccessService.requireAccessibleProject(
+        AccessibleTask access = taskAccessService.requireAccessibleTask(
                 workspaceId,
                 projectId,
+                taskId,
                 currentUserId
         );
-        Task task = taskRepository.findByIdAndProject_Id(taskId, projectId)
-                .orElseThrow(() -> new TaskNotFoundException(
-                        "Task was not found"
-                ));
+        Task task = access.task();
 
         List<ProjectMember> members = projectMemberRepository
                 .findAllByProject_IdAndIdIn(projectId, projectMemberIds);
@@ -73,6 +68,10 @@ public class TaskAssigneeService {
         }
         members.sort(Comparator.comparing(ProjectMember::getId));
 
+        if (members.isEmpty()
+                && task.getVisibility() == TaskVisibility.ASSIGNEES) {
+            task.changeVisibility(TaskVisibility.PROJECT);
+        }
         taskAssigneeRepository.deleteByTask_Id(taskId);
         taskAssigneeRepository.flush();
         List<TaskAssignee> saved = taskAssigneeRepository.saveAll(

@@ -9,9 +9,14 @@ import {
   createWorkspace,
   getWorkspaces,
 } from './api/workspaceApi.js'
-import { createProject, getProjects } from './api/projectApi.js'
+import {
+  changeProjectVisibility,
+  createProject,
+  getProjects,
+} from './api/projectApi.js'
 import {
   changeTaskStatus,
+  changeTaskVisibility,
   createTask,
   getTasks,
   replaceTaskAssignees,
@@ -672,13 +677,13 @@ function Dashboard({ user, onLogout }) {
           </div>
         )}
 
-        <WorkspaceSection />
+        <WorkspaceSection user={user} />
       </main>
     </div>
   )
 }
 
-function WorkspaceSection() {
+function WorkspaceSection({ user }) {
   const [workspaces, setWorkspaces] = useState([])
   const [selectedWorkspace, setSelectedWorkspace] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -779,6 +784,7 @@ function WorkspaceSection() {
     return (
       <ProjectSection
         workspace={selectedWorkspace}
+        user={user}
         onBack={closeWorkspace}
       />
     )
@@ -917,7 +923,7 @@ function WorkspaceSection() {
   )
 }
 
-function ProjectSection({ workspace, onBack }) {
+function ProjectSection({ workspace, user, onBack }) {
   const [projects, setProjects] = useState([])
   const [selectedProject, setSelectedProject] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -976,11 +982,22 @@ function ProjectSection({ workspace, onBack }) {
     setSelectedProject(null)
   }
 
+  function updateSelectedProject(updatedProject) {
+    setProjects((current) =>
+      current.map((project) =>
+        project.id === updatedProject.id ? updatedProject : project,
+      ),
+    )
+    setSelectedProject(updatedProject)
+  }
+
   if (selectedProject) {
     return (
       <TaskBoard
         workspace={workspace}
+        user={user}
         project={selectedProject}
+        onProjectChange={updateSelectedProject}
         onBack={closeProject}
       />
     )
@@ -1146,7 +1163,13 @@ function ProjectSection({ workspace, onBack }) {
                     ? 'Active'
                     : project.status}
                 </span>
-                <span>#{project.id}</span>
+                <span
+                  className={`visibility-badge visibility-${project.visibility?.toLowerCase()}`}
+                >
+                  {project.visibility === 'RESTRICTED'
+                    ? 'Restricted'
+                    : 'Workspace'}
+                </span>
               </div>
               <h3>{project.name}</h3>
               <p>
@@ -1174,7 +1197,13 @@ function ProjectSection({ workspace, onBack }) {
   )
 }
 
-function TaskBoard({ workspace, project, onBack }) {
+function TaskBoard({
+  workspace,
+  user,
+  project,
+  onProjectChange,
+  onBack,
+}) {
   const [tasks, setTasks] = useState([])
   const [projectMembers, setProjectMembers] = useState([])
   const [isLoading, setIsLoading] = useState(true)
@@ -1271,6 +1300,47 @@ function TaskBoard({ workspace, project, onBack }) {
     }
   }
 
+  async function handleProjectVisibilityChange(visibility) {
+    setError('')
+    try {
+      onProjectChange(
+        await changeProjectVisibility(
+          workspace.id,
+          project.id,
+          visibility,
+        ),
+      )
+    } catch (updateError) {
+      setError(
+        updateError.message || 'Unable to update project visibility.',
+      )
+    }
+  }
+
+  async function handleTaskVisibilityChange(taskId, visibility) {
+    setError('')
+    setUpdatingTaskId(taskId)
+    try {
+      const updatedTask = await changeTaskVisibility(
+        workspace.id,
+        project.id,
+        taskId,
+        visibility,
+      )
+      setTasks((current) =>
+        current.map((task) =>
+          task.id === updatedTask.id ? updatedTask : task,
+        ),
+      )
+    } catch (updateError) {
+      setError(
+        updateError.message || 'Unable to update task visibility.',
+      )
+    } finally {
+      setUpdatingTaskId(null)
+    }
+  }
+
   return (
     <div className="detail-view">
       <PageBackButton
@@ -1293,6 +1363,20 @@ function TaskBoard({ workspace, project, onBack }) {
           </p>
         </div>
         <div className="workspace-header-actions">
+          {['OWNER', 'ADMIN'].includes(workspace.role) && (
+            <label className="visibility-control project-visibility-control">
+              <span>Project access</span>
+              <select
+                value={project.visibility ?? 'WORKSPACE'}
+                onChange={(event) =>
+                  handleProjectVisibilityChange(event.target.value)
+                }
+              >
+                <option value="WORKSPACE">Workspace</option>
+                <option value="RESTRICTED">Restricted</option>
+              </select>
+            </label>
+          )}
           <span
             className={roleBadgeClassName(
               workspace.role,
@@ -1427,6 +1511,13 @@ function TaskBoard({ workspace, project, onBack }) {
                           <time dateTime={task.createdAt}>
                             {formatTaskDate(task.createdAt)}
                           </time>
+                          <span
+                            className={`visibility-badge visibility-${task.visibility?.toLowerCase()}`}
+                          >
+                            {task.visibility === 'ASSIGNEES'
+                              ? 'Assignees only'
+                              : 'Project team'}
+                          </span>
                         </div>
                         <h4>{task.title}</h4>
                         <p>
@@ -1444,6 +1535,27 @@ function TaskBoard({ workspace, project, onBack }) {
                             handleAssigneesChange(task.id, memberIds)
                           }
                         />
+                        {(
+                          ['OWNER', 'ADMIN'].includes(workspace.role) ||
+                          task.createdById === user.id
+                        ) && workspace.role !== 'VIEWER' && (
+                          <label className="visibility-control task-visibility-control">
+                            <span>Visibility</span>
+                            <select
+                              value={task.visibility ?? 'PROJECT'}
+                              disabled={updatingTaskId === task.id}
+                              onChange={(event) =>
+                                handleTaskVisibilityChange(
+                                  task.id,
+                                  event.target.value,
+                                )
+                              }
+                            >
+                              <option value="PROJECT">Project team</option>
+                              <option value="ASSIGNEES">Assignees only</option>
+                            </select>
+                          </label>
+                        )}
                         <div className="task-status-control">
                           <span>Status</span>
                           <TaskStatusPicker

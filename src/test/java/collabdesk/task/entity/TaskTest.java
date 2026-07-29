@@ -154,4 +154,19 @@ class TaskTest {
                 () -> task.changeStatus(null)
         );
     }
+
+    @Test
+    void defaultsToProjectVisibilityAndCanBecomeAssigneeOnly() {
+        Task task = new Task(project, "Private task", null, creator);
+
+        assertEquals(TaskVisibility.PROJECT, task.getVisibility());
+
+        task.changeVisibility(TaskVisibility.ASSIGNEES);
+
+        assertEquals(TaskVisibility.ASSIGNEES, task.getVisibility());
+        assertThrows(
+                NullPointerException.class,
+                () -> task.changeVisibility(null)
+        );
+    }
 }

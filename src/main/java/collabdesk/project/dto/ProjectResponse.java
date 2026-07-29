@@ -1,6 +1,7 @@
 package collabdesk.project.dto;
 
 import collabdesk.project.entity.ProjectStatus;
+import collabdesk.project.entity.ProjectVisibility;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.Instant;
@@ -12,6 +13,7 @@ public record ProjectResponse(
         String name,
         String description,
         ProjectStatus status,
+        ProjectVisibility visibility,
         Instant createdAt
 ) {
 }

@@ -41,3 +41,28 @@ export async function createProject(workspaceId, { name, description }) {
 
   return response.json()
 }
+
+export async function changeProjectVisibility(
+  workspaceId,
+  projectId,
+  visibility,
+) {
+  const response = await apiFetch(
+    `${projectsUrl(workspaceId)}/${projectId}/visibility`,
+    await withCsrf({
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ visibility }),
+    }),
+  )
+
+  if (!response.ok) {
+    throw await createApiError(
+      response,
+      'Unable to update project visibility.',
+    )
+  }
+  return response.json()
+}

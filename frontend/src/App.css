@@ -1,3 +1,7 @@
+:root {
+  --item-accent-hue: 218;
+}
+
 .brand {
   display: inline-flex;
   align-items: center;
@@ -1213,6 +1217,52 @@
   background: #4eaa73;
 }
 
+.visibility-badge {
+  display: inline-flex;
+  min-height: 21px;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 999px;
+  color: #53657d;
+  background: #edf2f7;
+  font-size: 8px;
+  font-weight: 780;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.visibility-restricted,
+.visibility-assignees {
+  color: #87551d;
+  background: #fff1d8;
+}
+
+.visibility-control {
+  display: grid;
+  gap: 4px;
+  color: #78869a;
+  font-size: 8px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.visibility-control select {
+  min-height: 34px;
+  padding: 0 28px 0 9px;
+  border: 1px solid #dce3eb;
+  border-radius: 8px;
+  color: #34445b;
+  background: #fff;
+  font: inherit;
+  font-size: 9px;
+  text-transform: none;
+}
+
+.project-visibility-control {
+  min-width: 112px;
+}
+
 .project-card h3 {
   overflow: hidden;
   margin: 22px 0 8px;
@@ -1574,6 +1624,14 @@
   margin: 13px 0 4px;
   padding-top: 11px;
   border-top: 1px solid #edf1f5;
+}
+
+.task-visibility-control {
+  margin-top: 10px;
+}
+
+.task-visibility-control select {
+  width: 100%;
 }
 
 .task-assignee-summary {
@@ -2938,6 +2996,23 @@
   border-color: #28533d;
   color: #8fd0aa;
   background: #11261d;
+}
+
+[data-theme='dark'] .visibility-badge {
+  color: #aebcd0;
+  background: #223047;
+}
+
+[data-theme='dark'] .visibility-restricted,
+[data-theme='dark'] .visibility-assignees {
+  color: #f0c77d;
+  background: #44351d;
+}
+
+[data-theme='dark'] .visibility-control select {
+  border-color: #34445b;
+  color: #d4deec;
+  background: #111a2a;
 }
 
 [data-theme='dark'] .read-only-badge {

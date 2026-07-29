@@ -30,4 +30,8 @@ public interface ProjectMemberRepository
             Long projectId,
             Collection<Long> ids
     );
+    boolean existsByProject_IdAndWorkspaceMember_User_Id(
+            Long projectId,
+            Long userId
+    );
 }

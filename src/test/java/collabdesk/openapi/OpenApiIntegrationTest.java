@@ -84,6 +84,20 @@ class OpenApiIntegrationTest {
                         "$.components.schemas.TaskAssigneeResponse"
                 ).exists())
                 .andExpect(jsonPath(
+                        "$.components.schemas.UpdateProjectVisibilityRequest"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.UpdateProjectVisibilityRequest"
+                                + ".properties.visibility.enum.length()"
+                ).value(2))
+                .andExpect(jsonPath(
+                        "$.components.schemas.UpdateTaskVisibilityRequest"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.UpdateTaskVisibilityRequest"
+                                + ".properties.visibility.enum.length()"
+                ).value(2))
+                .andExpect(jsonPath(
                         "$.components.schemas.ApiProblemResponse"
                 ).exists())
                 .andExpect(jsonPath(
@@ -131,6 +145,12 @@ class OpenApiIntegrationTest {
                 ).exists())
                 .andExpect(jsonPath(
                         "$.paths['/api/v1/workspaces/{workspaceId}/projects/{projectId}/tasks/{taskId}/assignees'].put"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/workspaces/{workspaceId}/projects/{projectId}/visibility'].patch"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/workspaces/{workspaceId}/projects/{projectId}/tasks/{taskId}/visibility'].patch"
                 ).exists())
                 .andExpect(jsonPath("$.paths['/csrf'].get").exists());
     }

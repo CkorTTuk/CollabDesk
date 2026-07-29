@@ -5,6 +5,7 @@ import collabdesk.project.service.ProjectNotFoundException;
 import collabdesk.projectmember.service.ProjectMemberAlreadyExistsException;
 import collabdesk.projectmember.service.ProjectMemberNotFoundException;
 import collabdesk.task.service.TaskNotFoundException;
+import collabdesk.task.service.TaskVisibilityConflictException;
 import collabdesk.workspace.service.exceptions.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -72,6 +73,18 @@ public class GlobalExceptionHandler{
                 "Task was not found or is not accessible"
         );
         problem.setTitle("Task not found");
+        return problem;
+    }
+
+    @ExceptionHandler(TaskVisibilityConflictException.class)
+    public ProblemDetail handleTaskVisibilityConflictException(
+            TaskVisibilityConflictException ex
+    ) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT,
+                ex.getMessage()
+        );
+        problem.setTitle("Task visibility conflict");
         return problem;
     }
 

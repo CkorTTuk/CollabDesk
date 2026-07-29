@@ -122,7 +122,7 @@ class ProjectServiceTest {
         Project second = project(22L, workspace, currentUser, "Second");
         when(workspaceAccessService.requireMember(11L, 7L))
                 .thenReturn(membership);
-        when(projectRepository.findByWorkspace_IdOrderByCreatedAtAsc(11L))
+        when(projectRepository.findAccessibleForWorkspace(11L, 7L, false))
                 .thenReturn(List.of(first, second));
 
         List<ProjectResponse> responses =
@@ -134,7 +134,7 @@ class ProjectServiceTest {
         );
         callOrder.verify(workspaceAccessService).requireMember(11L, 7L);
         callOrder.verify(projectRepository)
-                .findByWorkspace_IdOrderByCreatedAtAsc(11L);
+                .findAccessibleForWorkspace(11L, 7L, false);
 
         assertAll(
                 () -> assertEquals(
@@ -167,7 +167,7 @@ class ProjectServiceTest {
         verify(
                 projectRepository,
                 never()
-        ).findByWorkspace_IdOrderByCreatedAtAsc(any());
+        ).findAccessibleForWorkspace(any(), any(), any(Boolean.class));
     }
 
     private User user(Long id, String email) {

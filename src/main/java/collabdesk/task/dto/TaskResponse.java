@@ -1,6 +1,7 @@
 package collabdesk.task.dto;
 
 import collabdesk.task.entity.TaskStatus;
+import collabdesk.task.entity.TaskVisibility;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.Instant;
@@ -14,6 +15,7 @@ public record TaskResponse(
         String title,
         String description,
         TaskStatus status,
+        TaskVisibility visibility,
         Long createdById,
         Instant createdAt,
         Instant updatedAt,

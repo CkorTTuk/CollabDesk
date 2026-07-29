@@ -24,6 +24,7 @@ public class TaskResponseMapper {
                 task.getTitle(),
                 task.getDescription(),
                 task.getStatus(),
+                task.getVisibility(),
                 task.getCreatedBy().getId(),
                 task.getCreatedAt(),
                 task.getUpdatedAt(),

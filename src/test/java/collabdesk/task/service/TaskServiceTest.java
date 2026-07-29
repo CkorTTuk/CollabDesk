@@ -7,6 +7,7 @@ import collabdesk.project.service.ProjectNotFoundException;
 import collabdesk.task.dto.TaskResponse;
 import collabdesk.task.entity.Task;
 import collabdesk.task.entity.TaskStatus;
+import collabdesk.task.entity.TaskVisibility;
 import collabdesk.task.repository.TaskRepository;
 import collabdesk.taskassignee.repository.TaskAssigneeRepository;
 import collabdesk.user.entity.User;
@@ -46,6 +47,9 @@ class TaskServiceTest {
     @Mock
     private TaskAssigneeRepository taskAssigneeRepository;
 
+    @Mock
+    private TaskAccessService taskAccessService;
+
     private TaskService taskService;
 
     @BeforeEach
@@ -54,7 +58,8 @@ class TaskServiceTest {
                 taskRepository,
                 projectAccessService,
                 taskAssigneeRepository,
-                new TaskResponseMapper()
+                new TaskResponseMapper(),
+                taskAccessService
         );
     }
 
@@ -124,10 +129,11 @@ class TaskServiceTest {
         Task second = task(5L, testAccess, "Second task");
         when(projectAccessService.requireAccessibleProject(1L, 2L, 3L))
                 .thenReturn(testAccess.accessibleProject());
-        when(taskRepository.findByProject_IdOrderByCreatedAtAsc(2L))
+        when(taskRepository.findAccessibleForProject(2L, 3L, false))
                 .thenReturn(List.of(first, second));
-        when(taskAssigneeRepository
-                .findByTask_Project_IdOrderByAssignedAtAsc(2L))
+        when(taskAssigneeRepository.findByTask_IdInOrderByAssignedAtAsc(
+                List.of(4L, 5L)
+        ))
                 .thenReturn(List.of());
 
         List<TaskResponse> responses =
@@ -137,7 +143,7 @@ class TaskServiceTest {
         order.verify(projectAccessService)
                 .requireAccessibleProject(1L, 2L, 3L);
         order.verify(taskRepository)
-                .findByProject_IdOrderByCreatedAtAsc(2L);
+                .findAccessibleForProject(2L, 3L, false);
         assertAll(
                 () -> assertEquals(
                         List.of(4L, 5L),
@@ -165,17 +171,18 @@ class TaskServiceTest {
         verify(
                 taskRepository,
                 never()
-        ).findByProject_IdOrderByCreatedAtAsc(2L);
+        ).findAccessibleForProject(2L, 3L, false);
     }
 
     @Test
     void changesStatusOnlyOnTaskScopedToProject() {
         TestAccess testAccess = access();
         Task task = task(4L, testAccess, "Status task");
-        when(projectAccessService.requireWritableProject(1L, 2L, 3L))
-                .thenReturn(testAccess.accessibleProject());
-        when(taskRepository.findByIdAndProject_Id(4L, 2L))
-                .thenReturn(Optional.of(task));
+        when(taskAccessService.requireWritableTask(1L, 2L, 4L, 3L))
+                .thenReturn(new AccessibleTask(
+                        task,
+                        testAccess.accessibleProject()
+                ));
         when(taskAssigneeRepository.findByTask_IdOrderByAssignedAtAsc(4L))
                 .thenReturn(List.of());
 
@@ -196,10 +203,10 @@ class TaskServiceTest {
     @Test
     void taskOutsideProjectIsNotChanged() {
         TestAccess testAccess = access();
-        when(projectAccessService.requireWritableProject(1L, 2L, 3L))
-                .thenReturn(testAccess.accessibleProject());
-        when(taskRepository.findByIdAndProject_Id(99L, 2L))
-                .thenReturn(Optional.empty());
+        when(taskAccessService.requireWritableTask(1L, 2L, 99L, 3L))
+                .thenThrow(new TaskNotFoundException(
+                        "Task was not found"
+                ));
 
         assertThrows(
                 TaskNotFoundException.class,
@@ -211,6 +218,54 @@ class TaskServiceTest {
                         TaskStatus.DONE
                 )
         );
+    }
+
+    @Test
+    void creatorCanRestrictAssignedTask() {
+        TestAccess testAccess = access();
+        Task task = task(4L, testAccess, "Private task");
+        when(taskAccessService.requireAccessibleTask(1L, 2L, 4L, 3L))
+                .thenReturn(new AccessibleTask(
+                        task,
+                        testAccess.accessibleProject()
+                ));
+        when(taskAssigneeRepository.existsByTask_Id(4L))
+                .thenReturn(true);
+        when(taskAssigneeRepository.findByTask_IdOrderByAssignedAtAsc(4L))
+                .thenReturn(List.of());
+
+        TaskResponse response = taskService.changeVisibility(
+                1L,
+                2L,
+                4L,
+                3L,
+                TaskVisibility.ASSIGNEES
+        );
+
+        assertEquals(TaskVisibility.ASSIGNEES, response.visibility());
+    }
+
+    @Test
+    void assigneeOnlyVisibilityRequiresAtLeastOneAssignee() {
+        TestAccess testAccess = access();
+        Task task = task(4L, testAccess, "Unassigned private task");
+        when(taskAccessService.requireAccessibleTask(1L, 2L, 4L, 3L))
+                .thenReturn(new AccessibleTask(
+                        task,
+                        testAccess.accessibleProject()
+                ));
+
+        assertThrows(
+                TaskVisibilityConflictException.class,
+                () -> taskService.changeVisibility(
+                        1L,
+                        2L,
+                        4L,
+                        3L,
+                        TaskVisibility.ASSIGNEES
+                )
+        );
+        assertEquals(TaskVisibility.PROJECT, task.getVisibility());
     }
 
     private TestAccess access() {

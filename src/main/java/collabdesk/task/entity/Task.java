@@ -41,6 +41,10 @@ public class Task {
     @Enumerated(EnumType.STRING)
     private TaskStatus status;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "visibility", nullable = false, length = 20)
+    private TaskVisibility visibility;
+
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "created_by", nullable = false)
     private User createdBy;
@@ -100,6 +104,8 @@ public class Task {
         this.title = normalizedTitle;
         this.description = normalizedDescription;
         this.status = TaskStatus.TODO;
+        this.visibility = TaskVisibility.PROJECT;
+
         this.createdAt = Instant.now();
         this.updatedAt = this.createdAt;
     }
@@ -108,6 +114,13 @@ public class Task {
         this.status = Objects.requireNonNull(
                 newStatus,
                 "Task status cannot be null"
+        );
+        this.updatedAt = Instant.now();
+    }
+    public void changeVisibility(TaskVisibility visibility) {
+        this.visibility = Objects.requireNonNull(
+                visibility,
+                "Task visibility cannot be null"
         );
         this.updatedAt = Instant.now();
     }

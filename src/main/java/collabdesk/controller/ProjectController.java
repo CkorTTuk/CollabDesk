@@ -4,6 +4,7 @@ import collabdesk.auth.security.AuthenticatedUserPrincipal;
 import collabdesk.openapi.ApiProblemResponse;
 import collabdesk.project.dto.CreateProjectRequest;
 import collabdesk.project.dto.ProjectResponse;
+import collabdesk.project.dto.UpdateProjectVisibilityRequest;
 import collabdesk.project.service.ProjectService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -100,6 +101,33 @@ public class ProjectController {
         return projectService.findForWorkspace(
                 workspaceId,
                 principal.getUserId()
+        );
+    }
+
+    @PatchMapping("/{projectId}/visibility")
+    @Operation(
+            summary = "Change project visibility",
+            description = "Switches between WORKSPACE and RESTRICTED. Requires workspace OWNER or ADMIN."
+    )
+    @Parameter(ref = "#/components/parameters/csrfToken")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Visibility changed"),
+            @ApiResponse(responseCode = "400", description = "Validation failed"),
+            @ApiResponse(responseCode = "401", description = "Authentication required"),
+            @ApiResponse(responseCode = "403", description = "OWNER or ADMIN role required"),
+            @ApiResponse(responseCode = "404", description = "Project is not accessible")
+    })
+    public ProjectResponse changeVisibility(
+            @PathVariable Long workspaceId,
+            @PathVariable Long projectId,
+            @Valid @RequestBody UpdateProjectVisibilityRequest request,
+            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+    ) {
+        return projectService.changeVisibility(
+                workspaceId,
+                projectId,
+                principal.getUserId(),
+                request.visibility()
         );
     }
 }

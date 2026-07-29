@@ -93,3 +93,29 @@ export async function replaceTaskAssignees(
 
   return response.json()
 }
+
+export async function changeTaskVisibility(
+  workspaceId,
+  projectId,
+  taskId,
+  visibility,
+) {
+  const response = await apiFetch(
+    `${tasksUrl(workspaceId, projectId)}/${taskId}/visibility`,
+    await withCsrf({
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ visibility }),
+    }),
+  )
+
+  if (!response.ok) {
+    throw await createApiError(
+      response,
+      'Unable to update task visibility.',
+    )
+  }
+  return response.json()
+}

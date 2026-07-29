@@ -5,6 +5,7 @@ import collabdesk.openapi.ApiProblemResponse;
 import collabdesk.task.dto.CreateTaskRequest;
 import collabdesk.task.dto.TaskResponse;
 import collabdesk.task.dto.UpdateTaskStatusRequest;
+import collabdesk.task.dto.UpdateTaskVisibilityRequest;
 import collabdesk.task.service.TaskService;
 import collabdesk.taskassignee.dto.ReplaceTaskAssigneesRequest;
 import collabdesk.taskassignee.service.TaskAssigneeService;
@@ -201,6 +202,42 @@ public class TaskController {
                 taskId,
                 principal.getUserId(),
                 request.projectMemberIds()
+        );
+    }
+
+    @PatchMapping("/{taskId}/visibility")
+    @Operation(
+            summary = "Change task visibility",
+            description = "Switches between PROJECT and ASSIGNEES. Workspace managers or the task creator may change it."
+    )
+    @Parameter(ref = "#/components/parameters/csrfToken")
+    @ApiResponses({
+            @ApiResponse(responseCode = "200", description = "Visibility changed"),
+            @ApiResponse(responseCode = "400", description = "Validation failed"),
+            @ApiResponse(responseCode = "401", description = "Authentication required"),
+            @ApiResponse(responseCode = "403", description = "Operation is not allowed"),
+            @ApiResponse(responseCode = "404", description = "Task is not accessible"),
+            @ApiResponse(
+                    responseCode = "409",
+                    description = "ASSIGNEES visibility requires at least one assignee",
+                    content = @Content(schema = @Schema(
+                            implementation = ApiProblemResponse.class
+                    ))
+            )
+    })
+    public TaskResponse changeVisibility(
+            @PathVariable Long workspaceId,
+            @PathVariable Long projectId,
+            @PathVariable Long taskId,
+            @Valid @RequestBody UpdateTaskVisibilityRequest request,
+            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+    ) {
+        return taskService.changeVisibility(
+                workspaceId,
+                projectId,
+                taskId,
+                principal.getUserId(),
+                request.visibility()
         );
     }
 }

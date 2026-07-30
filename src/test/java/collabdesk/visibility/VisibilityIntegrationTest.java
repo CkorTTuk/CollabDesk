@@ -77,18 +77,19 @@ class VisibilityIntegrationTest {
                         .value("Task visibility conflict"));
 
         mockMvc.perform(
-                put(tasksUrl + "/" + taskId + "/assignees")
+                put(tasksUrl + "/" + taskId + "/assignee")
                         .session(owner)
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "projectMemberIds": [%d]
+                                  "projectMemberId": %d
                                 }
                                 """.formatted(assigneeProjectMemberId))
         )
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.assignees.length()").value(1));
+                .andExpect(jsonPath("$.assignee.projectMemberId")
+                        .value(assigneeProjectMemberId));
 
         changeProjectVisibility(
                 owner,
@@ -143,19 +144,19 @@ class VisibilityIntegrationTest {
                 .andExpect(jsonPath("$.length()").value(1));
 
         mockMvc.perform(
-                put(tasksUrl + "/" + taskId + "/assignees")
+                put(tasksUrl + "/" + taskId + "/assignee")
                         .session(owner)
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "projectMemberIds": []
+                                  "projectMemberId": null
                                 }
                                 """)
         )
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.visibility").value("PROJECT"))
-                .andExpect(jsonPath("$.assignees.length()").value(0));
+                .andExpect(jsonPath("$.assignee").doesNotExist());
 
         mockMvc.perform(get(tasksUrl).session(otherMember))
                 .andExpect(status().isOk())
@@ -261,7 +262,8 @@ class VisibilityIntegrationTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
-                                  "workspaceMemberId": %d
+                                  "workspaceMemberId": %d,
+                                  "roleIds": []
                                 }
                                 """.formatted(workspaceMemberId))
         ).andExpect(status().isCreated()).andReturn());

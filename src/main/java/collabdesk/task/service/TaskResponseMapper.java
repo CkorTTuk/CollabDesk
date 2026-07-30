@@ -1,14 +1,16 @@
 package collabdesk.task.service;
 
+import collabdesk.project.role.entity.ProjectPermission;
 import collabdesk.task.dto.TaskResponse;
 import collabdesk.task.entity.Task;
-import collabdesk.taskassignee.dto.TaskAssigneeResponse;
-import collabdesk.taskassignee.entity.TaskAssignee;
-import collabdesk.workspacemember.entity.WorkspaceMember;
+import collabdesk.task.assignee.dto.TaskAssigneeResponse;
+import collabdesk.task.assignee.entity.TaskAssignee;
+import collabdesk.workspace.member.entity.WorkspaceMember;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 @Component
@@ -16,7 +18,8 @@ public class TaskResponseMapper {
 
     public TaskResponse toResponse(
             Task task,
-            List<TaskAssignee> assignments
+            TaskAssignee assignment,
+            Set<ProjectPermission> currentUserPermissions
     ) {
         return new TaskResponse(
                 task.getId(),
@@ -28,22 +31,26 @@ public class TaskResponseMapper {
                 task.getCreatedBy().getId(),
                 task.getCreatedAt(),
                 task.getUpdatedAt(),
-                assignments.stream().map(this::toAssigneeResponse).toList()
+                assignment == null ? null : toAssigneeResponse(assignment),
+                Set.copyOf(currentUserPermissions)
         );
     }
 
     public List<TaskResponse> toResponses(
             List<Task> tasks,
-            List<TaskAssignee> assignments
+            List<TaskAssignee> assignments,
+            Set<ProjectPermission> currentUserPermissions
     ) {
-        Map<Long, List<TaskAssignee>> byTask = assignments.stream()
-                .collect(Collectors.groupingBy(
-                        assignment -> assignment.getTask().getId()
+        Map<Long, TaskAssignee> byTask = assignments.stream()
+                .collect(Collectors.toMap(
+                        assignment -> assignment.getTask().getId(),
+                        assignment -> assignment
                 ));
         return tasks.stream()
                 .map(task -> toResponse(
                         task,
-                        byTask.getOrDefault(task.getId(), List.of())
+                        byTask.get(task.getId()),
+                        currentUserPermissions
                 ))
                 .toList();
     }

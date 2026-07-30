@@ -146,6 +146,22 @@ class TaskTest {
     }
 
     @Test
+    void editsAndNormalizesTaskContent() {
+        Task task = new Task(project, "Original task", "Original", creator);
+        Instant previousUpdatedAt = task.getUpdatedAt();
+
+        task.edit("  Updated task  ", "   ");
+
+        assertAll(
+                () -> assertEquals("Updated task", task.getTitle()),
+                () -> assertNull(task.getDescription()),
+                () -> assertTrue(
+                        !task.getUpdatedAt().isBefore(previousUpdatedAt)
+                )
+        );
+    }
+
+    @Test
     void rejectsNullStatus() {
         Task task = new Task(project, "Task title", null, creator);
 

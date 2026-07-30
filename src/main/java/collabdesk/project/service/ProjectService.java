@@ -1,12 +1,14 @@
 package collabdesk.project.service;
 
+import collabdesk.project.role.entity.ProjectPermission;
+import collabdesk.project.role.service.ProjectPermissionService;
 import collabdesk.project.dto.ProjectResponse;
 import collabdesk.project.entity.Project;
 import collabdesk.project.entity.ProjectVisibility;
 import collabdesk.project.repository.ProjectRepository;
-import collabdesk.projectmember.entity.ProjectMember;
-import collabdesk.projectmember.repository.ProjectMemberRepository;
-import collabdesk.workspacemember.entity.WorkspaceMember;
+import collabdesk.project.member.entity.ProjectMember;
+import collabdesk.project.member.repository.ProjectMemberRepository;
+import collabdesk.workspace.member.entity.WorkspaceMember;
 import collabdesk.workspace.entity.WorkspaceRole;
 import collabdesk.workspace.service.WorkspaceAccessService;
 import org.springframework.stereotype.Service;
@@ -19,14 +21,20 @@ public class ProjectService {
     private final ProjectRepository projectRepository;
     private final WorkspaceAccessService workspaceAccessService;
     private final ProjectMemberRepository projectMemberRepository;
+    private final ProjectAccessService projectAccessService;
+    private final ProjectPermissionService projectPermissionService;
 
     public ProjectService(
             ProjectRepository projectRepository,
             WorkspaceAccessService workspaceAccessService,
-            ProjectMemberRepository projectMemberRepository) {
+            ProjectMemberRepository projectMemberRepository,
+            ProjectAccessService projectAccessService,
+            ProjectPermissionService projectPermissionService) {
         this.projectRepository = projectRepository;
         this.workspaceAccessService = workspaceAccessService;
         this.projectMemberRepository = projectMemberRepository;
+        this.projectAccessService = projectAccessService;
+        this.projectPermissionService = projectPermissionService;
     }
     @Transactional
     public ProjectResponse create(
@@ -75,12 +83,17 @@ public class ProjectService {
             Long currentUserId,
             ProjectVisibility visibility
     ) {
-        workspaceAccessService.requireManager(workspaceId, currentUserId);
-        Project project = projectRepository
-                .findByIdAndWorkspace_Id(projectId, workspaceId)
-                .orElseThrow(() -> new ProjectNotFoundException(
-                        "Project was not found"
-                ));
+        AccessibleProject access = projectAccessService.requireAccessibleProject(
+                workspaceId,
+                projectId,
+                currentUserId
+        );
+        projectPermissionService.requireProjectPermission(
+                access,
+                currentUserId,
+                ProjectPermission.EDIT_PROJECT
+        );
+        Project project = access.project();
         project.changeVisibility(visibility);
         return toResponse(project);
     }

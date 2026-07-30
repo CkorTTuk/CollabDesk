@@ -67,27 +67,51 @@ export async function changeTaskStatus(
   return response.json()
 }
 
-export async function replaceTaskAssignees(
+export async function updateTask(
   workspaceId,
   projectId,
   taskId,
-  projectMemberIds,
+  { title, description },
 ) {
   const response = await apiFetch(
-    `${tasksUrl(workspaceId, projectId)}/${taskId}/assignees`,
+    `${tasksUrl(workspaceId, projectId)}/${taskId}`,
+    await withCsrf({
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title,
+        description: description.trim() || null,
+      }),
+    }),
+  )
+
+  if (!response.ok) {
+    throw await createApiError(response, 'Unable to edit the task.')
+  }
+  return response.json()
+}
+
+export async function updateTaskAssignee(
+  workspaceId,
+  projectId,
+  taskId,
+  projectMemberId,
+) {
+  const response = await apiFetch(
+    `${tasksUrl(workspaceId, projectId)}/${taskId}/assignee`,
     await withCsrf({
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ projectMemberIds }),
+      body: JSON.stringify({ projectMemberId }),
     }),
   )
 
   if (!response.ok) {
     throw await createApiError(
       response,
-      'Unable to update task assignees.',
+      'Unable to update the task assignee.',
     )
   }
 

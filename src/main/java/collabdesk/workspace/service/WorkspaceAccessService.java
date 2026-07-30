@@ -3,8 +3,8 @@ package collabdesk.workspace.service;
 import collabdesk.workspace.entity.WorkspaceRole;
 import collabdesk.workspace.service.exceptions.WorkspaceAccessDeniedException;
 import collabdesk.workspace.service.exceptions.WorkspaceOperationForbiddenException;
-import collabdesk.workspacemember.entity.WorkspaceMember;
-import collabdesk.workspacemember.repository.WorkspaceMemberRepository;
+import collabdesk.workspace.member.entity.WorkspaceMember;
+import collabdesk.workspace.member.repository.WorkspaceMemberRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 

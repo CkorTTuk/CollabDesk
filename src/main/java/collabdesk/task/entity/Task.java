@@ -74,35 +74,14 @@ public class Task {
                 "Creator cannot be null"
         );
 
-        if (title == null || title.isBlank()) {
-            throw new IllegalArgumentException("Title cannot be blank");
-        }
-        String normalizedTitle = title.trim();
-        if (normalizedTitle.length() < 2 || normalizedTitle.length() > 150) {
-            throw new IllegalArgumentException(
-                    "Title must be between 2 and 150 characters"
-            );
-        }
-
-        String normalizedDescription =
-                description == null ? null : description.trim();
-        if (normalizedDescription != null && normalizedDescription.isEmpty()) {
-            normalizedDescription = null;
-        }
-        if (normalizedDescription != null
-                && normalizedDescription.length() > 1000) {
-            throw new IllegalArgumentException(
-                    "Description cannot be longer than 1000 characters"
-            );
-        }
         if (createdBy.getStatus() == UserStatus.DISABLED) {
             throw new IllegalArgumentException(
                     "Disabled user cannot create tasks"
             );
         }
 
-        this.title = normalizedTitle;
-        this.description = normalizedDescription;
+        this.title = normalizeTitle(title);
+        this.description = normalizeDescription(description);
         this.status = TaskStatus.TODO;
         this.visibility = TaskVisibility.PROJECT;
 
@@ -117,11 +96,44 @@ public class Task {
         );
         this.updatedAt = Instant.now();
     }
+
+    public void edit(String title, String description) {
+        this.title = normalizeTitle(title);
+        this.description = normalizeDescription(description);
+        this.updatedAt = Instant.now();
+    }
+
     public void changeVisibility(TaskVisibility visibility) {
         this.visibility = Objects.requireNonNull(
                 visibility,
                 "Task visibility cannot be null"
         );
         this.updatedAt = Instant.now();
+    }
+
+    private static String normalizeTitle(String title) {
+        if (title == null || title.isBlank()) {
+            throw new IllegalArgumentException("Title cannot be blank");
+        }
+        String normalized = title.trim();
+        if (normalized.length() < 2 || normalized.length() > 150) {
+            throw new IllegalArgumentException(
+                    "Title must be between 2 and 150 characters"
+            );
+        }
+        return normalized;
+    }
+
+    private static String normalizeDescription(String description) {
+        String normalized = description == null ? null : description.trim();
+        if (normalized != null && normalized.isEmpty()) {
+            normalized = null;
+        }
+        if (normalized != null && normalized.length() > 1000) {
+            throw new IllegalArgumentException(
+                    "Description cannot be longer than 1000 characters"
+            );
+        }
+        return normalized;
     }
 }

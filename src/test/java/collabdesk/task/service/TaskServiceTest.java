@@ -1,5 +1,7 @@
 package collabdesk.task.service;
 
+import collabdesk.project.role.entity.ProjectPermission;
+import collabdesk.project.role.service.ProjectPermissionService;
 import collabdesk.project.entity.Project;
 import collabdesk.project.service.AccessibleProject;
 import collabdesk.project.service.ProjectAccessService;
@@ -9,10 +11,10 @@ import collabdesk.task.entity.Task;
 import collabdesk.task.entity.TaskStatus;
 import collabdesk.task.entity.TaskVisibility;
 import collabdesk.task.repository.TaskRepository;
-import collabdesk.taskassignee.repository.TaskAssigneeRepository;
+import collabdesk.task.assignee.repository.TaskAssigneeRepository;
 import collabdesk.user.entity.User;
 import collabdesk.workspace.entity.Workspace;
-import collabdesk.workspacemember.entity.WorkspaceMember;
+import collabdesk.workspace.member.entity.WorkspaceMember;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -24,6 +26,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -50,6 +53,9 @@ class TaskServiceTest {
     @Mock
     private TaskAccessService taskAccessService;
 
+    @Mock
+    private ProjectPermissionService projectPermissionService;
+
     private TaskService taskService;
 
     @BeforeEach
@@ -59,15 +65,20 @@ class TaskServiceTest {
                 projectAccessService,
                 taskAssigneeRepository,
                 new TaskResponseMapper(),
-                taskAccessService
+                taskAccessService,
+                projectPermissionService
         );
     }
 
     @Test
     void memberCreatesNormalizedTodoTaskForAccessibleProject() {
         TestAccess testAccess = access();
-        when(projectAccessService.requireWritableProject(1L, 2L, 3L))
+        when(projectAccessService.requireAccessibleProject(1L, 2L, 3L))
                 .thenReturn(testAccess.accessibleProject());
+        when(projectPermissionService.findEffectiveProjectPermissions(
+                testAccess.accessibleProject(),
+                3L
+        )).thenReturn(Set.of(ProjectPermission.CREATE_TASK));
         when(taskRepository.save(any(Task.class)))
                 .thenAnswer(invocation -> {
                     Task task = invocation.getArgument(0);
@@ -103,7 +114,7 @@ class TaskServiceTest {
 
     @Test
     void accessDeniedCreateDoesNotCallRepository() {
-        when(projectAccessService.requireWritableProject(1L, 2L, 3L))
+        when(projectAccessService.requireAccessibleProject(1L, 2L, 3L))
                 .thenThrow(new ProjectNotFoundException(
                         "Project was not found"
                 ));
@@ -129,9 +140,13 @@ class TaskServiceTest {
         Task second = task(5L, testAccess, "Second task");
         when(projectAccessService.requireAccessibleProject(1L, 2L, 3L))
                 .thenReturn(testAccess.accessibleProject());
+        when(projectPermissionService.findEffectiveProjectPermissions(
+                testAccess.accessibleProject(),
+                3L
+        )).thenReturn(Set.of());
         when(taskRepository.findAccessibleForProject(2L, 3L, false))
                 .thenReturn(List.of(first, second));
-        when(taskAssigneeRepository.findByTask_IdInOrderByAssignedAtAsc(
+        when(taskAssigneeRepository.findByTask_IdIn(
                 List.of(4L, 5L)
         ))
                 .thenReturn(List.of());
@@ -178,13 +193,24 @@ class TaskServiceTest {
     void changesStatusOnlyOnTaskScopedToProject() {
         TestAccess testAccess = access();
         Task task = task(4L, testAccess, "Status task");
-        when(taskAccessService.requireWritableTask(1L, 2L, 4L, 3L))
-                .thenReturn(new AccessibleTask(
-                        task,
-                        testAccess.accessibleProject()
-                ));
-        when(taskAssigneeRepository.findByTask_IdOrderByAssignedAtAsc(4L))
-                .thenReturn(List.of());
+        AccessibleTask accessibleTask = new AccessibleTask(
+                task,
+                testAccess.accessibleProject()
+        );
+        when(taskAccessService.requireAccessibleTask(1L, 2L, 4L, 3L))
+                .thenReturn(accessibleTask);
+        when(projectPermissionService.findEffectiveTaskPermissions(
+                accessibleTask,
+                3L
+        )).thenReturn(Set.of(ProjectPermission.CHANGE_TASK_STATUS));
+        when(taskAssigneeRepository
+                .existsByTask_IdAndProjectMember_WorkspaceMember_User_Id(
+                        4L,
+                        3L
+                ))
+                .thenReturn(true);
+        when(taskAssigneeRepository.findByTask_Id(4L))
+                .thenReturn(Optional.empty());
 
         TaskResponse response = taskService.changeStatus(
                 1L,
@@ -203,7 +229,7 @@ class TaskServiceTest {
     @Test
     void taskOutsideProjectIsNotChanged() {
         TestAccess testAccess = access();
-        when(taskAccessService.requireWritableTask(1L, 2L, 99L, 3L))
+        when(taskAccessService.requireAccessibleTask(1L, 2L, 99L, 3L))
                 .thenThrow(new TaskNotFoundException(
                         "Task was not found"
                 ));
@@ -231,8 +257,8 @@ class TaskServiceTest {
                 ));
         when(taskAssigneeRepository.existsByTask_Id(4L))
                 .thenReturn(true);
-        when(taskAssigneeRepository.findByTask_IdOrderByAssignedAtAsc(4L))
-                .thenReturn(List.of());
+        when(taskAssigneeRepository.findByTask_Id(4L))
+                .thenReturn(Optional.empty());
 
         TaskResponse response = taskService.changeVisibility(
                 1L,

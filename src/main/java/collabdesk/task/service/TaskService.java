@@ -1,5 +1,7 @@
 package collabdesk.task.service;
 
+import collabdesk.project.role.entity.ProjectPermission;
+import collabdesk.project.role.service.ProjectPermissionService;
 import collabdesk.project.service.AccessibleProject;
 import collabdesk.project.service.ProjectAccessService;
 import collabdesk.task.dto.TaskResponse;
@@ -7,13 +9,14 @@ import collabdesk.task.entity.Task;
 import collabdesk.task.entity.TaskStatus;
 import collabdesk.task.entity.TaskVisibility;
 import collabdesk.task.repository.TaskRepository;
-import collabdesk.taskassignee.repository.TaskAssigneeRepository;
+import collabdesk.task.assignee.repository.TaskAssigneeRepository;
 import collabdesk.workspace.entity.WorkspaceRole;
 import collabdesk.workspace.service.exceptions.WorkspaceOperationForbiddenException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class TaskService {
@@ -23,19 +26,22 @@ public class TaskService {
     private final TaskAssigneeRepository taskAssigneeRepository;
     private final TaskResponseMapper taskResponseMapper;
     private final TaskAccessService taskAccessService;
+    private final ProjectPermissionService projectPermissionService;
 
     public TaskService(
             TaskRepository taskRepository,
             ProjectAccessService projectAccessService,
             TaskAssigneeRepository taskAssigneeRepository,
             TaskResponseMapper taskResponseMapper,
-            TaskAccessService taskAccessService
+            TaskAccessService taskAccessService,
+            ProjectPermissionService projectPermissionService
     ) {
         this.taskRepository = taskRepository;
         this.projectAccessService = projectAccessService;
         this.taskAssigneeRepository = taskAssigneeRepository;
         this.taskResponseMapper = taskResponseMapper;
         this.taskAccessService = taskAccessService;
+        this.projectPermissionService = projectPermissionService;
     }
 
     @Transactional
@@ -47,11 +53,16 @@ public class TaskService {
             String description
     ) {
         AccessibleProject access =
-                projectAccessService.requireWritableProject(
+                projectAccessService.requireAccessibleProject(
                         workspaceId,
                         projectId,
                         currentUserId
                 );
+        projectPermissionService.requireProjectPermission(
+                access,
+                currentUserId,
+                ProjectPermission.CREATE_TASK
+        );
 
         Task task = new Task(
                 access.project(),
@@ -62,7 +73,11 @@ public class TaskService {
 
         return taskResponseMapper.toResponse(
                 taskRepository.save(task),
-                List.of()
+                null,
+                projectPermissionService.findEffectiveProjectPermissions(
+                        access,
+                        currentUserId
+                )
         );
     }
 
@@ -85,14 +100,54 @@ public class TaskService {
                 currentUserId,
                 manager
         );
+        Set<ProjectPermission> permissions =
+                projectPermissionService.findEffectiveProjectPermissions(
+                        access,
+                        currentUserId
+                );
         return taskResponseMapper.toResponses(
                 tasks,
                 tasks.isEmpty()
                         ? List.of()
                         : taskAssigneeRepository
-                        .findByTask_IdInOrderByAssignedAtAsc(
+                        .findByTask_IdIn(
                                 tasks.stream().map(Task::getId).toList()
                         )
+                ,
+                permissions
+        );
+    }
+
+    @Transactional
+    public TaskResponse edit(
+            Long workspaceId,
+            Long projectId,
+            Long taskId,
+            Long currentUserId,
+            String title,
+            String description
+    ) {
+        AccessibleTask access = taskAccessService.requireAccessibleTask(
+                workspaceId,
+                projectId,
+                taskId,
+                currentUserId
+        );
+        projectPermissionService.requireTaskPermission(
+                access,
+                currentUserId,
+                ProjectPermission.EDIT_TASK
+        );
+        access.task().edit(title, description);
+        return taskResponseMapper.toResponse(
+                access.task(),
+                taskAssigneeRepository
+                        .findByTask_Id(taskId)
+                        .orElse(null),
+                projectPermissionService.findEffectiveTaskPermissions(
+                        access,
+                        currentUserId
+                )
         );
     }
 
@@ -104,19 +159,42 @@ public class TaskService {
             Long currentUserId,
             TaskStatus newStatus
     ) {
-        AccessibleTask access = taskAccessService.requireWritableTask(
+        AccessibleTask access = taskAccessService.requireAccessibleTask(
                 workspaceId,
                 projectId,
                 taskId,
                 currentUserId
         );
+        projectPermissionService.requireTaskPermission(
+                access,
+                currentUserId,
+                ProjectPermission.CHANGE_TASK_STATUS
+        );
+        WorkspaceRole workspaceRole =
+                access.projectAccess().membership().getRole();
+        boolean manager = workspaceRole == WorkspaceRole.OWNER
+                || workspaceRole == WorkspaceRole.ADMIN;
+        if (!manager && !taskAssigneeRepository
+                .existsByTask_IdAndProjectMember_WorkspaceMember_User_Id(
+                        taskId,
+                        currentUserId
+                )) {
+            throw new WorkspaceOperationForbiddenException(
+                    "Only the assigned project member can change task status"
+            );
+        }
         Task task = access.task();
 
         task.changeStatus(newStatus);
         return taskResponseMapper.toResponse(
                 task,
                 taskAssigneeRepository
-                        .findByTask_IdOrderByAssignedAtAsc(taskId)
+                        .findByTask_Id(taskId)
+                        .orElse(null),
+                projectPermissionService.findEffectiveTaskPermissions(
+                        access,
+                        currentUserId
+                )
         );
     }
 
@@ -135,19 +213,11 @@ public class TaskService {
                 currentUserId
         );
         Task task = access.task();
-        WorkspaceRole role = access.projectAccess().membership().getRole();
-        if (role == WorkspaceRole.VIEWER) {
-            throw new WorkspaceOperationForbiddenException(
-                    "Viewer has read-only access"
-            );
-        }
-        boolean manager = role == WorkspaceRole.OWNER
-                || role == WorkspaceRole.ADMIN;
-        if (!manager && !task.getCreatedBy().getId().equals(currentUserId)) {
-            throw new WorkspaceOperationForbiddenException(
-                    "Only workspace managers or the task creator can change visibility"
-            );
-        }
+        projectPermissionService.requireTaskPermission(
+                access,
+                currentUserId,
+                ProjectPermission.CHANGE_TASK_VISIBILITY
+        );
         if (visibility == TaskVisibility.ASSIGNEES
                 && !taskAssigneeRepository.existsByTask_Id(taskId)) {
             throw new TaskVisibilityConflictException(
@@ -159,7 +229,12 @@ public class TaskService {
         return taskResponseMapper.toResponse(
                 task,
                 taskAssigneeRepository
-                        .findByTask_IdOrderByAssignedAtAsc(taskId)
+                        .findByTask_Id(taskId)
+                        .orElse(null),
+                projectPermissionService.findEffectiveTaskPermissions(
+                        access,
+                        currentUserId
+                )
         );
     }
 }

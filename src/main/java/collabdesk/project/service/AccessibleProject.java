@@ -1,7 +1,7 @@
 package collabdesk.project.service;
 
 import collabdesk.project.entity.Project;
-import collabdesk.workspacemember.entity.WorkspaceMember;
+import collabdesk.workspace.member.entity.WorkspaceMember;
 
 public record AccessibleProject(
         Project project,

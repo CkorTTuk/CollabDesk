@@ -1,0 +1,321 @@
+package collabdesk.project.role;
+
+import collabdesk.TestcontainersConfiguration;
+import com.jayway.jsonpath.JsonPath;
+import jakarta.servlet.http.HttpSession;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
+import org.springframework.context.annotation.Import;
+import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockHttpSession;
+import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.MvcResult;
+
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@SpringBootTest
+@AutoConfigureMockMvc
+@Import(TestcontainersConfiguration.class)
+class AccessRoleIntegrationTest {
+
+    private static final String AUTH = "/api/v1/auth";
+    private static final String WORKSPACES = "/api/v1/workspaces";
+    private static final String PASSWORD = "password123";
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Test
+    void customRolesReplaceAndRestoreDefaultPermissions() throws Exception {
+        MockHttpSession owner = registerAndLogin(
+                "access-role-owner@test.com",
+                "Role Owner"
+        );
+        MockHttpSession member = registerAndLogin(
+                "access-role-member@test.com",
+                "Role Member"
+        );
+        owner = login("access-role-owner@test.com");
+
+        Long workspaceId = idFrom(mockMvc.perform(
+                post(WORKSPACES)
+                        .session(owner)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Role workspace",
+                                  "description": null
+                                }
+                                """)
+        ).andExpect(status().isCreated()).andReturn());
+
+        Long workspaceMemberId = idFrom(mockMvc.perform(
+                post(WORKSPACES + "/" + workspaceId + "/members")
+                        .session(owner)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "access-role-member@test.com",
+                                  "role": "MEMBER"
+                                }
+                                """)
+        ).andExpect(status().isCreated()).andReturn());
+
+        String rolesUrl = WORKSPACES + "/" + workspaceId + "/access-roles";
+        mockMvc.perform(get(rolesUrl).session(owner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+
+        Long reviewerRoleId = idFrom(mockMvc.perform(
+                post(rolesUrl)
+                        .session(owner)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Reviewer",
+                                  "color": "#4f7dF3",
+                                  "permissions": ["CHANGE_TASK_STATUS"]
+                                }
+                                """)
+        )
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.color").value("#4F7DF3"))
+                .andExpect(jsonPath("$.permissions[0]")
+                        .value("CHANGE_TASK_STATUS"))
+                .andReturn());
+
+        mockMvc.perform(
+                post(rolesUrl)
+                        .session(owner)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": " reviewer ",
+                                  "color": "#2AA876",
+                                  "permissions": []
+                                }
+                                """)
+        ).andExpect(status().isConflict());
+
+        Long projectId = idFrom(mockMvc.perform(
+                post(WORKSPACES + "/" + workspaceId + "/projects")
+                        .session(owner)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "name": "Role project",
+                                  "description": null
+                                }
+                                """)
+        ).andExpect(status().isCreated()).andReturn());
+
+        String membersUrl = WORKSPACES + "/" + workspaceId
+                + "/projects/" + projectId + "/members";
+        Long projectMemberId = idFrom(mockMvc.perform(
+                post(membersUrl)
+                        .session(owner)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "workspaceMemberId": %d,
+                                  "roleIds": []
+                                }
+                                """.formatted(workspaceMemberId))
+        )
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.roles.length()").value(0))
+                .andExpect(jsonPath("$.effectivePermissions.length()")
+                        .value(5))
+                .andReturn());
+
+        String tasksUrl = WORKSPACES + "/" + workspaceId
+                + "/projects/" + projectId + "/tasks";
+        mockMvc.perform(
+                post(tasksUrl)
+                        .session(member)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "Default permission task",
+                                  "description": null
+                                }
+                                """)
+        ).andExpect(status().isCreated());
+
+        mockMvc.perform(
+                put(membersUrl + "/" + projectMemberId + "/roles")
+                        .session(owner)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "roleIds": [%d]
+                                }
+                                """.formatted(reviewerRoleId))
+        )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.roles[0].name").value("Reviewer"))
+                .andExpect(jsonPath("$.effectivePermissions.length()")
+                        .value(1));
+
+        mockMvc.perform(
+                post(tasksUrl)
+                        .session(member)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "Forbidden task",
+                                  "description": null
+                                }
+                                """)
+        ).andExpect(status().isForbidden());
+
+        Long taskId = idFrom(mockMvc.perform(
+                post(tasksUrl)
+                        .session(owner)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "Review task",
+                                  "description": null
+                                }
+                                """)
+        ).andExpect(status().isCreated()).andReturn());
+
+        mockMvc.perform(
+                patch(tasksUrl + "/" + taskId)
+                        .session(member)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "title": "Forbidden edit",
+                                  "description": null
+                                }
+                                """)
+        ).andExpect(status().isForbidden());
+
+        mockMvc.perform(
+                patch(tasksUrl + "/" + taskId + "/status")
+                        .session(member)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"status": "DONE"}
+                                """)
+        ).andExpect(status().isForbidden());
+
+        mockMvc.perform(
+                put(tasksUrl + "/" + taskId + "/assignee")
+                        .session(owner)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "projectMemberId": %d
+                                }
+                                """.formatted(projectMemberId))
+        ).andExpect(status().isOk());
+
+        mockMvc.perform(
+                patch(tasksUrl + "/" + taskId + "/status")
+                        .session(member)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"status": "DONE"}
+                                """)
+        ).andExpect(status().isOk());
+
+        mockMvc.perform(
+                patch(tasksUrl + "/" + taskId + "/visibility")
+                        .session(member)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"visibility": "ASSIGNEES"}
+                                """)
+        ).andExpect(status().isForbidden());
+
+        mockMvc.perform(
+                delete(rolesUrl + "/" + reviewerRoleId)
+                        .session(owner)
+                        .with(csrf())
+        ).andExpect(status().isConflict());
+
+        mockMvc.perform(
+                put(membersUrl + "/" + projectMemberId + "/roles")
+                        .session(owner)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"roleIds": []}
+                                """)
+        )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.roles.length()").value(0))
+                .andExpect(jsonPath("$.effectivePermissions.length()")
+                        .value(5));
+
+        mockMvc.perform(
+                delete(rolesUrl + "/" + reviewerRoleId)
+                        .session(owner)
+                        .with(csrf())
+        ).andExpect(status().isNoContent());
+    }
+
+    private MockHttpSession registerAndLogin(
+            String email,
+            String displayName
+    ) throws Exception {
+        mockMvc.perform(
+                post(AUTH + "/register")
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "%s",
+                                  "displayName": "%s",
+                                  "password": "%s"
+                                }
+                                """.formatted(email, displayName, PASSWORD))
+        ).andExpect(status().isCreated());
+        return login(email);
+    }
+
+    private MockHttpSession login(String email) throws Exception {
+        MvcResult result = mockMvc.perform(
+                post(AUTH + "/login")
+                        .with(csrf())
+                        .param("email", email)
+                        .param("password", PASSWORD)
+                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+        ).andExpect(status().isNoContent()).andReturn();
+        HttpSession session = result.getRequest().getSession(false);
+        assertNotNull(session);
+        return (MockHttpSession) session;
+    }
+
+    private Long idFrom(MvcResult result) throws Exception {
+        Number id = JsonPath.read(
+                result.getResponse().getContentAsString(),
+                "$.id"
+        );
+        return id.longValue();
+    }
+}

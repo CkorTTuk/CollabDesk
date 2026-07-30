@@ -19,13 +19,21 @@ import {
   changeTaskVisibility,
   createTask,
   getTasks,
-  replaceTaskAssignees,
+  updateTaskAssignee,
+  updateTask,
 } from './api/taskApi.js'
 import {
   addProjectMember,
   getProjectMembers,
   removeProjectMember,
+  replaceProjectMemberRoles,
 } from './api/projectMemberApi.js'
+import {
+  createAccessRole,
+  deleteAccessRole,
+  getAccessRoles,
+  updateAccessRole,
+} from './api/accessRoleApi.js'
 import {
   addWorkspaceMember,
   changeWorkspaceMemberRole,
@@ -70,6 +78,49 @@ const MEMBER_ROLES = [
 ]
 
 const ITEM_ACCENT_HUES = [218, 168, 28, 276, 344, 194]
+
+const PROJECT_PERMISSIONS = [
+  {
+    value: 'EDIT_PROJECT',
+    label: 'Edit project',
+    description: 'Change project settings and visibility',
+  },
+  {
+    value: 'CREATE_TASK',
+    label: 'Create tasks',
+    description: 'Add new work to the project',
+  },
+  {
+    value: 'EDIT_TASK',
+    label: 'Edit tasks',
+    description: 'Change task content',
+  },
+  {
+    value: 'CHANGE_TASK_STATUS',
+    label: 'Change task status',
+    description: 'Move tasks through the workflow',
+  },
+  {
+    value: 'CHANGE_TASK_VISIBILITY',
+    label: 'Change task visibility',
+    description: 'Restrict tasks to the assigned member',
+  },
+]
+
+const ACCESS_ROLE_COLORS = [
+  '#4F7DF3',
+  '#2AA876',
+  '#E09F3E',
+  '#D95D8A',
+  '#8B5CF6',
+  '#2D9CDB',
+  '#E76F51',
+  '#64748B',
+]
+
+const ALL_PROJECT_PERMISSIONS = PROJECT_PERMISSIONS.map(
+  (permission) => permission.value,
+)
 
 function getItemAccentStyle(id) {
   const numericId = Number(id) || 0
@@ -923,8 +974,267 @@ function WorkspaceSection({ user }) {
   )
 }
 
+function AccessRoleManager({ workspace, onChange }) {
+  const emptyForm = {
+    name: '',
+    color: ACCESS_ROLE_COLORS[0],
+    permissions: [],
+  }
+  const [roles, setRoles] = useState([])
+  const [form, setForm] = useState(emptyForm)
+  const [editingRoleId, setEditingRoleId] = useState(null)
+  const [isOpen, setIsOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [deletingRoleId, setDeletingRoleId] = useState(null)
+  const [error, setError] = useState('')
+  const [fieldErrors, setFieldErrors] = useState({})
+  const isManager = ['OWNER', 'ADMIN'].includes(workspace.role)
+
+  const loadRoles = useCallback(async () => {
+    setIsLoading(true)
+    setError('')
+    try {
+      setRoles(await getAccessRoles(workspace.id))
+    } catch (loadError) {
+      setError(loadError.message || 'Unable to load custom roles.')
+    } finally {
+      setIsLoading(false)
+    }
+  }, [workspace.id])
+
+  useEffect(() => {
+    loadRoles()
+  }, [loadRoles])
+
+  function resetForm() {
+    setForm(emptyForm)
+    setEditingRoleId(null)
+    setFieldErrors({})
+    setIsOpen(false)
+  }
+
+  function startEdit(role) {
+    setForm({
+      name: role.name,
+      color: role.color,
+      permissions: role.permissions ?? [],
+    })
+    setEditingRoleId(role.id)
+    setFieldErrors({})
+    setError('')
+    setIsOpen(true)
+  }
+
+  function togglePermission(permission) {
+    setForm((current) => ({
+      ...current,
+      permissions: current.permissions.includes(permission)
+        ? current.permissions.filter((item) => item !== permission)
+        : [...current.permissions, permission],
+    }))
+  }
+
+  async function handleSave(event) {
+    event.preventDefault()
+    setIsSaving(true)
+    setError('')
+    setFieldErrors({})
+    try {
+      const saved = editingRoleId
+        ? await updateAccessRole(
+            workspace.id,
+            editingRoleId,
+            form,
+          )
+        : await createAccessRole(workspace.id, form)
+      setRoles((current) =>
+        editingRoleId
+          ? current
+              .map((role) => (role.id === saved.id ? saved : role))
+              .sort((left, right) => left.name.localeCompare(right.name))
+          : [...current, saved].sort((left, right) =>
+              left.name.localeCompare(right.name),
+            ),
+      )
+      onChange?.()
+      resetForm()
+    } catch (saveError) {
+      setFieldErrors(saveError.fieldErrors ?? {})
+      setError(saveError.message || 'Unable to save the role.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  async function handleDelete(role) {
+    if (!window.confirm(`Delete the “${role.name}” role?`)) {
+      return
+    }
+    setDeletingRoleId(role.id)
+    setError('')
+    try {
+      await deleteAccessRole(workspace.id, role.id)
+      setRoles((current) =>
+        current.filter((item) => item.id !== role.id),
+      )
+      onChange?.()
+    } catch (deleteError) {
+      setError(deleteError.message || 'Unable to delete the role.')
+    } finally {
+      setDeletingRoleId(null)
+    }
+  }
+
+  return (
+    <section className="members-panel access-role-panel">
+      <div className="members-panel-heading">
+        <div>
+          <p className="eyebrow">Project permissions</p>
+          <h3>Custom roles</h3>
+        </div>
+        {isManager && (
+          <button
+            className="member-add-toggle"
+            type="button"
+            onClick={() => {
+              if (isOpen) {
+                resetForm()
+              } else {
+                setIsOpen(true)
+              }
+            }}
+          >
+            {isOpen ? 'Cancel' : '+ New role'}
+          </button>
+        )}
+      </div>
+
+      {isOpen && (
+        <form className="access-role-form" onSubmit={handleSave}>
+          <FormField
+            id="access-role-name"
+            label="Role name"
+            type="text"
+            minLength={2}
+            maxLength={60}
+            placeholder="For example, Developer"
+            value={form.name}
+            onChange={(name) =>
+              setForm((current) => ({ ...current, name }))
+            }
+            error={fieldErrors.name}
+          />
+
+          <fieldset className="role-color-fieldset">
+            <legend>Color</legend>
+            <div className="role-color-palette">
+              {ACCESS_ROLE_COLORS.map((color) => (
+                <label key={color} title={color}>
+                  <input
+                    type="radio"
+                    name="access-role-color"
+                    value={color}
+                    checked={form.color === color}
+                    onChange={() =>
+                      setForm((current) => ({ ...current, color }))
+                    }
+                  />
+                  <span style={{ '--role-color': color }} />
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset className="permission-fieldset">
+            <legend>Permissions</legend>
+            {PROJECT_PERMISSIONS.map((permission) => (
+              <label className="permission-option" key={permission.value}>
+                <input
+                  type="checkbox"
+                  checked={form.permissions.includes(permission.value)}
+                  onChange={() => togglePermission(permission.value)}
+                />
+                <span>
+                  <strong>{permission.label}</strong>
+                  <small>{permission.description}</small>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+
+          <button className="primary-button" disabled={isSaving}>
+            {isSaving
+              ? 'Saving…'
+              : editingRoleId
+                ? 'Save role'
+                : 'Create role'}
+          </button>
+        </form>
+      )}
+
+      {error && (
+        <div className="form-message error" role="alert">
+          {error}
+        </div>
+      )}
+
+      {isLoading ? (
+        <p className="project-team-state">Loading roles…</p>
+      ) : roles.length === 0 ? (
+        <p className="project-team-state">
+          No custom roles. Project members use default permissions.
+        </p>
+      ) : (
+        <div className="access-role-list">
+          {roles.map((role) => (
+            <article className="access-role-row" key={role.id}>
+              <div>
+                <span
+                  className="custom-role-dot"
+                  style={{ '--role-color': role.color }}
+                  aria-hidden="true"
+                />
+                <strong>{role.name}</strong>
+              </div>
+              <small>
+                {role.permissions.length === 0
+                  ? 'No write permissions'
+                  : `${role.permissions.length} permission${
+                      role.permissions.length === 1 ? '' : 's'
+                    }`}
+              </small>
+              {isManager && (
+                <div className="access-role-actions">
+                  <button
+                    className="member-action-button"
+                    type="button"
+                    onClick={() => startEdit(role)}
+                  >
+                    Edit
+                  </button>
+                  <button
+                    className="danger-button"
+                    type="button"
+                    disabled={deletingRoleId === role.id}
+                    onClick={() => handleDelete(role)}
+                  >
+                    {deletingRoleId === role.id ? 'Deleting…' : 'Delete'}
+                  </button>
+                </div>
+              )}
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  )
+}
+
 function ProjectSection({ workspace, user, onBack }) {
   const [projects, setProjects] = useState([])
+  const [projectTeams, setProjectTeams] = useState({})
+  const [accessRoles, setAccessRoles] = useState([])
   const [selectedProject, setSelectedProject] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isCreating, setIsCreating] = useState(false)
@@ -938,8 +1248,19 @@ function ProjectSection({ workspace, user, onBack }) {
     setIsLoading(true)
 
     try {
-      const loadedProjects = await getProjects(workspace.id)
+      const [loadedProjects, loadedRoles] = await Promise.all([
+        getProjects(workspace.id),
+        getAccessRoles(workspace.id),
+      ])
+      const loadedTeams = await Promise.all(
+        loadedProjects.map(async (project) => [
+          project.id,
+          await getProjectMembers(workspace.id, project.id),
+        ]),
+      )
       setProjects(loadedProjects)
+      setAccessRoles(loadedRoles)
+      setProjectTeams(Object.fromEntries(loadedTeams))
       setSelectedProject(null)
     } catch (loadError) {
       setError(
@@ -964,6 +1285,12 @@ function ProjectSection({ workspace, user, onBack }) {
     try {
       const project = await createProject(workspace.id, form)
       setProjects((current) => [...current, project])
+      try {
+        const team = await getProjectMembers(workspace.id, project.id)
+        setProjectTeams((current) => ({ ...current, [project.id]: team }))
+      } catch {
+        setProjectTeams((current) => ({ ...current, [project.id]: [] }))
+      }
       setForm({ name: '', description: '' })
       setIsFormOpen(false)
     } catch (createError) {
@@ -989,6 +1316,10 @@ function ProjectSection({ workspace, user, onBack }) {
       ),
     )
     setSelectedProject(updatedProject)
+  }
+
+  function updateProjectTeam(projectId, team) {
+    setProjectTeams((current) => ({ ...current, [projectId]: team }))
   }
 
   if (selectedProject) {
@@ -1147,7 +1478,20 @@ function ProjectSection({ workspace, user, onBack }) {
         </div>
       ) : (
         <div className="project-grid">
-          {projects.map((project) => (
+          {projects.map((project) => {
+            const team = projectTeams[project.id] ?? []
+            const assignedRoles = Array.from(
+              new Map(
+                team
+                  .flatMap((member) => member.roles ?? [])
+                  .map((role) => [role.id, role]),
+              ).values(),
+            )
+            const directMembers = team.filter(
+              (member) => (member.roles ?? []).length === 0,
+            )
+
+            return (
             <button
               className="project-card"
               key={project.id}
@@ -1176,11 +1520,56 @@ function ProjectSection({ workspace, user, onBack }) {
                 {project.description ||
                   'No project description has been added yet.'}
               </p>
+              <div className="project-card-access">
+                {assignedRoles.length > 0 && (
+                  <div className="project-card-access-row">
+                    <small>Roles</small>
+                    <div>
+                      {assignedRoles.map((role) => (
+                        <span
+                          className="custom-role-chip"
+                          style={{ '--role-color': role.color }}
+                          key={role.id}
+                        >
+                          {role.name}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {directMembers.length > 0 && (
+                  <div className="project-card-access-row">
+                    <small>People</small>
+                    <div className="project-card-people">
+                      {directMembers.slice(0, 4).map((member) => (
+                        <span
+                          className="project-card-person"
+                          title={member.displayName}
+                          key={member.id}
+                        >
+                          {memberInitials(member.displayName)}
+                        </span>
+                      ))}
+                      {directMembers.length > 4 && (
+                        <span className="project-card-person more">
+                          +{directMembers.length - 4}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {team.length === 0 && (
+                  <span className="project-card-no-access">
+                    No people assigned
+                  </span>
+                )}
+              </div>
               <div className="project-card-footer">
                 <span>Open tasks →</span>
               </div>
             </button>
-          ))}
+            )
+          })}
         </div>
       )}
           </div>
@@ -1190,7 +1579,14 @@ function ProjectSection({ workspace, user, onBack }) {
           className="workspace-members-column"
           aria-label="Workspace members"
         >
-          <WorkspaceMembers workspace={workspace} />
+          <AccessRoleManager workspace={workspace} onChange={loadProjects} />
+          <WorkspaceMembers
+            workspace={workspace}
+            projects={projects}
+            projectTeams={projectTeams}
+            accessRoles={accessRoles}
+            onProjectTeamChange={updateProjectTeam}
+          />
         </aside>
       </div>
     </div>
@@ -1210,16 +1606,35 @@ function TaskBoard({
   const [isCreating, setIsCreating] = useState(false)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [updatingTaskId, setUpdatingTaskId] = useState(null)
+  const [editingTaskId, setEditingTaskId] = useState(null)
+  const [editTaskForm, setEditTaskForm] = useState({
+    title: '',
+    description: '',
+  })
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
   const [form, setForm] = useState({ title: '', description: '' })
+  const isManager = ['OWNER', 'ADMIN'].includes(workspace.role)
+  const currentProjectMember = projectMembers.find(
+    (member) => member.userId === user.id,
+  )
+  const currentPermissions = isManager
+    ? ALL_PROJECT_PERMISSIONS
+    : currentProjectMember?.effectivePermissions ?? []
+  const hasPermission = (permission) =>
+    currentPermissions.includes(permission)
 
   const loadTasks = useCallback(async () => {
     setError('')
     setIsLoading(true)
 
     try {
-      setTasks(await getTasks(workspace.id, project.id))
+      const [loadedTasks, loadedMembers] = await Promise.all([
+        getTasks(workspace.id, project.id),
+        getProjectMembers(workspace.id, project.id),
+      ])
+      setTasks(loadedTasks)
+      setProjectMembers(loadedMembers)
     } catch (loadError) {
       setError(loadError.message || 'Unable to load tasks.')
     } finally {
@@ -1275,15 +1690,48 @@ function TaskBoard({
     }
   }
 
-  async function handleAssigneesChange(taskId, projectMemberIds) {
+  function startTaskEdit(task) {
+    setEditingTaskId(task.id)
+    setEditTaskForm({
+      title: task.title,
+      description: task.description ?? '',
+    })
     setError('')
+  }
+
+  async function handleTaskEdit(event, taskId) {
+    event.preventDefault()
     setUpdatingTaskId(taskId)
+    setError('')
     try {
-      const updatedTask = await replaceTaskAssignees(
+      const updatedTask = await updateTask(
         workspace.id,
         project.id,
         taskId,
-        projectMemberIds,
+        editTaskForm,
+      )
+      setTasks((current) =>
+        current.map((task) =>
+          task.id === updatedTask.id ? updatedTask : task,
+        ),
+      )
+      setEditingTaskId(null)
+    } catch (updateError) {
+      setError(updateError.message || 'Unable to edit the task.')
+    } finally {
+      setUpdatingTaskId(null)
+    }
+  }
+
+  async function handleAssigneeChange(taskId, projectMemberId) {
+    setError('')
+    setUpdatingTaskId(taskId)
+    try {
+      const updatedTask = await updateTaskAssignee(
+        workspace.id,
+        project.id,
+        taskId,
+        projectMemberId,
       )
       setTasks((current) =>
         current.map((task) =>
@@ -1292,7 +1740,7 @@ function TaskBoard({
       )
     } catch (updateError) {
       setError(
-        updateError.message || 'Unable to update task assignees.',
+        updateError.message || 'Unable to update the task assignee.',
       )
       throw updateError
     } finally {
@@ -1349,7 +1797,7 @@ function TaskBoard({
         onClick={onBack}
       />
 
-      <div className="task-page-layout">
+      <div className="task-page-layout task-page-layout-single">
       <section className="workspace-panel task-panel">
         <div className="workspace-panel-header task-panel-header">
         <div>
@@ -1363,7 +1811,7 @@ function TaskBoard({
           </p>
         </div>
         <div className="workspace-header-actions">
-          {['OWNER', 'ADMIN'].includes(workspace.role) && (
+          {hasPermission('EDIT_PROJECT') && (
             <label className="visibility-control project-visibility-control">
               <span>Project access</span>
               <select
@@ -1385,7 +1833,7 @@ function TaskBoard({
           >
             {formatRole(workspace.role)}
           </span>
-          {workspace.role !== 'VIEWER' && (
+          {hasPermission('CREATE_TASK') && (
             <button
               className="secondary-button"
               type="button"
@@ -1515,30 +1963,89 @@ function TaskBoard({
                             className={`visibility-badge visibility-${task.visibility?.toLowerCase()}`}
                           >
                             {task.visibility === 'ASSIGNEES'
-                              ? 'Assignees only'
+                              ? 'Assignee only'
                               : 'Project team'}
                           </span>
+                          {hasPermission('EDIT_TASK') && (
+                            <button
+                              className="task-edit-toggle"
+                              type="button"
+                              onClick={() => startTaskEdit(task)}
+                            >
+                              Edit
+                            </button>
+                          )}
                         </div>
-                        <h4>{task.title}</h4>
-                        <p>
-                          {task.description ||
-                            'No task description has been added yet.'}
-                        </p>
+                        {editingTaskId === task.id ? (
+                          <form
+                            className="task-inline-edit"
+                            onSubmit={(event) =>
+                              handleTaskEdit(event, task.id)
+                            }
+                          >
+                            <input
+                              aria-label="Task title"
+                              minLength={2}
+                              maxLength={150}
+                              required
+                              value={editTaskForm.title}
+                              onChange={(event) =>
+                                setEditTaskForm((current) => ({
+                                  ...current,
+                                  title: event.target.value,
+                                }))
+                              }
+                            />
+                            <textarea
+                              aria-label="Task description"
+                              maxLength={1000}
+                              value={editTaskForm.description}
+                              onChange={(event) =>
+                                setEditTaskForm((current) => ({
+                                  ...current,
+                                  description: event.target.value,
+                                }))
+                              }
+                            />
+                            <div>
+                              <button
+                                className="member-action-button"
+                                disabled={updatingTaskId === task.id}
+                              >
+                                {updatingTaskId === task.id
+                                  ? 'Saving…'
+                                  : 'Save'}
+                              </button>
+                              <button
+                                className="member-action-button subtle"
+                                type="button"
+                                onClick={() => setEditingTaskId(null)}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </form>
+                        ) : (
+                          <>
+                            <h4>{task.title}</h4>
+                            <p>
+                              {task.description ||
+                                'No task description has been added yet.'}
+                            </p>
+                          </>
+                        )}
                         <TaskAssigneePicker
                           task={task}
                           members={projectMembers}
                           disabled={
-                            !['OWNER', 'ADMIN'].includes(workspace.role) ||
+                            !isManager ||
                             updatingTaskId === task.id
                           }
-                          onSave={(memberIds) =>
-                            handleAssigneesChange(task.id, memberIds)
+                          onSave={(memberId) =>
+                            handleAssigneeChange(task.id, memberId)
                           }
                         />
-                        {(
-                          ['OWNER', 'ADMIN'].includes(workspace.role) ||
-                          task.createdById === user.id
-                        ) && workspace.role !== 'VIEWER' && (
+                        {hasPermission('CHANGE_TASK_VISIBILITY') && (
                           <label className="visibility-control task-visibility-control">
                             <span>Visibility</span>
                             <select
@@ -1552,7 +2059,7 @@ function TaskBoard({
                               }
                             >
                               <option value="PROJECT">Project team</option>
-                              <option value="ASSIGNEES">Assignees only</option>
+                              <option value="ASSIGNEES">Assignee only</option>
                             </select>
                           </label>
                         )}
@@ -1561,7 +2068,7 @@ function TaskBoard({
                           <TaskStatusPicker
                             value={task.status}
                             disabled={
-                              workspace.role === 'VIEWER' ||
+                              !hasPermission('CHANGE_TASK_STATUS') ||
                               updatingTaskId === task.id
                             }
                             onChange={(status) =>
@@ -1579,33 +2086,28 @@ function TaskBoard({
         </div>
       )}
       </section>
-        <aside
-          className="workspace-members-column task-members-column"
-          aria-label="Project team"
-        >
-          <ProjectTeam
-            workspace={workspace}
-            project={project}
-            members={projectMembers}
-            onMembersChange={setProjectMembers}
-          />
-        </aside>
       </div>
     </div>
   )
 }
 
-function ProjectTeam({
+export function ProjectTeam({
   workspace,
   project,
   members,
   onMembersChange,
 }) {
   const [workspaceMembers, setWorkspaceMembers] = useState([])
-  const [selectedMemberId, setSelectedMemberId] = useState('')
+  const [accessRoles, setAccessRoles] = useState([])
+  const [selectedMemberIds, setSelectedMemberIds] = useState([])
+  const [selectedRoleIds, setSelectedRoleIds] = useState([])
+  const [memberQuery, setMemberQuery] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isAdding, setIsAdding] = useState(false)
   const [removingId, setRemovingId] = useState(null)
+  const [editingMemberId, setEditingMemberId] = useState(null)
+  const [pendingRoleIds, setPendingRoleIds] = useState([])
+  const [savingRolesId, setSavingRolesId] = useState(null)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [error, setError] = useState('')
   const isManager =
@@ -1615,12 +2117,14 @@ function ProjectTeam({
     setIsLoading(true)
     setError('')
     try {
-      const [projectTeam, workspaceTeam] = await Promise.all([
+      const [projectTeam, workspaceTeam, customRoles] = await Promise.all([
         getProjectMembers(workspace.id, project.id),
         getWorkspaceMembers(workspace.id),
+        getAccessRoles(workspace.id),
       ])
       onMembersChange(projectTeam)
       setWorkspaceMembers(workspaceTeam)
+      setAccessRoles(customRoles)
     } catch (loadError) {
       setError(loadError.message || 'Unable to load the project team.')
     } finally {
@@ -1639,25 +2143,111 @@ function ProjectTeam({
           projectMember.workspaceMemberId === workspaceMember.id,
       ),
   )
+  const visibleAvailableMembers = availableMembers.filter((member) => {
+    const query = memberQuery.trim().toLowerCase()
+    return (
+      !query ||
+      member.displayName.toLowerCase().includes(query) ||
+      (member.email ?? '').toLowerCase().includes(query)
+    )
+  })
+
+  function toggleSelectedMember(memberId) {
+    setSelectedMemberIds((current) =>
+      current.includes(memberId)
+        ? current.filter((id) => id !== memberId)
+        : [...current, memberId],
+    )
+  }
+
+  function toggleSelectedRole(roleId) {
+    setSelectedRoleIds((current) =>
+      current.includes(roleId)
+        ? current.filter((id) => id !== roleId)
+        : [...current, roleId],
+    )
+  }
+
+  function togglePendingRole(roleId) {
+    setPendingRoleIds((current) =>
+      current.includes(roleId)
+        ? current.filter((id) => id !== roleId)
+        : [...current, roleId],
+    )
+  }
 
   async function handleAdd(event) {
     event.preventDefault()
-    if (!selectedMemberId) return
+    if (selectedMemberIds.length === 0) return
     setIsAdding(true)
     setError('')
+    const results = await Promise.allSettled(
+      selectedMemberIds.map((workspaceMemberId) =>
+        addProjectMember(
+          workspace.id,
+          project.id,
+          workspaceMemberId,
+          selectedRoleIds,
+        ),
+      ),
+    )
+    const addedMembers = results
+      .filter((result) => result.status === 'fulfilled')
+      .map((result) => result.value)
+    const failedMemberIds = selectedMemberIds.filter(
+      (_, index) => results[index].status === 'rejected',
+    )
+
+    if (addedMembers.length > 0) {
+      onMembersChange((current) => [
+        ...current,
+        ...addedMembers.filter(
+          (added) => !current.some((member) => member.id === added.id),
+        ),
+      ])
+    }
+
+    if (failedMemberIds.length === 0) {
+      setSelectedMemberIds([])
+      setSelectedRoleIds([])
+      setMemberQuery('')
+      setIsFormOpen(false)
+    } else {
+      setSelectedMemberIds(failedMemberIds)
+      const firstFailure = results.find(
+        (result) => result.status === 'rejected',
+      )
+      setError(
+        firstFailure?.reason?.message ||
+          `Unable to add ${failedMemberIds.length} selected member(s).`,
+      )
+    }
+    setIsAdding(false)
+  }
+
+  async function handleRolesSave(memberId) {
+    setSavingRolesId(memberId)
+    setError('')
     try {
-      const added = await addProjectMember(
+      const updated = await replaceProjectMemberRoles(
         workspace.id,
         project.id,
-        Number(selectedMemberId),
+        memberId,
+        pendingRoleIds,
       )
-      onMembersChange((current) => [...current, added])
-      setSelectedMemberId('')
-      setIsFormOpen(false)
-    } catch (addError) {
-      setError(addError.message || 'Unable to add the project member.')
+      onMembersChange((current) =>
+        current.map((member) =>
+          member.id === updated.id ? updated : member,
+        ),
+      )
+      setEditingMemberId(null)
+      setPendingRoleIds([])
+    } catch (saveError) {
+      setError(
+        saveError.message || 'Unable to update project member roles.',
+      )
     } finally {
-      setIsAdding(false)
+      setSavingRolesId(null)
     }
   }
 
@@ -1690,34 +2280,146 @@ function ProjectTeam({
             className="member-add-toggle"
             type="button"
             disabled={availableMembers.length === 0}
-            onClick={() => setIsFormOpen((current) => !current)}
+            onClick={() => {
+              setIsFormOpen((current) => !current)
+              setSelectedMemberIds([])
+              setSelectedRoleIds([])
+              setMemberQuery('')
+            }}
           >
-            {isFormOpen ? 'Cancel' : '+ Add'}
+            {isFormOpen ? 'Cancel' : '+ Add people'}
           </button>
         )}
       </div>
 
       {isFormOpen && (
         <form className="project-member-form" onSubmit={handleAdd}>
-          <label htmlFor="project-member-select">Workspace member</label>
-          <select
-            id="project-member-select"
-            value={selectedMemberId}
-            required
-            onChange={(event) => setSelectedMemberId(event.target.value)}
-          >
-            <option value="">Select a member</option>
-            {availableMembers.map((member) => (
-              <option key={member.id} value={member.id}>
-                {member.displayName} — {formatRole(member.role)}
-              </option>
-            ))}
-          </select>
+          <fieldset className="assignment-role-fieldset">
+            <legend>
+              <span>1</span>
+              Choose project access
+            </legend>
+            <p>
+              Workspace roles apply to the selected people in this project
+              only.
+            </p>
+            <div className="assignment-role-list">
+              <button
+                className={`assignment-default-role ${
+                  selectedRoleIds.length === 0 ? 'selected' : ''
+                }`}
+                type="button"
+                onClick={() => setSelectedRoleIds([])}
+              >
+                <span className="assignment-role-icon">D</span>
+                <span>
+                  <strong>Default project access</strong>
+                  <small>Uses the member’s standard permissions</small>
+                </span>
+                <span className="assignment-role-check" aria-hidden="true">
+                  {selectedRoleIds.length === 0 ? '✓' : ''}
+                </span>
+              </button>
+              {accessRoles.length === 0 ? (
+                <span className="assignment-empty-note">
+                  Create a custom role in workspace settings to use it here.
+                </span>
+              ) : (
+                accessRoles.map((role) => (
+                  <label
+                    className={`assignment-role-option ${
+                      selectedRoleIds.includes(role.id) ? 'selected' : ''
+                    }`}
+                    key={role.id}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedRoleIds.includes(role.id)}
+                      onChange={() => toggleSelectedRole(role.id)}
+                    />
+                    <span
+                      className="custom-role-dot"
+                      style={{ '--role-color': role.color }}
+                      aria-hidden="true"
+                    />
+                    <span className="assignment-role-copy">
+                      <strong>{role.name}</strong>
+                      <small>
+                        {(role.permissions ?? []).length} permission
+                        {(role.permissions ?? []).length === 1 ? '' : 's'}
+                      </small>
+                    </span>
+                    <span className="assignment-role-check" aria-hidden="true">
+                      {selectedRoleIds.includes(role.id) ? '✓' : ''}
+                    </span>
+                  </label>
+                ))
+              )}
+            </div>
+          </fieldset>
+
+          <fieldset className="project-people-fieldset">
+            <legend>
+              <span>2</span>
+              Select people
+              {selectedMemberIds.length > 0 && (
+                <em>{selectedMemberIds.length} selected</em>
+              )}
+            </legend>
+            <input
+              className="project-member-search"
+              type="search"
+              value={memberQuery}
+              placeholder="Search workspace members…"
+              aria-label="Search available workspace members"
+              onChange={(event) => setMemberQuery(event.target.value)}
+            />
+            <div className="project-member-picker">
+              {visibleAvailableMembers.length === 0 ? (
+                <p>
+                  {memberQuery
+                    ? 'No matching workspace members.'
+                    : 'Everyone is already in this project.'}
+                </p>
+              ) : (
+                visibleAvailableMembers.map((member) => (
+                  <label
+                    className={`project-member-option ${
+                      selectedMemberIds.includes(member.id) ? 'selected' : ''
+                    }`}
+                    key={member.id}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={selectedMemberIds.includes(member.id)}
+                      onChange={() => toggleSelectedMember(member.id)}
+                    />
+                    <span className="member-avatar" aria-hidden="true">
+                      {memberInitials(member.displayName)}
+                    </span>
+                    <span className="project-member-option-copy">
+                      <strong>{member.displayName}</strong>
+                      <small>{member.email}</small>
+                    </span>
+                    <span className="assignment-role-check" aria-hidden="true">
+                      {selectedMemberIds.includes(member.id) ? '✓' : ''}
+                    </span>
+                  </label>
+                ))
+              )}
+            </div>
+          </fieldset>
           <button
-            className="primary-button"
-            disabled={isAdding || !selectedMemberId}
+            className="primary-button project-add-people-button"
+            disabled={isAdding || selectedMemberIds.length === 0}
           >
-            {isAdding ? 'Adding…' : 'Add to project'}
+            {isAdding
+              ? 'Adding people…'
+              : selectedMemberIds.length === 0
+                ? 'Select people to add'
+                : `Add ${selectedMemberIds.length} ${
+                    selectedMemberIds.length === 1 ? 'person' : 'people'
+                  }`}
           </button>
         </form>
       )}
@@ -1764,16 +2466,124 @@ function ProjectTeam({
                   >
                     {formatRole(member.workspaceRole)}
                   </span>
+                  <div className="project-member-custom-roles">
+                    {(member.roles ?? []).length === 0 ? (
+                      <span className="default-permissions-note">
+                        Default permissions
+                      </span>
+                    ) : (
+                      member.roles.map((role) => (
+                        <span
+                          className="custom-role-chip"
+                          style={{ '--role-color': role.color }}
+                          key={role.id}
+                        >
+                          {role.name}
+                        </span>
+                      ))
+                    )}
+                  </div>
                   {isManager && (
-                    <button
-                      className="project-member-remove"
-                      type="button"
-                      aria-label={`Remove ${member.displayName} from project`}
-                      disabled={removingId === member.id}
-                      onClick={() => handleRemove(member.id)}
-                    >
-                      ×
-                    </button>
+                    <>
+                      <button
+                        className="member-action-button"
+                        type="button"
+                        onClick={() => {
+                          setEditingMemberId(member.id)
+                          setPendingRoleIds(
+                            (member.roles ?? []).map((role) => role.id),
+                          )
+                        }}
+                      >
+                        Edit access
+                      </button>
+                      <button
+                        className="project-member-remove"
+                        type="button"
+                        aria-label={`Remove ${member.displayName} from project`}
+                        disabled={removingId === member.id}
+                        onClick={() => handleRemove(member.id)}
+                      >
+                        ×
+                      </button>
+                    </>
+                  )}
+                  {editingMemberId === member.id && (
+                    <div className="project-member-role-editor">
+                      <div className="project-member-role-editor-heading">
+                        <strong>Project access</strong>
+                        <small>{member.displayName}</small>
+                      </div>
+                      <button
+                        className={`assignment-default-role compact ${
+                          pendingRoleIds.length === 0 ? 'selected' : ''
+                        }`}
+                        type="button"
+                        onClick={() => setPendingRoleIds([])}
+                      >
+                        <span className="assignment-role-icon">D</span>
+                        <span>Default project access</span>
+                        <span className="assignment-role-check">
+                          {pendingRoleIds.length === 0 ? '✓' : ''}
+                        </span>
+                      </button>
+                      {accessRoles.length === 0 ? (
+                        <p>No custom roles available.</p>
+                      ) : (
+                        accessRoles.map((role) => (
+                          <label
+                            className={
+                              pendingRoleIds.includes(role.id)
+                                ? 'selected'
+                                : ''
+                            }
+                            key={role.id}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={pendingRoleIds.includes(role.id)}
+                              onChange={() => togglePendingRole(role.id)}
+                            />
+                            <span
+                              className="custom-role-dot"
+                              style={{ '--role-color': role.color }}
+                              aria-hidden="true"
+                            />
+                            <span className="assignment-role-copy">
+                              <strong>{role.name}</strong>
+                              <small>
+                                {(role.permissions ?? []).length} permission
+                                {(role.permissions ?? []).length === 1
+                                  ? ''
+                                  : 's'}
+                              </small>
+                            </span>
+                            <span className="assignment-role-check">
+                              {pendingRoleIds.includes(role.id) ? '✓' : ''}
+                            </span>
+                          </label>
+                        ))
+                      )}
+                      <div>
+                        <button
+                          className="member-action-button"
+                          type="button"
+                          disabled={savingRolesId === member.id}
+                          onClick={() => handleRolesSave(member.id)}
+                        >
+                          {savingRolesId === member.id
+                            ? 'Saving…'
+                            : 'Save'}
+                        </button>
+                        <button
+                          className="member-action-button subtle"
+                          type="button"
+                          onClick={() => setEditingMemberId(null)}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
                   )}
                 </div>
               </div>
@@ -1787,27 +2597,17 @@ function ProjectTeam({
 
 function TaskAssigneePicker({ task, members, disabled, onSave }) {
   const [isOpen, setIsOpen] = useState(false)
-  const [selectedIds, setSelectedIds] = useState([])
+  const [selectedId, setSelectedId] = useState(null)
   const [isSaving, setIsSaving] = useState(false)
 
   useEffect(() => {
-    setSelectedIds(
-      (task.assignees ?? []).map((assignee) => assignee.projectMemberId),
-    )
-  }, [task.assignees])
-
-  function toggleMember(memberId) {
-    setSelectedIds((current) =>
-      current.includes(memberId)
-        ? current.filter((id) => id !== memberId)
-        : [...current, memberId],
-    )
-  }
+    setSelectedId(task.assignee?.projectMemberId ?? null)
+  }, [task.assignee])
 
   async function save() {
     setIsSaving(true)
     try {
-      await onSave(selectedIds)
+      await onSave(selectedId)
       setIsOpen(false)
     } finally {
       setIsSaving(false)
@@ -1818,21 +2618,19 @@ function TaskAssigneePicker({ task, members, disabled, onSave }) {
     <div className="task-assignees">
       <div className="task-assignee-summary">
         <div className="task-assignee-avatars">
-          {(task.assignees ?? []).slice(0, 3).map((assignee) => (
+          {task.assignee ? (
+            <>
             <span
               className="task-assignee-avatar"
-              title={assignee.displayName}
-              key={assignee.projectMemberId}
+              title={task.assignee.displayName}
             >
-              {memberInitials(assignee.displayName)}
+              {memberInitials(task.assignee.displayName)}
             </span>
-          ))}
-          {(task.assignees ?? []).length > 3 && (
-            <span className="task-assignee-more">
-              +{task.assignees.length - 3}
+            <span className="task-assignee-name">
+              {task.assignee.displayName}
             </span>
-          )}
-          {(task.assignees ?? []).length === 0 && (
+            </>
+          ) : (
             <span className="task-unassigned">Unassigned</span>
           )}
         </div>
@@ -1848,15 +2646,25 @@ function TaskAssigneePicker({ task, members, disabled, onSave }) {
       </div>
       {isOpen && (
         <div className="task-assignee-menu">
-          {members.length === 0 ? (
-            <p>Add members to the project first.</p>
-          ) : (
-            members.map((member) => (
+          <label className="task-assignee-option">
+            <input
+              type="radio"
+              name={`task-${task.id}-assignee`}
+              checked={selectedId === null}
+              onChange={() => setSelectedId(null)}
+            />
+            <span className="task-assignee-option-identity">
+              <strong>Unassigned</strong>
+              <small>Only workspace managers can change status</small>
+            </span>
+          </label>
+          {members.map((member) => (
               <label className="task-assignee-option" key={member.id}>
                 <input
-                  type="checkbox"
-                  checked={selectedIds.includes(member.id)}
-                  onChange={() => toggleMember(member.id)}
+                  type="radio"
+                  name={`task-${task.id}-assignee`}
+                  checked={selectedId === member.id}
+                  onChange={() => setSelectedId(member.id)}
                 />
                 <span className="task-assignee-option-avatar" aria-hidden="true">
                   {memberInitials(member.displayName)}
@@ -1876,12 +2684,11 @@ function TaskAssigneePicker({ task, members, disabled, onSave }) {
                   {formatRole(member.workspaceRole)}
                 </span>
               </label>
-            ))
-          )}
+            ))}
           <button
             className="task-assignee-save"
             type="button"
-            disabled={isSaving || members.length === 0}
+            disabled={isSaving}
             onClick={save}
           >
             {isSaving ? 'Saving…' : 'Save'}
@@ -1892,7 +2699,13 @@ function TaskAssigneePicker({ task, members, disabled, onSave }) {
   )
 }
 
-function WorkspaceMembers({ workspace }) {
+function WorkspaceMembers({
+  workspace,
+  projects,
+  projectTeams,
+  accessRoles,
+  onProjectTeamChange,
+}) {
   const [members, setMembers] = useState([])
   const [form, setForm] = useState({ email: '', role: 'MEMBER' })
   const [fieldErrors, setFieldErrors] = useState({})
@@ -1903,8 +2716,12 @@ function WorkspaceMembers({ workspace }) {
   const [editingMemberId, setEditingMemberId] = useState(null)
   const [pendingRole, setPendingRole] = useState('MEMBER')
   const [changingMemberId, setChangingMemberId] = useState(null)
+  const [accessEditingMemberId, setAccessEditingMemberId] = useState(null)
+  const [projectAccessDraft, setProjectAccessDraft] = useState({})
+  const [savingProjectAccess, setSavingProjectAccess] = useState(false)
 
   const isOwner = workspace.role === 'OWNER'
+  const isManager = ['OWNER', 'ADMIN'].includes(workspace.role)
 
   const loadMembers = useCallback(async () => {
     setError('')
@@ -1957,6 +2774,15 @@ function WorkspaceMembers({ workspace }) {
           member.id === updated.id ? updated : member,
         ),
       )
+      projects.forEach((project) => {
+        const updatedTeam = (projectTeams[project.id] ?? []).map(
+          (projectMember) =>
+            projectMember.workspaceMemberId === updated.id
+              ? { ...projectMember, workspaceRole: updated.role }
+              : projectMember,
+        )
+        onProjectTeamChange(project.id, updatedTeam)
+      })
       setEditingMemberId(null)
     } catch (changeError) {
       setError(changeError.message || 'Unable to update the role.')
@@ -1983,6 +2809,15 @@ function WorkspaceMembers({ workspace }) {
       setMembers((current) =>
         current.filter((member) => member.id !== memberId),
       )
+      projects.forEach((project) => {
+        onProjectTeamChange(
+          project.id,
+          (projectTeams[project.id] ?? []).filter(
+            (projectMember) =>
+              projectMember.workspaceMemberId !== memberId,
+          ),
+        )
+      })
     } catch (removeError) {
       setError(removeError.message || 'Unable to remove the member.')
     } finally {
@@ -1999,6 +2834,113 @@ function WorkspaceMembers({ workspace }) {
   function cancelRoleEdit() {
     setEditingMemberId(null)
     setPendingRole('MEMBER')
+  }
+
+  function startProjectAccessEdit(member) {
+    const draft = {}
+    projects.forEach((project) => {
+      const assignment = (projectTeams[project.id] ?? []).find(
+        (projectMember) =>
+          projectMember.workspaceMemberId === member.id,
+      )
+      draft[project.id] = {
+        selected: Boolean(assignment),
+        roleIds: (assignment?.roles ?? []).map((role) => role.id),
+      }
+    })
+    setError('')
+    setAccessEditingMemberId(member.id)
+    setProjectAccessDraft(draft)
+  }
+
+  function toggleDraftProject(projectId) {
+    setProjectAccessDraft((current) => ({
+      ...current,
+      [projectId]: {
+        roleIds: current[projectId]?.roleIds ?? [],
+        selected: !current[projectId]?.selected,
+      },
+    }))
+  }
+
+  function toggleDraftProjectRole(projectId, roleId) {
+    setProjectAccessDraft((current) => {
+      const roleIds = current[projectId]?.roleIds ?? []
+      return {
+        ...current,
+        [projectId]: {
+          selected: true,
+          roleIds: roleIds.includes(roleId)
+            ? roleIds.filter((id) => id !== roleId)
+            : [...roleIds, roleId],
+        },
+      }
+    })
+  }
+
+  async function saveProjectAccess(member) {
+    setSavingProjectAccess(true)
+    setError('')
+    try {
+      for (const project of projects) {
+        const team = projectTeams[project.id] ?? []
+        const existing = team.find(
+          (projectMember) =>
+            projectMember.workspaceMemberId === member.id,
+        )
+        const draft = projectAccessDraft[project.id] ?? {
+          selected: false,
+          roleIds: [],
+        }
+
+        if (draft.selected && !existing) {
+          const added = await addProjectMember(
+            workspace.id,
+            project.id,
+            member.id,
+            draft.roleIds,
+          )
+          onProjectTeamChange(project.id, [...team, added])
+        } else if (draft.selected && existing) {
+          const existingRoleIds = (existing.roles ?? [])
+            .map((role) => role.id)
+            .sort()
+          const nextRoleIds = [...draft.roleIds].sort()
+          if (existingRoleIds.join(',') !== nextRoleIds.join(',')) {
+            const updated = await replaceProjectMemberRoles(
+              workspace.id,
+              project.id,
+              existing.id,
+              draft.roleIds,
+            )
+            onProjectTeamChange(
+              project.id,
+              team.map((item) =>
+                item.id === updated.id ? updated : item,
+              ),
+            )
+          }
+        } else if (!draft.selected && existing) {
+          await removeProjectMember(
+            workspace.id,
+            project.id,
+            existing.id,
+          )
+          onProjectTeamChange(
+            project.id,
+            team.filter((item) => item.id !== existing.id),
+          )
+        }
+      }
+      setAccessEditingMemberId(null)
+      setProjectAccessDraft({})
+    } catch (saveError) {
+      setError(
+        saveError.message || 'Unable to update project access.',
+      )
+    } finally {
+      setSavingProjectAccess(false)
+    }
   }
 
   return (
@@ -2076,6 +3018,16 @@ function WorkspaceMembers({ workspace }) {
             const isWorkspaceOwner = member.role === 'OWNER'
             const isChanging = changingMemberId === member.id
             const isEditing = editingMemberId === member.id
+            const isAccessEditing = accessEditingMemberId === member.id
+            const assignedProjects = projects
+              .map((project) => ({
+                project,
+                assignment: (projectTeams[project.id] ?? []).find(
+                  (projectMember) =>
+                    projectMember.workspaceMemberId === member.id,
+                ),
+              }))
+              .filter(({ assignment }) => Boolean(assignment))
 
             return (
               <article className="member-row" key={member.id}>
@@ -2094,9 +3046,40 @@ function WorkspaceMembers({ workspace }) {
                 >
                   {formatRole(member.role)}
                 </span>
-                <time dateTime={member.joinedAt}>
-                  Joined {formatProjectDate(member.joinedAt)}
-                </time>
+                <div className="workspace-member-projects">
+                  {assignedProjects.length === 0 ? (
+                    <span>No project access</span>
+                  ) : (
+                    assignedProjects.map(({ project, assignment }) => (
+                      <span
+                        className="workspace-member-project-chip"
+                        key={project.id}
+                      >
+                        <strong>{project.name}</strong>
+                        <small>
+                          {(assignment.roles ?? []).length === 0
+                            ? 'Direct'
+                            : assignment.roles
+                                .map((role) => role.name)
+                                .join(', ')}
+                        </small>
+                      </span>
+                    ))
+                  )}
+                </div>
+                {isManager && !isWorkspaceOwner && (
+                  <button
+                    className="member-action-button project-access-button"
+                    type="button"
+                    onClick={() =>
+                      isAccessEditing
+                        ? setAccessEditingMemberId(null)
+                        : startProjectAccessEdit(member)
+                    }
+                  >
+                    {isAccessEditing ? 'Close access' : 'Projects & roles'}
+                  </button>
+                )}
                 {isOwner && !isWorkspaceOwner ? (
                   isEditing ? (
                     <div className="member-role-editor">
@@ -2150,6 +3133,138 @@ function WorkspaceMembers({ workspace }) {
                     </div>
                   )
                 ) : null}
+                {isAccessEditing && (
+                  <div className="workspace-project-access-editor">
+                    <div className="workspace-project-access-heading">
+                      <div>
+                        <strong>Projects for {member.displayName}</strong>
+                        <small>
+                          Select a project, then attach workspace roles.
+                          Leave roles empty for direct access.
+                        </small>
+                      </div>
+                      <span>{assignedProjects.length} active</span>
+                    </div>
+                    {projects.length === 0 ? (
+                      <p>No projects in this workspace.</p>
+                    ) : (
+                      <div className="workspace-project-access-list">
+                        {projects.map((project) => {
+                          const draft = projectAccessDraft[project.id] ?? {
+                            selected: false,
+                            roleIds: [],
+                          }
+                          return (
+                            <section
+                              className={`workspace-project-access-item ${
+                                draft.selected ? 'selected' : ''
+                              }`}
+                              key={project.id}
+                            >
+                              <label className="workspace-project-toggle">
+                                <input
+                                  type="checkbox"
+                                  checked={draft.selected}
+                                  onChange={() =>
+                                    toggleDraftProject(project.id)
+                                  }
+                                />
+                                <span className="assignment-role-check">
+                                  {draft.selected ? '✓' : ''}
+                                </span>
+                                <span>
+                                  <strong>{project.name}</strong>
+                                  <small>
+                                    {project.status === 'ACTIVE'
+                                      ? 'Active'
+                                      : project.status}{' '}
+                                    ·{' '}
+                                    {project.visibility === 'RESTRICTED'
+                                      ? 'Restricted'
+                                      : 'Workspace'}
+                                  </small>
+                                </span>
+                              </label>
+                              {draft.selected && (
+                                <div className="workspace-project-role-options">
+                                  <button
+                                    className={`workspace-project-direct ${
+                                      draft.roleIds.length === 0
+                                        ? 'selected'
+                                        : ''
+                                    }`}
+                                    type="button"
+                                    onClick={() =>
+                                      setProjectAccessDraft((current) => ({
+                                        ...current,
+                                        [project.id]: {
+                                          selected: true,
+                                          roleIds: [],
+                                        },
+                                      }))
+                                    }
+                                  >
+                                    Direct access
+                                  </button>
+                                  {accessRoles.map((role) => (
+                                    <label
+                                      className={
+                                        draft.roleIds.includes(role.id)
+                                          ? 'selected'
+                                          : ''
+                                      }
+                                      key={role.id}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={draft.roleIds.includes(
+                                          role.id,
+                                        )}
+                                        onChange={() =>
+                                          toggleDraftProjectRole(
+                                            project.id,
+                                            role.id,
+                                          )
+                                        }
+                                      />
+                                      <span
+                                        className="custom-role-dot"
+                                        style={{
+                                          '--role-color': role.color,
+                                        }}
+                                      />
+                                      {role.name}
+                                    </label>
+                                  ))}
+                                </div>
+                              )}
+                            </section>
+                          )
+                        })}
+                      </div>
+                    )}
+                    <div className="workspace-project-access-actions">
+                      <button
+                        className="member-action-button subtle"
+                        type="button"
+                        disabled={savingProjectAccess}
+                        onClick={() => setAccessEditingMemberId(null)}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        className="primary-button"
+                        type="button"
+                        disabled={savingProjectAccess}
+                        onClick={() => saveProjectAccess(member)}
+                      >
+                        {savingProjectAccess
+                          ? 'Saving access…'
+                          : 'Save project access'}
+                      </button>
+                    </div>
+                  </div>
+                )}
               </article>
             )
           })}
@@ -2157,20 +3272,6 @@ function WorkspaceMembers({ workspace }) {
       )}
     </section>
   )
-}
-
-function formatProjectDate(createdAt) {
-  const date = new Date(createdAt)
-
-  if (Number.isNaN(date.getTime())) {
-    return ''
-  }
-
-  return new Intl.DateTimeFormat('en-US', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  }).format(date)
 }
 
 function formatTaskDate(createdAt, now = new Date()) {

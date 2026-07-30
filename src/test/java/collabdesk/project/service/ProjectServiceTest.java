@@ -1,14 +1,15 @@
 package collabdesk.project.service;
 
+import collabdesk.project.role.service.ProjectPermissionService;
 import collabdesk.project.dto.ProjectResponse;
 import collabdesk.project.entity.Project;
 import collabdesk.project.entity.ProjectStatus;
 import collabdesk.project.repository.ProjectRepository;
-import collabdesk.projectmember.entity.ProjectMember;
-import collabdesk.projectmember.repository.ProjectMemberRepository;
+import collabdesk.project.member.entity.ProjectMember;
+import collabdesk.project.member.repository.ProjectMemberRepository;
 import collabdesk.user.entity.User;
 import collabdesk.workspace.entity.Workspace;
-import collabdesk.workspacemember.entity.WorkspaceMember;
+import collabdesk.workspace.member.entity.WorkspaceMember;
 import collabdesk.workspace.service.exceptions.WorkspaceAccessDeniedException;
 import collabdesk.workspace.service.WorkspaceAccessService;
 import org.junit.jupiter.api.BeforeEach;
@@ -44,6 +45,12 @@ class ProjectServiceTest {
     @Mock
     private ProjectMemberRepository projectMemberRepository;
 
+    @Mock
+    private ProjectAccessService projectAccessService;
+
+    @Mock
+    private ProjectPermissionService projectPermissionService;
+
     private ProjectService projectService;
 
     @BeforeEach
@@ -51,7 +58,9 @@ class ProjectServiceTest {
         projectService = new ProjectService(
                 projectRepository,
                 workspaceAccessService,
-                projectMemberRepository
+                projectMemberRepository,
+                projectAccessService,
+                projectPermissionService
         );
     }
 

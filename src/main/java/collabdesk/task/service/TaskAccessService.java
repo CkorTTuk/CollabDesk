@@ -5,7 +5,7 @@ import collabdesk.project.service.ProjectAccessService;
 import collabdesk.task.entity.Task;
 import collabdesk.task.entity.TaskVisibility;
 import collabdesk.task.repository.TaskRepository;
-import collabdesk.taskassignee.repository.TaskAssigneeRepository;
+import collabdesk.task.assignee.repository.TaskAssigneeRepository;
 import collabdesk.workspace.entity.WorkspaceRole;
 import collabdesk.workspace.service.exceptions.WorkspaceOperationForbiddenException;
 import org.springframework.stereotype.Service;

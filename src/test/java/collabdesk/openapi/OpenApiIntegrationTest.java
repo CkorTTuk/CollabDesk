@@ -69,6 +69,9 @@ class OpenApiIntegrationTest {
                         "$.components.schemas.CreateTaskRequest"
                 ).exists())
                 .andExpect(jsonPath(
+                        "$.components.schemas.UpdateTaskRequest"
+                ).exists())
+                .andExpect(jsonPath(
                         "$.components.schemas.TaskResponse"
                 ).exists())
                 .andExpect(jsonPath(
@@ -78,7 +81,16 @@ class OpenApiIntegrationTest {
                         "$.components.schemas.ProjectMemberResponse"
                 ).exists())
                 .andExpect(jsonPath(
-                        "$.components.schemas.ReplaceTaskAssigneesRequest"
+                        "$.components.schemas.CreateAccessRoleRequest"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.AccessRoleResponse"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.ReplaceProjectMemberRolesRequest"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.UpdateTaskAssigneeRequest"
                 ).exists())
                 .andExpect(jsonPath(
                         "$.components.schemas.TaskAssigneeResponse"
@@ -135,6 +147,9 @@ class OpenApiIntegrationTest {
                         "$.paths['/api/v1/workspaces/{workspaceId}/projects/{projectId}/tasks/{taskId}/status'].patch"
                 ).exists())
                 .andExpect(jsonPath(
+                        "$.paths['/api/v1/workspaces/{workspaceId}/projects/{projectId}/tasks/{taskId}'].patch"
+                ).exists())
+                .andExpect(jsonPath(
                         "$.paths['/api/v1/workspaces/{workspaceId}/projects/{projectId}/members'].get"
                 ).exists())
                 .andExpect(jsonPath(
@@ -144,7 +159,22 @@ class OpenApiIntegrationTest {
                         "$.paths['/api/v1/workspaces/{workspaceId}/projects/{projectId}/members/{projectMemberId}'].delete"
                 ).exists())
                 .andExpect(jsonPath(
-                        "$.paths['/api/v1/workspaces/{workspaceId}/projects/{projectId}/tasks/{taskId}/assignees'].put"
+                        "$.paths['/api/v1/workspaces/{workspaceId}/access-roles'].get"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/workspaces/{workspaceId}/access-roles'].post"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/workspaces/{workspaceId}/access-roles/{roleId}'].patch"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/workspaces/{workspaceId}/projects/{projectId}/members/{projectMemberId}/roles'].put"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/workspaces/{workspaceId}/projects/{projectId}/permissions'].get"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/workspaces/{workspaceId}/projects/{projectId}/tasks/{taskId}/assignee'].put"
                 ).exists())
                 .andExpect(jsonPath(
                         "$.paths['/api/v1/workspaces/{workspaceId}/projects/{projectId}/visibility'].patch"

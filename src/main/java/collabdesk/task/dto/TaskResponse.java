@@ -1,12 +1,13 @@
 package collabdesk.task.dto;
 
+import collabdesk.project.role.entity.ProjectPermission;
 import collabdesk.task.entity.TaskStatus;
 import collabdesk.task.entity.TaskVisibility;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.Instant;
-import java.util.List;
-import collabdesk.taskassignee.dto.TaskAssigneeResponse;
+import java.util.Set;
+import collabdesk.task.assignee.dto.TaskAssigneeResponse;
 
 @Schema(description = "Task inside a project")
 public record TaskResponse(
@@ -19,6 +20,7 @@ public record TaskResponse(
         Long createdById,
         Instant createdAt,
         Instant updatedAt,
-        List<TaskAssigneeResponse> assignees
+        TaskAssigneeResponse assignee,
+        Set<ProjectPermission> currentUserPermissions
 ) {
 }

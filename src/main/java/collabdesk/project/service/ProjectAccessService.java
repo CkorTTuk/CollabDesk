@@ -11,6 +11,8 @@ import collabdesk.workspace.service.WorkspaceAccessService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 @Service
 public class ProjectAccessService {
 
@@ -70,6 +72,22 @@ public class ProjectAccessService {
             );
         }
         return access;
+    }
+
+    @Transactional(readOnly = true)
+    public List<Project> findAccessibleProjects(
+            Long workspaceId,
+            Long currentUserId
+    ) {
+        WorkspaceMember membership = workspaceAccessService.requireMember(
+                workspaceId,
+                currentUserId
+        );
+        return projectRepository.findAccessibleForWorkspace(
+                workspaceId,
+                currentUserId,
+                isManager(membership.getRole())
+        );
     }
 
     private Project findProject(Long workspaceId, Long projectId) {

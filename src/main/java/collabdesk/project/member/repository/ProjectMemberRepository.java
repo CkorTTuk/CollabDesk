@@ -14,6 +14,15 @@ public interface ProjectMemberRepository
     @EntityGraph(attributePaths = {"workspaceMember", "workspaceMember.user"})
     List<ProjectMember> findByProject_IdOrderByJoinedAtAsc(Long projectId);
 
+    @EntityGraph(attributePaths = {
+            "project",
+            "workspaceMember",
+            "workspaceMember.user"
+    })
+    List<ProjectMember> findByProject_IdInOrderByProject_IdAscJoinedAtAsc(
+            Collection<Long> projectIds
+    );
+
     @EntityGraph(attributePaths = {"workspaceMember", "workspaceMember.user"})
     Optional<ProjectMember> findByIdAndProject_Id(
             Long projectMemberId,

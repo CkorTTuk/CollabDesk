@@ -12,8 +12,8 @@ import {
 import {
   changeProjectVisibility,
   createProject,
-  getProjects,
 } from './api/projectApi.js'
+import { getProjectAccessOverview } from './api/projectAccessOverviewApi.js'
 import {
   changeTaskStatus,
   changeTaskVisibility,
@@ -1235,6 +1235,7 @@ function ProjectSection({ workspace, user, onBack }) {
   const [projects, setProjects] = useState([])
   const [projectTeams, setProjectTeams] = useState({})
   const [accessRoles, setAccessRoles] = useState([])
+  const [workspaceMembers, setWorkspaceMembers] = useState([])
   const [selectedProject, setSelectedProject] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
   const [isCreating, setIsCreating] = useState(false)
@@ -1243,23 +1244,33 @@ function ProjectSection({ workspace, user, onBack }) {
   const [fieldErrors, setFieldErrors] = useState({})
   const [form, setForm] = useState({ name: '', description: '' })
 
-  const loadProjects = useCallback(async () => {
+  const loadWorkspaceAccess = useCallback(async () => {
     setError('')
     setIsLoading(true)
 
     try {
-      const [loadedProjects, loadedRoles] = await Promise.all([
-        getProjects(workspace.id),
+      const [overview, loadedRoles, loadedMembers] = await Promise.all([
+        getProjectAccessOverview(workspace.id),
         getAccessRoles(workspace.id),
+        getWorkspaceMembers(workspace.id),
       ])
-      const loadedTeams = await Promise.all(
-        loadedProjects.map(async (project) => [
-          project.id,
-          await getProjectMembers(workspace.id, project.id),
-        ]),
-      )
+      const loadedProjects = overview.projects.map((project) => ({
+        id: project.projectId,
+        name: project.name,
+        description: project.description,
+        status: project.status,
+        visibility: project.visibility,
+      }))
+      const loadedTeams = overview.projects.map((project) => [
+        project.projectId,
+        project.members.map((member) => ({
+          ...member,
+          id: member.projectMemberId,
+        })),
+      ])
       setProjects(loadedProjects)
       setAccessRoles(loadedRoles)
+      setWorkspaceMembers(loadedMembers)
       setProjectTeams(Object.fromEntries(loadedTeams))
       setSelectedProject(null)
     } catch (loadError) {
@@ -1273,8 +1284,8 @@ function ProjectSection({ workspace, user, onBack }) {
   }, [workspace.id])
 
   useEffect(() => {
-    loadProjects()
-  }, [loadProjects])
+    loadWorkspaceAccess()
+  }, [loadWorkspaceAccess])
 
   async function handleCreate(event) {
     event.preventDefault()
@@ -1283,14 +1294,8 @@ function ProjectSection({ workspace, user, onBack }) {
     setIsCreating(true)
 
     try {
-      const project = await createProject(workspace.id, form)
-      setProjects((current) => [...current, project])
-      try {
-        const team = await getProjectMembers(workspace.id, project.id)
-        setProjectTeams((current) => ({ ...current, [project.id]: team }))
-      } catch {
-        setProjectTeams((current) => ({ ...current, [project.id]: [] }))
-      }
+      await createProject(workspace.id, form)
+      await loadWorkspaceAccess()
       setForm({ name: '', description: '' })
       setIsFormOpen(false)
     } catch (createError) {
@@ -1457,7 +1462,7 @@ function ProjectSection({ workspace, user, onBack }) {
           <div className="form-message error" role="alert">
             {error}
           </div>
-          <button className="secondary-button" onClick={loadProjects}>
+          <button className="secondary-button" onClick={loadWorkspaceAccess}>
             Try again
           </button>
         </div>
@@ -1579,12 +1584,17 @@ function ProjectSection({ workspace, user, onBack }) {
           className="workspace-members-column"
           aria-label="Workspace members"
         >
-          <AccessRoleManager workspace={workspace} onChange={loadProjects} />
+          <AccessRoleManager
+            workspace={workspace}
+            onChange={loadWorkspaceAccess}
+          />
           <WorkspaceMembers
             workspace={workspace}
             projects={projects}
             projectTeams={projectTeams}
             accessRoles={accessRoles}
+            members={workspaceMembers}
+            onMembersChange={setWorkspaceMembers}
             onProjectTeamChange={updateProjectTeam}
           />
         </aside>
@@ -2091,510 +2101,6 @@ function TaskBoard({
   )
 }
 
-export function ProjectTeam({
-  workspace,
-  project,
-  members,
-  onMembersChange,
-}) {
-  const [workspaceMembers, setWorkspaceMembers] = useState([])
-  const [accessRoles, setAccessRoles] = useState([])
-  const [selectedMemberIds, setSelectedMemberIds] = useState([])
-  const [selectedRoleIds, setSelectedRoleIds] = useState([])
-  const [memberQuery, setMemberQuery] = useState('')
-  const [isLoading, setIsLoading] = useState(true)
-  const [isAdding, setIsAdding] = useState(false)
-  const [removingId, setRemovingId] = useState(null)
-  const [editingMemberId, setEditingMemberId] = useState(null)
-  const [pendingRoleIds, setPendingRoleIds] = useState([])
-  const [savingRolesId, setSavingRolesId] = useState(null)
-  const [isFormOpen, setIsFormOpen] = useState(false)
-  const [error, setError] = useState('')
-  const isManager =
-    workspace.role === 'OWNER' || workspace.role === 'ADMIN'
-
-  const loadMembers = useCallback(async () => {
-    setIsLoading(true)
-    setError('')
-    try {
-      const [projectTeam, workspaceTeam, customRoles] = await Promise.all([
-        getProjectMembers(workspace.id, project.id),
-        getWorkspaceMembers(workspace.id),
-        getAccessRoles(workspace.id),
-      ])
-      onMembersChange(projectTeam)
-      setWorkspaceMembers(workspaceTeam)
-      setAccessRoles(customRoles)
-    } catch (loadError) {
-      setError(loadError.message || 'Unable to load the project team.')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [workspace.id, project.id, onMembersChange])
-
-  useEffect(() => {
-    loadMembers()
-  }, [loadMembers])
-
-  const availableMembers = workspaceMembers.filter(
-    (workspaceMember) =>
-      !members.some(
-        (projectMember) =>
-          projectMember.workspaceMemberId === workspaceMember.id,
-      ),
-  )
-  const visibleAvailableMembers = availableMembers.filter((member) => {
-    const query = memberQuery.trim().toLowerCase()
-    return (
-      !query ||
-      member.displayName.toLowerCase().includes(query) ||
-      (member.email ?? '').toLowerCase().includes(query)
-    )
-  })
-
-  function toggleSelectedMember(memberId) {
-    setSelectedMemberIds((current) =>
-      current.includes(memberId)
-        ? current.filter((id) => id !== memberId)
-        : [...current, memberId],
-    )
-  }
-
-  function toggleSelectedRole(roleId) {
-    setSelectedRoleIds((current) =>
-      current.includes(roleId)
-        ? current.filter((id) => id !== roleId)
-        : [...current, roleId],
-    )
-  }
-
-  function togglePendingRole(roleId) {
-    setPendingRoleIds((current) =>
-      current.includes(roleId)
-        ? current.filter((id) => id !== roleId)
-        : [...current, roleId],
-    )
-  }
-
-  async function handleAdd(event) {
-    event.preventDefault()
-    if (selectedMemberIds.length === 0) return
-    setIsAdding(true)
-    setError('')
-    const results = await Promise.allSettled(
-      selectedMemberIds.map((workspaceMemberId) =>
-        addProjectMember(
-          workspace.id,
-          project.id,
-          workspaceMemberId,
-          selectedRoleIds,
-        ),
-      ),
-    )
-    const addedMembers = results
-      .filter((result) => result.status === 'fulfilled')
-      .map((result) => result.value)
-    const failedMemberIds = selectedMemberIds.filter(
-      (_, index) => results[index].status === 'rejected',
-    )
-
-    if (addedMembers.length > 0) {
-      onMembersChange((current) => [
-        ...current,
-        ...addedMembers.filter(
-          (added) => !current.some((member) => member.id === added.id),
-        ),
-      ])
-    }
-
-    if (failedMemberIds.length === 0) {
-      setSelectedMemberIds([])
-      setSelectedRoleIds([])
-      setMemberQuery('')
-      setIsFormOpen(false)
-    } else {
-      setSelectedMemberIds(failedMemberIds)
-      const firstFailure = results.find(
-        (result) => result.status === 'rejected',
-      )
-      setError(
-        firstFailure?.reason?.message ||
-          `Unable to add ${failedMemberIds.length} selected member(s).`,
-      )
-    }
-    setIsAdding(false)
-  }
-
-  async function handleRolesSave(memberId) {
-    setSavingRolesId(memberId)
-    setError('')
-    try {
-      const updated = await replaceProjectMemberRoles(
-        workspace.id,
-        project.id,
-        memberId,
-        pendingRoleIds,
-      )
-      onMembersChange((current) =>
-        current.map((member) =>
-          member.id === updated.id ? updated : member,
-        ),
-      )
-      setEditingMemberId(null)
-      setPendingRoleIds([])
-    } catch (saveError) {
-      setError(
-        saveError.message || 'Unable to update project member roles.',
-      )
-    } finally {
-      setSavingRolesId(null)
-    }
-  }
-
-  async function handleRemove(memberId) {
-    setRemovingId(memberId)
-    setError('')
-    try {
-      await removeProjectMember(workspace.id, project.id, memberId)
-      onMembersChange((current) =>
-        current.filter((member) => member.id !== memberId),
-      )
-    } catch (removeError) {
-      setError(
-        removeError.message || 'Unable to remove the project member.',
-      )
-    } finally {
-      setRemovingId(null)
-    }
-  }
-
-  return (
-    <section className="members-panel">
-      <div className="members-panel-heading">
-        <div>
-          <p className="eyebrow">Project access</p>
-          <h3>Project team</h3>
-        </div>
-        {isManager && (
-          <button
-            className="member-add-toggle"
-            type="button"
-            disabled={availableMembers.length === 0}
-            onClick={() => {
-              setIsFormOpen((current) => !current)
-              setSelectedMemberIds([])
-              setSelectedRoleIds([])
-              setMemberQuery('')
-            }}
-          >
-            {isFormOpen ? 'Cancel' : '+ Add people'}
-          </button>
-        )}
-      </div>
-
-      {isFormOpen && (
-        <form className="project-member-form" onSubmit={handleAdd}>
-          <fieldset className="assignment-role-fieldset">
-            <legend>
-              <span>1</span>
-              Choose project access
-            </legend>
-            <p>
-              Workspace roles apply to the selected people in this project
-              only.
-            </p>
-            <div className="assignment-role-list">
-              <button
-                className={`assignment-default-role ${
-                  selectedRoleIds.length === 0 ? 'selected' : ''
-                }`}
-                type="button"
-                onClick={() => setSelectedRoleIds([])}
-              >
-                <span className="assignment-role-icon">D</span>
-                <span>
-                  <strong>Default project access</strong>
-                  <small>Uses the member’s standard permissions</small>
-                </span>
-                <span className="assignment-role-check" aria-hidden="true">
-                  {selectedRoleIds.length === 0 ? '✓' : ''}
-                </span>
-              </button>
-              {accessRoles.length === 0 ? (
-                <span className="assignment-empty-note">
-                  Create a custom role in workspace settings to use it here.
-                </span>
-              ) : (
-                accessRoles.map((role) => (
-                  <label
-                    className={`assignment-role-option ${
-                      selectedRoleIds.includes(role.id) ? 'selected' : ''
-                    }`}
-                    key={role.id}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedRoleIds.includes(role.id)}
-                      onChange={() => toggleSelectedRole(role.id)}
-                    />
-                    <span
-                      className="custom-role-dot"
-                      style={{ '--role-color': role.color }}
-                      aria-hidden="true"
-                    />
-                    <span className="assignment-role-copy">
-                      <strong>{role.name}</strong>
-                      <small>
-                        {(role.permissions ?? []).length} permission
-                        {(role.permissions ?? []).length === 1 ? '' : 's'}
-                      </small>
-                    </span>
-                    <span className="assignment-role-check" aria-hidden="true">
-                      {selectedRoleIds.includes(role.id) ? '✓' : ''}
-                    </span>
-                  </label>
-                ))
-              )}
-            </div>
-          </fieldset>
-
-          <fieldset className="project-people-fieldset">
-            <legend>
-              <span>2</span>
-              Select people
-              {selectedMemberIds.length > 0 && (
-                <em>{selectedMemberIds.length} selected</em>
-              )}
-            </legend>
-            <input
-              className="project-member-search"
-              type="search"
-              value={memberQuery}
-              placeholder="Search workspace members…"
-              aria-label="Search available workspace members"
-              onChange={(event) => setMemberQuery(event.target.value)}
-            />
-            <div className="project-member-picker">
-              {visibleAvailableMembers.length === 0 ? (
-                <p>
-                  {memberQuery
-                    ? 'No matching workspace members.'
-                    : 'Everyone is already in this project.'}
-                </p>
-              ) : (
-                visibleAvailableMembers.map((member) => (
-                  <label
-                    className={`project-member-option ${
-                      selectedMemberIds.includes(member.id) ? 'selected' : ''
-                    }`}
-                    key={member.id}
-                  >
-                    <input
-                      type="checkbox"
-                      checked={selectedMemberIds.includes(member.id)}
-                      onChange={() => toggleSelectedMember(member.id)}
-                    />
-                    <span className="member-avatar" aria-hidden="true">
-                      {memberInitials(member.displayName)}
-                    </span>
-                    <span className="project-member-option-copy">
-                      <strong>{member.displayName}</strong>
-                      <small>{member.email}</small>
-                    </span>
-                    <span className="assignment-role-check" aria-hidden="true">
-                      {selectedMemberIds.includes(member.id) ? '✓' : ''}
-                    </span>
-                  </label>
-                ))
-              )}
-            </div>
-          </fieldset>
-          <button
-            className="primary-button project-add-people-button"
-            disabled={isAdding || selectedMemberIds.length === 0}
-          >
-            {isAdding
-              ? 'Adding people…'
-              : selectedMemberIds.length === 0
-                ? 'Select people to add'
-                : `Add ${selectedMemberIds.length} ${
-                    selectedMemberIds.length === 1 ? 'person' : 'people'
-                  }`}
-          </button>
-        </form>
-      )}
-
-      {error && (
-        <div className="form-message error" role="alert">
-          {error}
-        </div>
-      )}
-
-      <div className="project-team-table" aria-label="Project members">
-        <div className="project-team-table-header">
-          <span>Member</span>
-          <span>Access</span>
-        </div>
-        {isLoading ? (
-          <p className="project-team-state">Loading team…</p>
-        ) : members.length === 0 ? (
-          <p className="project-team-state">No project members yet.</p>
-        ) : (
-          <div className="project-team-list">
-            {members.map((member) => (
-              <div className="project-team-row" key={member.id}>
-                <div className="project-team-member-cell">
-                  <span
-                    className="member-avatar"
-                    aria-hidden="true"
-                  >
-                    {memberInitials(member.displayName)}
-                  </span>
-                  <div className="project-team-identity">
-                    <strong title={member.displayName}>
-                      {member.displayName}
-                    </strong>
-                    <small title={member.email}>{member.email}</small>
-                  </div>
-                </div>
-                <div className="project-team-access-cell">
-                  <span
-                    className={roleBadgeClassName(
-                      member.workspaceRole,
-                      'member-role-badge',
-                    )}
-                  >
-                    {formatRole(member.workspaceRole)}
-                  </span>
-                  <div className="project-member-custom-roles">
-                    {(member.roles ?? []).length === 0 ? (
-                      <span className="default-permissions-note">
-                        Default permissions
-                      </span>
-                    ) : (
-                      member.roles.map((role) => (
-                        <span
-                          className="custom-role-chip"
-                          style={{ '--role-color': role.color }}
-                          key={role.id}
-                        >
-                          {role.name}
-                        </span>
-                      ))
-                    )}
-                  </div>
-                  {isManager && (
-                    <>
-                      <button
-                        className="member-action-button"
-                        type="button"
-                        onClick={() => {
-                          setEditingMemberId(member.id)
-                          setPendingRoleIds(
-                            (member.roles ?? []).map((role) => role.id),
-                          )
-                        }}
-                      >
-                        Edit access
-                      </button>
-                      <button
-                        className="project-member-remove"
-                        type="button"
-                        aria-label={`Remove ${member.displayName} from project`}
-                        disabled={removingId === member.id}
-                        onClick={() => handleRemove(member.id)}
-                      >
-                        ×
-                      </button>
-                    </>
-                  )}
-                  {editingMemberId === member.id && (
-                    <div className="project-member-role-editor">
-                      <div className="project-member-role-editor-heading">
-                        <strong>Project access</strong>
-                        <small>{member.displayName}</small>
-                      </div>
-                      <button
-                        className={`assignment-default-role compact ${
-                          pendingRoleIds.length === 0 ? 'selected' : ''
-                        }`}
-                        type="button"
-                        onClick={() => setPendingRoleIds([])}
-                      >
-                        <span className="assignment-role-icon">D</span>
-                        <span>Default project access</span>
-                        <span className="assignment-role-check">
-                          {pendingRoleIds.length === 0 ? '✓' : ''}
-                        </span>
-                      </button>
-                      {accessRoles.length === 0 ? (
-                        <p>No custom roles available.</p>
-                      ) : (
-                        accessRoles.map((role) => (
-                          <label
-                            className={
-                              pendingRoleIds.includes(role.id)
-                                ? 'selected'
-                                : ''
-                            }
-                            key={role.id}
-                          >
-                            <input
-                              type="checkbox"
-                              checked={pendingRoleIds.includes(role.id)}
-                              onChange={() => togglePendingRole(role.id)}
-                            />
-                            <span
-                              className="custom-role-dot"
-                              style={{ '--role-color': role.color }}
-                              aria-hidden="true"
-                            />
-                            <span className="assignment-role-copy">
-                              <strong>{role.name}</strong>
-                              <small>
-                                {(role.permissions ?? []).length} permission
-                                {(role.permissions ?? []).length === 1
-                                  ? ''
-                                  : 's'}
-                              </small>
-                            </span>
-                            <span className="assignment-role-check">
-                              {pendingRoleIds.includes(role.id) ? '✓' : ''}
-                            </span>
-                          </label>
-                        ))
-                      )}
-                      <div>
-                        <button
-                          className="member-action-button"
-                          type="button"
-                          disabled={savingRolesId === member.id}
-                          onClick={() => handleRolesSave(member.id)}
-                        >
-                          {savingRolesId === member.id
-                            ? 'Saving…'
-                            : 'Save'}
-                        </button>
-                        <button
-                          className="member-action-button subtle"
-                          type="button"
-                          onClick={() => setEditingMemberId(null)}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </section>
-  )
-}
-
 function TaskAssigneePicker({ task, members, disabled, onSave }) {
   const [isOpen, setIsOpen] = useState(false)
   const [selectedId, setSelectedId] = useState(null)
@@ -2699,18 +2205,193 @@ function TaskAssigneePicker({ task, members, disabled, onSave }) {
   )
 }
 
+function MemberProfilePopover({
+  member,
+  assignedProjects,
+  canManageAccess,
+  canManageMember,
+  isChanging,
+  triggerRef,
+  onManageAccess,
+  onEditRole,
+  onRemove,
+  onClose,
+}) {
+  const dialogRef = useRef(null)
+  const closeButtonRef = useRef(null)
+  const onCloseRef = useRef(onClose)
+  const [isMobileDialog, setIsMobileDialog] = useState(false)
+  const titleId = `member-profile-${member.id}-title`
+  const descriptionId = `member-profile-${member.id}-description`
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+  }, [onClose])
+
+  useEffect(() => {
+    const trigger = triggerRef.current
+    closeButtonRef.current?.focus()
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        onCloseRef.current()
+      }
+    }
+
+    function handlePointerDown(event) {
+      if (
+        !dialogRef.current?.contains(event.target) &&
+        !triggerRef.current?.contains(event.target)
+      ) {
+        onCloseRef.current()
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    document.addEventListener('pointerdown', handlePointerDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.removeEventListener('pointerdown', handlePointerDown)
+      trigger?.focus()
+    }
+  }, [member.id, triggerRef])
+
+  useEffect(() => {
+    const media = window.matchMedia('(max-width: 700px)')
+    const updateMode = () => setIsMobileDialog(media.matches)
+    updateMode()
+    media.addEventListener('change', updateMode)
+    return () => media.removeEventListener('change', updateMode)
+  }, [])
+
+  useEffect(() => {
+    if (!isMobileDialog) return undefined
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousOverflow
+    }
+  }, [isMobileDialog])
+
+  return (
+    <div className="member-profile-layer">
+      <section
+        className="member-profile-popover"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal={isMobileDialog}
+        aria-labelledby={titleId}
+        aria-describedby={descriptionId}
+      >
+        <div className="member-profile-header">
+          <span className="member-profile-avatar" aria-hidden="true">
+            {memberInitials(member.displayName)}
+          </span>
+          <div>
+            <strong id={titleId}>{member.displayName}</strong>
+            <span>{member.email}</span>
+          </div>
+          <button
+            className="member-profile-close"
+            ref={closeButtonRef}
+            type="button"
+            aria-label={`Close ${member.displayName} profile`}
+            onClick={onClose}
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="member-profile-meta" id={descriptionId}>
+          <span>Workspace role</span>
+          <strong>{formatRole(member.role)}</strong>
+        </div>
+
+        <div className="member-profile-access">
+          <div className="member-profile-section-heading">
+            <strong>Project access</strong>
+            <span>{assignedProjects.length}</span>
+          </div>
+          {assignedProjects.length === 0 ? (
+            <p>No project access assigned.</p>
+          ) : (
+            assignedProjects.map(({ project, assignment }) => (
+              <article key={project.id}>
+                <div>
+                  <strong>{project.name}</strong>
+                  <small>
+                    {project.visibility === 'RESTRICTED'
+                      ? 'Restricted'
+                      : 'Workspace'}
+                  </small>
+                </div>
+                <div className="member-profile-role-list">
+                  {(assignment.roles ?? []).length === 0 ? (
+                    <span className="member-profile-direct">Direct access</span>
+                  ) : (
+                    assignment.roles.map((role) => (
+                      <span
+                        className="custom-role-chip"
+                        style={{ '--role-color': role.color }}
+                        key={role.id}
+                      >
+                        {role.name}
+                      </span>
+                    ))
+                  )}
+                </div>
+              </article>
+            ))
+          )}
+        </div>
+
+        {canManageAccess && (
+          <button
+            className="primary-button member-profile-manage"
+            type="button"
+            onClick={onManageAccess}
+          >
+            Manage projects & roles
+          </button>
+        )}
+        {canManageMember && (
+          <div className="member-profile-member-actions">
+            <button
+              className="member-action-button"
+              type="button"
+              disabled={isChanging}
+              onClick={onEditRole}
+            >
+              Edit workspace role
+            </button>
+            <button
+              className="danger-button"
+              type="button"
+              disabled={isChanging}
+              onClick={onRemove}
+            >
+              Remove member
+            </button>
+          </div>
+        )}
+      </section>
+    </div>
+  )
+}
+
 function WorkspaceMembers({
   workspace,
   projects,
   projectTeams,
   accessRoles,
+  members,
+  onMembersChange,
   onProjectTeamChange,
 }) {
-  const [members, setMembers] = useState([])
   const [form, setForm] = useState({ email: '', role: 'MEMBER' })
   const [fieldErrors, setFieldErrors] = useState({})
   const [error, setError] = useState('')
-  const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [isAddFormOpen, setIsAddFormOpen] = useState(false)
   const [editingMemberId, setEditingMemberId] = useState(null)
@@ -2719,26 +2400,11 @@ function WorkspaceMembers({
   const [accessEditingMemberId, setAccessEditingMemberId] = useState(null)
   const [projectAccessDraft, setProjectAccessDraft] = useState({})
   const [savingProjectAccess, setSavingProjectAccess] = useState(false)
+  const [profileMemberId, setProfileMemberId] = useState(null)
+  const profileTriggerRef = useRef(null)
 
   const isOwner = workspace.role === 'OWNER'
   const isManager = ['OWNER', 'ADMIN'].includes(workspace.role)
-
-  const loadMembers = useCallback(async () => {
-    setError('')
-    setIsLoading(true)
-
-    try {
-      setMembers(await getWorkspaceMembers(workspace.id))
-    } catch (loadError) {
-      setError(loadError.message || 'Unable to load members.')
-    } finally {
-      setIsLoading(false)
-    }
-  }, [workspace.id])
-
-  useEffect(() => {
-    loadMembers()
-  }, [loadMembers])
 
   async function handleAdd(event) {
     event.preventDefault()
@@ -2748,7 +2414,7 @@ function WorkspaceMembers({
 
     try {
       const member = await addWorkspaceMember(workspace.id, form)
-      setMembers((current) => [...current, member])
+      onMembersChange((current) => [...current, member])
       setForm({ email: '', role: 'MEMBER' })
       setIsAddFormOpen(false)
     } catch (addError) {
@@ -2769,7 +2435,7 @@ function WorkspaceMembers({
         memberId,
         role,
       )
-      setMembers((current) =>
+      onMembersChange((current) =>
         current.map((member) =>
           member.id === updated.id ? updated : member,
         ),
@@ -2806,7 +2472,7 @@ function WorkspaceMembers({
 
     try {
       await removeWorkspaceMember(workspace.id, memberId)
-      setMembers((current) =>
+      onMembersChange((current) =>
         current.filter((member) => member.id !== memberId),
       )
       projects.forEach((project) => {
@@ -3007,18 +2673,13 @@ function WorkspaceMembers({
         </div>
       )}
 
-      {isLoading ? (
-        <div className="members-loading">
-          <span className="loading-spinner" aria-hidden="true" />
-          Loading members…
-        </div>
-      ) : (
-        <div className="member-list">
+      <div className="member-list">
           {members.map((member) => {
             const isWorkspaceOwner = member.role === 'OWNER'
             const isChanging = changingMemberId === member.id
             const isEditing = editingMemberId === member.id
             const isAccessEditing = accessEditingMemberId === member.id
+            const isProfileOpen = profileMemberId === member.id
             const assignedProjects = projects
               .map((project) => ({
                 project,
@@ -3031,13 +2692,30 @@ function WorkspaceMembers({
 
             return (
               <article className="member-row" key={member.id}>
-                <div className="member-avatar" aria-hidden="true">
+                <button
+                  className="member-avatar member-profile-trigger"
+                  type="button"
+                  aria-label={`Open ${member.displayName} profile`}
+                  aria-expanded={isProfileOpen}
+                  onClick={(event) => {
+                    profileTriggerRef.current = event.currentTarget
+                    setProfileMemberId(isProfileOpen ? null : member.id)
+                  }}
+                >
                   {member.displayName.slice(0, 1).toUpperCase()}
-                </div>
-                <div className="member-identity">
+                </button>
+                <button
+                  className="member-identity member-profile-trigger"
+                  type="button"
+                  aria-expanded={isProfileOpen}
+                  onClick={(event) => {
+                    profileTriggerRef.current = event.currentTarget
+                    setProfileMemberId(isProfileOpen ? null : member.id)
+                  }}
+                >
                   <strong>{member.displayName}</strong>
                   <span>{member.email}</span>
-                </div>
+                </button>
                 <span
                   className={roleBadgeClassName(
                     member.role,
@@ -3046,93 +2724,62 @@ function WorkspaceMembers({
                 >
                   {formatRole(member.role)}
                 </span>
-                <div className="workspace-member-projects">
-                  {assignedProjects.length === 0 ? (
-                    <span>No project access</span>
-                  ) : (
-                    assignedProjects.map(({ project, assignment }) => (
-                      <span
-                        className="workspace-member-project-chip"
-                        key={project.id}
-                      >
-                        <strong>{project.name}</strong>
-                        <small>
-                          {(assignment.roles ?? []).length === 0
-                            ? 'Direct'
-                            : assignment.roles
-                                .map((role) => role.name)
-                                .join(', ')}
-                        </small>
-                      </span>
-                    ))
-                  )}
-                </div>
-                {isManager && !isWorkspaceOwner && (
-                  <button
-                    className="member-action-button project-access-button"
-                    type="button"
-                    onClick={() =>
-                      isAccessEditing
-                        ? setAccessEditingMemberId(null)
-                        : startProjectAccessEdit(member)
-                    }
-                  >
-                    {isAccessEditing ? 'Close access' : 'Projects & roles'}
-                  </button>
+                {isProfileOpen && (
+                  <MemberProfilePopover
+                    member={member}
+                    assignedProjects={assignedProjects}
+                    canManageAccess={isManager && !isWorkspaceOwner}
+                    canManageMember={isOwner && !isWorkspaceOwner}
+                    isChanging={isChanging}
+                    triggerRef={profileTriggerRef}
+                    onClose={() => setProfileMemberId(null)}
+                    onManageAccess={() => {
+                      setProfileMemberId(null)
+                      startProjectAccessEdit(member)
+                    }}
+                    onEditRole={() => {
+                      setProfileMemberId(null)
+                      startRoleEdit(member)
+                    }}
+                    onRemove={() => {
+                      setProfileMemberId(null)
+                      handleRemove(member.id)
+                    }}
+                  />
                 )}
-                {isOwner && !isWorkspaceOwner ? (
-                  isEditing ? (
-                    <div className="member-role-editor">
-                      <RolePicker
-                        compact
-                        label={`Role for ${member.displayName}`}
-                        value={pendingRole}
-                        disabled={isChanging}
-                        onChange={setPendingRole}
-                      />
-                      <div className="member-role-editor-actions">
-                        <button
-                          className="member-action-button"
-                          type="button"
-                          disabled={
-                            isChanging || pendingRole === member.role
-                          }
-                          onClick={() =>
-                            handleRoleChange(member.id, pendingRole)
-                          }
-                        >
-                          {isChanging ? 'Saving…' : 'Save role'}
-                        </button>
-                        <button
-                          className="member-action-button subtle"
-                          type="button"
-                          disabled={isChanging}
-                          onClick={cancelRoleEdit}
-                        >
-                          Cancel
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="member-controls">
+                {isOwner && !isWorkspaceOwner && isEditing && (
+                  <div className="member-role-editor">
+                    <RolePicker
+                      compact
+                      label={`Role for ${member.displayName}`}
+                      value={pendingRole}
+                      disabled={isChanging}
+                      onChange={setPendingRole}
+                    />
+                    <div className="member-role-editor-actions">
                       <button
                         className="member-action-button"
                         type="button"
-                        onClick={() => startRoleEdit(member)}
+                        disabled={
+                          isChanging || pendingRole === member.role
+                        }
+                        onClick={() =>
+                          handleRoleChange(member.id, pendingRole)
+                        }
                       >
-                        Edit role
+                        {isChanging ? 'Saving…' : 'Save role'}
                       </button>
                       <button
-                        className="danger-button"
+                        className="member-action-button subtle"
                         type="button"
                         disabled={isChanging}
-                        onClick={() => handleRemove(member.id)}
+                        onClick={cancelRoleEdit}
                       >
-                        Remove
+                        Cancel
                       </button>
                     </div>
-                  )
-                ) : null}
+                  </div>
+                )}
                 {isAccessEditing && (
                   <div className="workspace-project-access-editor">
                     <div className="workspace-project-access-heading">
@@ -3268,8 +2915,7 @@ function WorkspaceMembers({
               </article>
             )
           })}
-        </div>
-      )}
+      </div>
     </section>
   )
 }

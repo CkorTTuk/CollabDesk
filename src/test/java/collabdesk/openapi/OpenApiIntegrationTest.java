@@ -81,6 +81,15 @@ class OpenApiIntegrationTest {
                         "$.components.schemas.ProjectMemberResponse"
                 ).exists())
                 .andExpect(jsonPath(
+                        "$.components.schemas.WorkspaceProjectAccessOverviewResponse"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.ProjectAccessOverviewResponse"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.components.schemas.ProjectMemberAccessResponse"
+                ).exists())
+                .andExpect(jsonPath(
                         "$.components.schemas.CreateAccessRoleRequest"
                 ).exists())
                 .andExpect(jsonPath(
@@ -139,6 +148,9 @@ class OpenApiIntegrationTest {
                 ).exists())
                 .andExpect(jsonPath(
                         "$.paths['/api/v1/workspaces/{workspaceId}/projects'].get"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/workspaces/{workspaceId}/project-access-overview'].get"
                 ).exists())
                 .andExpect(jsonPath(
                         "$.paths['/api/v1/workspaces/{workspaceId}/projects/{projectId}/tasks'].post"

@@ -55,6 +55,10 @@ class AccessRoleIntegrationTest {
                                 }
                                 """)
         ).andExpect(status().isCreated()).andReturn());
+        String overviewUrl = WORKSPACES + "/" + workspaceId
+                + "/project-access-overview";
+        mockMvc.perform(get(overviewUrl))
+                .andExpect(status().isUnauthorized());
 
         Long workspaceMemberId = idFrom(mockMvc.perform(
                 post(WORKSPACES + "/" + workspaceId + "/members")
@@ -170,6 +174,19 @@ class AccessRoleIntegrationTest {
                 .andExpect(jsonPath("$.roles[0].name").value("Reviewer"))
                 .andExpect(jsonPath("$.effectivePermissions.length()")
                         .value(1));
+
+        mockMvc.perform(get(overviewUrl).session(owner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.projects.length()").value(1))
+                .andExpect(jsonPath("$.projects[0].members[1].displayName")
+                        .value("Role Member"))
+                .andExpect(jsonPath("$.projects[0].members[1].roles[0].name")
+                        .value("Reviewer"))
+                .andExpect(jsonPath(
+                        "$.projects[0].members[1].effectivePermissions"
+                ).doesNotExist())
+                .andExpect(jsonPath("$.projects[0].members[1].joinedAt")
+                        .doesNotExist());
 
         mockMvc.perform(
                 post(tasksUrl)

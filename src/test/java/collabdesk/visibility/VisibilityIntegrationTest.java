@@ -100,6 +100,19 @@ class VisibilityIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.visibility").value("RESTRICTED"));
 
+        String overviewUrl = WORKSPACES + "/" + workspaceId
+                + "/project-access-overview";
+        mockMvc.perform(get(overviewUrl).session(owner))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.projects.length()").value(1))
+                .andExpect(jsonPath("$.projects[0].projectId").value(projectId))
+                .andExpect(jsonPath("$.projects[0].members.length()").value(2))
+                .andExpect(jsonPath("$.projects[0].members[0].joinedAt")
+                        .doesNotExist());
+        mockMvc.perform(get(overviewUrl).session(otherMember))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.projects.length()").value(0));
+
         mockMvc.perform(get(projectsUrl).session(otherMember))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(0));
@@ -108,6 +121,11 @@ class VisibilityIntegrationTest {
                 .andExpect(jsonPath("$.title").value("Project not found"));
 
         addProjectMember(owner, projectMembersUrl, otherWorkspaceMemberId);
+
+        mockMvc.perform(get(overviewUrl).session(otherMember))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.projects.length()").value(1))
+                .andExpect(jsonPath("$.projects[0].members.length()").value(3));
 
         mockMvc.perform(get(projectsUrl).session(otherMember))
                 .andExpect(status().isOk())

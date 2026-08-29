@@ -673,9 +673,16 @@ function FormField({
   )
 }
 
-function Dashboard({ user, onLogout }) {
+function Dashboard({ user, onLogout, theme, onToggleTheme }) {
   const [isLoggingOut, setIsLoggingOut] = useState(false)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [density, setDensity] = useState(() => localStorage.getItem('collabdesk.density') || 'comfortable')
+  const [workspaceHomeRequest, setWorkspaceHomeRequest] = useState(0)
   const [error, setError] = useState('')
+
+  useEffect(() => {
+    localStorage.setItem('collabdesk.density', density)
+  }, [density])
 
   async function handleLogout() {
     setError('')
@@ -699,9 +706,41 @@ function Dashboard({ user, onLogout }) {
     .toUpperCase()
 
   return (
-    <div className="dashboard-page">
+    <div className={`dashboard-page density-${density}`}>
       <header className="dashboard-header">
-        <Brand />
+        <div className="dashboard-sidebar-top">
+          <Brand />
+        </div>
+        <nav className="dashboard-nav" aria-label="Main navigation">
+          <button className="active" type="button" onClick={() => setWorkspaceHomeRequest((current) => current + 1)}>
+            <span aria-hidden="true">◇</span>
+            Workspaces
+          </button>
+          <button type="button" onClick={() => document.querySelector('.content-search input')?.focus()}>
+            <span aria-hidden="true">⌕</span>
+            Quick search
+          </button>
+          <button className={isSettingsOpen ? 'active' : ''} type="button" onClick={() => setIsSettingsOpen((current) => !current)}>
+            <span aria-hidden="true">⚙</span>
+            Preferences
+          </button>
+        </nav>
+        {isSettingsOpen && (
+          <section className="sidebar-settings" aria-label="Interface preferences">
+            <div>
+              <strong>Interface</strong>
+              <span>Saved in this browser</span>
+            </div>
+            <button type="button" onClick={onToggleTheme}>
+              <span>Appearance</span>
+              <strong>{theme === 'dark' ? 'Dark' : 'Light'}</strong>
+            </button>
+            <button type="button" onClick={() => setDensity((current) => current === 'compact' ? 'comfortable' : 'compact')}>
+              <span>Content density</span>
+              <strong>{density === 'compact' ? 'Compact' : 'Comfortable'}</strong>
+            </button>
+          </section>
+        )}
         <div className="user-menu">
           <div className="avatar" aria-hidden="true">
             {initials}
@@ -728,13 +767,13 @@ function Dashboard({ user, onLogout }) {
           </div>
         )}
 
-        <WorkspaceSection user={user} />
+        <WorkspaceSection user={user} homeRequest={workspaceHomeRequest} />
       </main>
     </div>
   )
 }
 
-function WorkspaceSection({ user }) {
+function WorkspaceSection({ user, homeRequest }) {
   const [workspaces, setWorkspaces] = useState([])
   const [selectedWorkspace, setSelectedWorkspace] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -744,6 +783,7 @@ function WorkspaceSection({ user }) {
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
   const [form, setForm] = useState({ name: '', description: '' })
+  const [query, setQuery] = useState('')
 
   async function loadWorkspaces() {
     setError('')
@@ -769,6 +809,11 @@ function WorkspaceSection({ user }) {
     loadWorkspaces()
   }, [])
 
+  useEffect(() => {
+    setSelectedWorkspace(null)
+    window.scrollTo({ top: 0, behavior: 'auto' })
+  }, [homeRequest])
+
   async function handleCreate(event) {
     event.preventDefault()
     setError('')
@@ -791,10 +836,12 @@ function WorkspaceSection({ user }) {
   }
 
   function openWorkspace(workspace) {
+    window.scrollTo({ top: 0, behavior: 'auto' })
     setSelectedWorkspace(workspace)
   }
 
   function closeWorkspace() {
+    window.scrollTo({ top: 0, behavior: 'auto' })
     setSelectedWorkspace(null)
   }
 
@@ -845,9 +892,9 @@ function WorkspaceSection({ user }) {
     <section className="workspace-panel workspace-selector-panel">
       <div className="workspace-panel-header">
         <div>
-          <p className="eyebrow">Workspaces</p>
-          <h2>Your teams</h2>
-          <p>Choose a workspace to manage its projects, tasks, and members.</p>
+          <p className="eyebrow">Workspace hub</p>
+          <h2>Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}, {user.displayName.split(' ')[0]}</h2>
+          <p>Pick up where your team left off or create a focused space for new work.</p>
         </div>
         <button
           className="secondary-button"
@@ -860,6 +907,14 @@ function WorkspaceSection({ user }) {
         >
           {isFormOpen ? 'Cancel' : '+ New workspace'}
         </button>
+      </div>
+
+      <div className="workspace-overview-strip">
+        <div className="workspace-list-title"><strong>All workspaces</strong><span>{workspaces.length}</span></div>
+        <label className="content-search">
+          <span aria-hidden="true">⌕</span>
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search workspaces…" />
+        </label>
       </div>
 
       {isFormOpen && (
@@ -940,7 +995,7 @@ function WorkspaceSection({ user }) {
         </div>
       ) : (
         <div className="workspace-grid">
-          {workspaces.map((workspace) => (
+          {workspaces.filter((workspace) => `${workspace.name} ${workspace.description ?? ''}`.toLowerCase().includes(query.trim().toLowerCase())).map((workspace) => (
             <button
               className="workspace-card"
               key={workspace.id}
@@ -1243,6 +1298,7 @@ function ProjectSection({ workspace, user, onBack }) {
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
   const [form, setForm] = useState({ name: '', description: '' })
+  const [projectQuery, setProjectQuery] = useState('')
 
   const loadWorkspaceAccess = useCallback(async () => {
     setError('')
@@ -1307,10 +1363,12 @@ function ProjectSection({ workspace, user, onBack }) {
   }
 
   function openProject(project) {
+    window.scrollTo({ top: 0, behavior: 'auto' })
     setSelectedProject(project)
   }
 
   function closeProject() {
+    window.scrollTo({ top: 0, behavior: 'auto' })
     setSelectedProject(null)
   }
 
@@ -1392,6 +1450,17 @@ function ProjectSection({ workspace, user, onBack }) {
           </div>
 
           <div className="project-main-column">
+
+      <div className="project-toolbar">
+        <div className="project-view-tabs" aria-label="Project views">
+          <button className="active" type="button">Active projects <span>{projects.length}</span></button>
+          <button type="button" disabled>Archived</button>
+        </div>
+        <label className="content-search compact">
+          <span aria-hidden="true">⌕</span>
+          <input value={projectQuery} onChange={(event) => setProjectQuery(event.target.value)} placeholder="Search projects…" />
+        </label>
+      </div>
 
       {isFormOpen && (
         <form
@@ -1483,7 +1552,7 @@ function ProjectSection({ workspace, user, onBack }) {
         </div>
       ) : (
         <div className="project-grid">
-          {projects.map((project) => {
+          {projects.filter((project) => `${project.name} ${project.description ?? ''}`.toLowerCase().includes(projectQuery.trim().toLowerCase())).map((project) => {
             const team = projectTeams[project.id] ?? []
             const assignedRoles = Array.from(
               new Map(
@@ -1624,6 +1693,9 @@ function TaskBoard({
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
   const [form, setForm] = useState({ title: '', description: '' })
+  const [taskQuery, setTaskQuery] = useState('')
+  const [assigneeFilter, setAssigneeFilter] = useState('ALL')
+  const [taskView, setTaskView] = useState('board')
   const isManager = ['OWNER', 'ADMIN'].includes(workspace.role)
   const currentProjectMember = projectMembers.find(
     (member) => member.userId === user.id,
@@ -1633,6 +1705,16 @@ function TaskBoard({
     : currentProjectMember?.effectivePermissions ?? []
   const hasPermission = (permission) =>
     currentPermissions.includes(permission)
+  const visibleTasks = tasks.filter((task) => {
+    const matchesQuery = `${task.title} ${task.description ?? ''}`
+      .toLowerCase()
+      .includes(taskQuery.trim().toLowerCase())
+    const matchesAssignee =
+      assigneeFilter === 'ALL' ||
+      (assigneeFilter === 'UNASSIGNED' && !task.assignee) ||
+      String(task.assignee?.projectMemberId) === assigneeFilter
+    return matchesQuery && matchesAssignee
+  })
 
   const loadTasks = useCallback(async () => {
     setError('')
@@ -1934,15 +2016,35 @@ function TaskBoard({
         </div>
       )}
 
+      <div className="task-toolbar">
+        <div className="task-view-switcher" aria-label="Task view">
+          <button className={taskView === 'board' ? 'active' : ''} type="button" onClick={() => setTaskView('board')}>Board</button>
+          <button className={taskView === 'list' ? 'active' : ''} type="button" onClick={() => setTaskView('list')}>List</button>
+        </div>
+        <label className="content-search compact task-search">
+          <span aria-hidden="true">⌕</span>
+          <input value={taskQuery} onChange={(event) => setTaskQuery(event.target.value)} placeholder="Search tasks…" />
+        </label>
+        <label className="task-filter">
+          <span>Assignee</span>
+          <select value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value)}>
+            <option value="ALL">Everyone</option>
+            <option value="UNASSIGNED">Unassigned</option>
+            {projectMembers.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}
+          </select>
+        </label>
+        <span className="task-result-count">{visibleTasks.length} {visibleTasks.length === 1 ? 'task' : 'tasks'}</span>
+      </div>
+
       {isLoading ? (
         <div className="project-loading">
           <span className="loading-spinner" aria-hidden="true" />
           <p>Loading tasks…</p>
         </div>
       ) : (
-        <div className="task-board">
+        <div className={`task-board task-board-${taskView}`}>
           {TASK_COLUMNS.map((column) => {
-            const columnTasks = tasks.filter(
+            const columnTasks = visibleTasks.filter(
               (task) => task.status === column.status,
             )
 
@@ -2207,12 +2309,9 @@ function TaskAssigneePicker({ task, members, disabled, onSave }) {
 
 function MemberProfilePopover({
   member,
-  assignedProjects,
-  canManageAccess,
   canManageMember,
   isChanging,
   triggerRef,
-  onManageAccess,
   onEditRole,
   onRemove,
   onClose,
@@ -2308,53 +2407,6 @@ function MemberProfilePopover({
           <strong>{formatRole(member.role)}</strong>
         </div>
 
-        <div className="member-profile-access">
-          <div className="member-profile-section-heading">
-            <strong>Project access</strong>
-            <span>{assignedProjects.length}</span>
-          </div>
-          {assignedProjects.length === 0 ? (
-            <p>No project access assigned.</p>
-          ) : (
-            assignedProjects.map(({ project, assignment }) => (
-              <article key={project.id}>
-                <div>
-                  <strong>{project.name}</strong>
-                  <small>
-                    {project.visibility === 'RESTRICTED'
-                      ? 'Restricted'
-                      : 'Workspace'}
-                  </small>
-                </div>
-                <div className="member-profile-role-list">
-                  {(assignment.roles ?? []).length === 0 ? (
-                    <span className="member-profile-direct">Direct access</span>
-                  ) : (
-                    assignment.roles.map((role) => (
-                      <span
-                        className="custom-role-chip"
-                        style={{ '--role-color': role.color }}
-                        key={role.id}
-                      >
-                        {role.name}
-                      </span>
-                    ))
-                  )}
-                </div>
-              </article>
-            ))
-          )}
-        </div>
-
-        {canManageAccess && (
-          <button
-            className="primary-button member-profile-manage"
-            type="button"
-            onClick={onManageAccess}
-          >
-            Manage projects & roles
-          </button>
-        )}
         {canManageMember && (
           <div className="member-profile-member-actions">
             <button
@@ -2404,7 +2456,6 @@ function WorkspaceMembers({
   const profileTriggerRef = useRef(null)
 
   const isOwner = workspace.role === 'OWNER'
-  const isManager = ['OWNER', 'ADMIN'].includes(workspace.role)
 
   async function handleAdd(event) {
     event.preventDefault()
@@ -2500,23 +2551,6 @@ function WorkspaceMembers({
   function cancelRoleEdit() {
     setEditingMemberId(null)
     setPendingRole('MEMBER')
-  }
-
-  function startProjectAccessEdit(member) {
-    const draft = {}
-    projects.forEach((project) => {
-      const assignment = (projectTeams[project.id] ?? []).find(
-        (projectMember) =>
-          projectMember.workspaceMemberId === member.id,
-      )
-      draft[project.id] = {
-        selected: Boolean(assignment),
-        roleIds: (assignment?.roles ?? []).map((role) => role.id),
-      }
-    })
-    setError('')
-    setAccessEditingMemberId(member.id)
-    setProjectAccessDraft(draft)
   }
 
   function toggleDraftProject(projectId) {
@@ -2727,16 +2761,10 @@ function WorkspaceMembers({
                 {isProfileOpen && (
                   <MemberProfilePopover
                     member={member}
-                    assignedProjects={assignedProjects}
-                    canManageAccess={isManager && !isWorkspaceOwner}
                     canManageMember={isOwner && !isWorkspaceOwner}
                     isChanging={isChanging}
                     triggerRef={profileTriggerRef}
                     onClose={() => setProfileMemberId(null)}
-                    onManageAccess={() => {
-                      setProfileMemberId(null)
-                      startProjectAccessEdit(member)
-                    }}
                     onEditRole={() => {
                       setProfileMemberId(null)
                       startRoleEdit(member)
@@ -3009,6 +3037,10 @@ function App() {
     localStorage.setItem(THEME_STORAGE_KEY, theme)
   }, [theme])
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'auto' })
+  }, [user])
+
   function handleAuthenticated(nextUser) {
     clearSavedNavigation()
     setUser(nextUser)
@@ -3040,7 +3072,16 @@ function App() {
       </main>
     )
   } else if (user) {
-    content = <Dashboard user={user} onLogout={handleLogout} />
+    content = (
+      <Dashboard
+        user={user}
+        onLogout={handleLogout}
+        theme={theme}
+        onToggleTheme={() =>
+          setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
+        }
+      />
+    )
   } else {
     content = (
       <AuthShell
@@ -3053,12 +3094,14 @@ function App() {
 
   return (
     <>
-      <ThemeToggle
-        theme={theme}
-        onToggle={() =>
-          setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
-        }
-      />
+      {!user && (
+        <ThemeToggle
+          theme={theme}
+          onToggle={() =>
+            setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
+          }
+        />
+      )}
       {content}
     </>
   )

@@ -1,5 +1,6 @@
 package collabdesk.project.member.service;
 
+import collabdesk.infrastructure.cache.WorkspaceProjectAccessChangePublisher;
 import collabdesk.project.role.dto.AccessRoleSummaryResponse;
 import collabdesk.project.role.entity.ProjectPermission;
 import collabdesk.project.role.service.ProjectMemberRoleService;
@@ -30,18 +31,22 @@ public class ProjectMemberService {
     private final WorkspaceAccessService workspaceAccessService;
     private final ProjectMemberRoleService projectMemberRoleService;
 
+    private final WorkspaceProjectAccessChangePublisher accessChangePublisher;
+
     public ProjectMemberService(
             ProjectMemberRepository projectMemberRepository,
             WorkspaceMemberRepository workspaceMemberRepository,
             ProjectAccessService projectAccessService,
             WorkspaceAccessService workspaceAccessService,
-            ProjectMemberRoleService projectMemberRoleService
+            ProjectMemberRoleService projectMemberRoleService,
+            WorkspaceProjectAccessChangePublisher accessChangePublisher
     ) {
         this.projectMemberRepository = projectMemberRepository;
         this.workspaceMemberRepository = workspaceMemberRepository;
         this.projectAccessService = projectAccessService;
         this.workspaceAccessService = workspaceAccessService;
         this.projectMemberRoleService = projectMemberRoleService;
+        this.accessChangePublisher = accessChangePublisher;
     }
 
     @Transactional(readOnly = true)
@@ -99,6 +104,7 @@ public class ProjectMemberService {
                     new ProjectMember(access.project(), workspaceMember)
             );
             projectMemberRoleService.replace(saved, workspaceId, roleIds);
+            accessChangePublisher.publish(workspaceId);
             return toResponse(
                     saved,
                     projectMemberRoleService.loadFor(Set.of(saved.getId()))
@@ -130,6 +136,7 @@ public class ProjectMemberService {
                         "Project member was not found"
                 ));
         projectMemberRoleService.replace(member, workspaceId, roleIds);
+        accessChangePublisher.publish(workspaceId);
         return toResponse(
                 member,
                 projectMemberRoleService.loadFor(Set.of(member.getId()))
@@ -155,6 +162,7 @@ public class ProjectMemberService {
                         "Project member was not found"
                 ));
         projectMemberRepository.delete(member);
+        accessChangePublisher.publish(workspaceId);
     }
 
     private ProjectMemberResponse toResponse(

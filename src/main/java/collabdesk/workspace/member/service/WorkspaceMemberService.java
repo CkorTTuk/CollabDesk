@@ -1,5 +1,6 @@
 package collabdesk.workspace.member.service;
 
+import collabdesk.infrastructure.cache.WorkspaceProjectAccessChangePublisher;
 import collabdesk.user.entity.User;
 import collabdesk.user.entity.UserStatus;
 import collabdesk.user.repository.UserRepository;
@@ -23,14 +24,18 @@ public class WorkspaceMemberService {
     private final WorkspaceMemberRepository workspaceMemberRepository;
     private final WorkspaceAccessService workspaceAccessService;
     private final UserRepository userRepository;
+
+    private final WorkspaceProjectAccessChangePublisher accessChangePublisher;
     public WorkspaceMemberService(
             WorkspaceMemberRepository workspaceMemberRepository,
             WorkspaceAccessService workspaceAccessService,
-            UserRepository userRepository
+            UserRepository userRepository,
+            WorkspaceProjectAccessChangePublisher accessChangePublisher
     ) {
         this.workspaceMemberRepository = workspaceMemberRepository;
         this.workspaceAccessService = workspaceAccessService;
         this.userRepository = userRepository;
+        this.accessChangePublisher = accessChangePublisher;
     }
     @Transactional(readOnly = true)
     public List<WorkspaceMemberResponse> findForWorkspace(
@@ -101,6 +106,7 @@ public class WorkspaceMemberService {
         }
 
         membership.changeRole(newRole);
+        accessChangePublisher.publish(workspaceId);
         return toResponse(membership);
     }
 
@@ -120,6 +126,7 @@ public class WorkspaceMemberService {
         }
 
         workspaceMemberRepository.delete(membership);
+        accessChangePublisher.publish(workspaceId);
     }
 
     private WorkspaceMember findScopedMember(Long workspaceId, Long memberId) {

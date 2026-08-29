@@ -1,9 +1,11 @@
 package collabdesk.project.service;
 
+import collabdesk.infrastructure.cache.WorkspaceProjectAccessChangePublisher;
 import collabdesk.project.role.service.ProjectPermissionService;
 import collabdesk.project.dto.ProjectResponse;
 import collabdesk.project.entity.Project;
 import collabdesk.project.entity.ProjectStatus;
+import collabdesk.project.entity.ProjectVisibility;
 import collabdesk.project.repository.ProjectRepository;
 import collabdesk.project.member.entity.ProjectMember;
 import collabdesk.project.member.repository.ProjectMemberRepository;
@@ -51,6 +53,9 @@ class ProjectServiceTest {
     @Mock
     private ProjectPermissionService projectPermissionService;
 
+    @Mock
+    private WorkspaceProjectAccessChangePublisher accessChangePublisher;
+
     private ProjectService projectService;
 
     @BeforeEach
@@ -60,7 +65,8 @@ class ProjectServiceTest {
                 workspaceAccessService,
                 projectMemberRepository,
                 projectAccessService,
-                projectPermissionService
+                projectPermissionService,
+                accessChangePublisher
         );
     }
 
@@ -88,6 +94,7 @@ class ProjectServiceTest {
         ArgumentCaptor<Project> captor = ArgumentCaptor.forClass(Project.class);
         verify(projectRepository).save(captor.capture());
         verify(projectMemberRepository).save(any(ProjectMember.class));
+        verify(accessChangePublisher).publish(11L);
         Project savedProject = captor.getValue();
 
         assertAll(
@@ -120,6 +127,7 @@ class ProjectServiceTest {
 
         verify(projectRepository, never()).save(any(Project.class));
         verify(projectMemberRepository, never()).save(any());
+        verify(accessChangePublisher, never()).publish(any());
     }
 
     @Test
@@ -177,6 +185,29 @@ class ProjectServiceTest {
                 projectRepository,
                 never()
         ).findAccessibleForWorkspace(any(), any(), any(Boolean.class));
+    }
+
+    @Test
+    void changingVisibilityPublishesWorkspaceInvalidation() {
+        User currentUser = user(7L, "editor@test.com");
+        Workspace workspace = workspace(11L, currentUser);
+        WorkspaceMember membership = WorkspaceMember.member(
+                workspace,
+                currentUser
+        );
+        Project project = project(21L, workspace, currentUser, "Restricted");
+        when(projectAccessService.requireAccessibleProject(11L, 21L, 7L))
+                .thenReturn(new AccessibleProject(project, membership));
+
+        ProjectResponse result = projectService.changeVisibility(
+                11L,
+                21L,
+                7L,
+                ProjectVisibility.RESTRICTED
+        );
+
+        assertEquals(ProjectVisibility.RESTRICTED, result.visibility());
+        verify(accessChangePublisher).publish(11L);
     }
 
     private User user(Long id, String email) {

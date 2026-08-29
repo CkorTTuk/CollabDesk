@@ -1,5 +1,6 @@
 package collabdesk.workspace.member.service;
 
+import collabdesk.infrastructure.cache.WorkspaceProjectAccessChangePublisher;
 import collabdesk.user.entity.User;
 import collabdesk.user.repository.UserRepository;
 import collabdesk.workspace.entity.Workspace;
@@ -47,6 +48,9 @@ class WorkspaceMemberServiceTest {
     @Mock
     private UserRepository userRepository;
 
+    @Mock
+    private WorkspaceProjectAccessChangePublisher accessChangePublisher;
+
     private WorkspaceMemberService workspaceMemberService;
     private User owner;
     private Workspace workspace;
@@ -57,7 +61,8 @@ class WorkspaceMemberServiceTest {
         workspaceMemberService = new WorkspaceMemberService(
                 workspaceMemberRepository,
                 workspaceAccessService,
-                userRepository
+                userRepository,
+                accessChangePublisher
         );
         owner = user(7L, "owner@test.com", "Owner");
         workspace = workspace(11L, owner);
@@ -170,6 +175,7 @@ class WorkspaceMemberServiceTest {
         );
         verify(userRepository, never()).findByEmail(any());
         verify(workspaceMemberRepository, never()).save(any());
+        verify(accessChangePublisher, never()).publish(any());
     }
 
     @Test
@@ -253,6 +259,7 @@ class WorkspaceMemberServiceTest {
                 () -> assertEquals(WorkspaceRole.VIEWER, response.role())
         );
         verify(workspaceMemberRepository, never()).save(any());
+        verify(accessChangePublisher).publish(11L);
     }
 
     @Test
@@ -317,6 +324,7 @@ class WorkspaceMemberServiceTest {
         workspaceMemberService.remove(11L, 22L, 7L);
 
         verify(workspaceMemberRepository).delete(membership);
+        verify(accessChangePublisher).publish(11L);
     }
 
     @Test
@@ -331,6 +339,7 @@ class WorkspaceMemberServiceTest {
                 () -> workspaceMemberService.remove(11L, 21L, 7L)
         );
         verify(workspaceMemberRepository, never()).delete(any());
+        verify(accessChangePublisher, never()).publish(any());
     }
 
     private User user(Long id, String email, String displayName) {

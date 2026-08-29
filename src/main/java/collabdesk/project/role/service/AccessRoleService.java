@@ -1,5 +1,6 @@
 package collabdesk.project.role.service;
 
+import collabdesk.infrastructure.cache.WorkspaceProjectAccessChangePublisher;
 import collabdesk.project.role.dto.*;
 import collabdesk.project.role.entity.AccessRole;
 import collabdesk.project.role.entity.AccessRolePermission;
@@ -24,16 +25,20 @@ public class AccessRoleService {
     private final ProjectMemberRoleRepository projectMemberRoleRepository;
     private final WorkspaceAccessService workspaceAccessService;
 
+    private final WorkspaceProjectAccessChangePublisher accessChangePublisher;
+
     public AccessRoleService(
             AccessRoleRepository accessRoleRepository,
             AccessRolePermissionRepository permissionRepository,
             ProjectMemberRoleRepository projectMemberRoleRepository,
-            WorkspaceAccessService workspaceAccessService
+            WorkspaceAccessService workspaceAccessService,
+            WorkspaceProjectAccessChangePublisher accessChangePublisher
     ) {
         this.accessRoleRepository = accessRoleRepository;
         this.permissionRepository = permissionRepository;
         this.projectMemberRoleRepository = projectMemberRoleRepository;
         this.workspaceAccessService = workspaceAccessService;
+        this.accessChangePublisher = accessChangePublisher;
     }
 
     @Transactional(readOnly = true)
@@ -103,10 +108,15 @@ public class AccessRoleService {
 
         try {
             role.update(request.name(), request.color());
+
             permissionRepository.deleteByRole_Id(roleId);
             permissionRepository.flush();
+
             savePermissions(role, request.permissions());
             accessRoleRepository.flush();
+
+            accessChangePublisher.publish(workspaceId);
+
             return toResponse(role, request.permissions());
         } catch (DataIntegrityViolationException ex) {
             throw duplicate();

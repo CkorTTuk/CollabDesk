@@ -1,5 +1,6 @@
 package collabdesk.project.service;
 
+import collabdesk.infrastructure.cache.WorkspaceProjectAccessChangePublisher;
 import collabdesk.project.role.entity.ProjectPermission;
 import collabdesk.project.role.service.ProjectPermissionService;
 import collabdesk.project.dto.ProjectResponse;
@@ -24,17 +25,21 @@ public class ProjectService {
     private final ProjectAccessService projectAccessService;
     private final ProjectPermissionService projectPermissionService;
 
+    private final WorkspaceProjectAccessChangePublisher accessChangePublisher;
+
     public ProjectService(
             ProjectRepository projectRepository,
             WorkspaceAccessService workspaceAccessService,
             ProjectMemberRepository projectMemberRepository,
             ProjectAccessService projectAccessService,
-            ProjectPermissionService projectPermissionService) {
+            ProjectPermissionService projectPermissionService,
+            WorkspaceProjectAccessChangePublisher accessChangePublisher) {
         this.projectRepository = projectRepository;
         this.workspaceAccessService = workspaceAccessService;
         this.projectMemberRepository = projectMemberRepository;
         this.projectAccessService = projectAccessService;
         this.projectPermissionService = projectPermissionService;
+        this.accessChangePublisher = accessChangePublisher;
     }
     @Transactional
     public ProjectResponse create(
@@ -55,6 +60,7 @@ public class ProjectService {
         projectMemberRepository.save(
                 new ProjectMember(savedProject, workspaceMember)
         );
+        accessChangePublisher.publish(workspaceId);
         return toResponse(savedProject);
     }
     @Transactional(readOnly = true)
@@ -95,6 +101,7 @@ public class ProjectService {
         );
         Project project = access.project();
         project.changeVisibility(visibility);
+        accessChangePublisher.publish(workspaceId);
         return toResponse(project);
     }
 

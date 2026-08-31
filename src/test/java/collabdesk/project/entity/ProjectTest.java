@@ -124,18 +124,4 @@ class ProjectTest {
         );
     }
 
-    @Test
-    void defaultsToWorkspaceVisibilityAndCanBecomeRestricted() {
-        Project project = new Project(workspace, "Visible project", null, creator);
-
-        assertEquals(ProjectVisibility.WORKSPACE, project.getVisibility());
-
-        project.changeVisibility(ProjectVisibility.RESTRICTED);
-
-        assertEquals(ProjectVisibility.RESTRICTED, project.getVisibility());
-        assertThrows(
-                NullPointerException.class,
-                () -> project.changeVisibility(null)
-        );
-    }
 }

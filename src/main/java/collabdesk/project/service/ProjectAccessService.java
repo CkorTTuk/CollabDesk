@@ -1,7 +1,7 @@
 package collabdesk.project.service;
 
 import collabdesk.project.entity.Project;
-import collabdesk.project.entity.ProjectVisibility;
+import collabdesk.project.role.repository.ProjectAllowedRoleRepository;
 import collabdesk.project.repository.ProjectRepository;
 import collabdesk.project.member.repository.ProjectMemberRepository;
 import collabdesk.workspace.entity.WorkspaceRole;
@@ -19,14 +19,17 @@ public class ProjectAccessService {
     private final WorkspaceAccessService workspaceAccessService;
     private final ProjectRepository projectRepository;
     private final ProjectMemberRepository projectMemberRepository;
+    private final ProjectAllowedRoleRepository projectAllowedRoleRepository;
     public ProjectAccessService(
             WorkspaceAccessService workspaceAccessService,
             ProjectRepository projectRepository,
-            ProjectMemberRepository projectMemberRepository
+            ProjectMemberRepository projectMemberRepository,
+            ProjectAllowedRoleRepository projectAllowedRoleRepository
     ) {
         this.workspaceAccessService = workspaceAccessService;
         this.projectRepository = projectRepository;
         this.projectMemberRepository = projectMemberRepository;
+        this.projectAllowedRoleRepository = projectAllowedRoleRepository;
     }
 
     @Transactional(readOnly = true)
@@ -40,12 +43,20 @@ public class ProjectAccessService {
                 currentUserId
         );
         Project project = findProject(workspaceId, projectId);
-        if (project.getVisibility() == ProjectVisibility.WORKSPACE
-                || isManager(membership.getRole())
+        boolean restricted = projectMemberRepository
+                .existsByProject_IdAndGrantsAccessTrue(projectId)
+                || projectAllowedRoleRepository.existsByProject_Id(projectId);
+        if (isManager(membership.getRole())
+                || java.util.Objects.equals(project.getCreatedBy().getId(), currentUserId)
+                || !restricted
                 || projectMemberRepository
-                .existsByProject_IdAndWorkspaceMember_User_Id(
+                .existsByProject_IdAndWorkspaceMember_User_IdAndGrantsAccessTrue(
                         projectId,
                         currentUserId
+                )
+                || projectAllowedRoleRepository.existsAllowedRoleForUser(
+                        projectId,
+                        membership.getId()
                 )) {
             return new AccessibleProject(project, membership);
         }
@@ -86,6 +97,7 @@ public class ProjectAccessService {
         return projectRepository.findAccessibleForWorkspace(
                 workspaceId,
                 currentUserId,
+                membership.getId(),
                 isManager(membership.getRole())
         );
     }

@@ -18,6 +18,7 @@ public record ProjectMemberResponse(
         String displayName,
         WorkspaceRole workspaceRole,
         Instant joinedAt,
+        boolean grantsAccess,
         List<AccessRoleSummaryResponse> roles,
         Set<ProjectPermission> effectivePermissions
 ) {

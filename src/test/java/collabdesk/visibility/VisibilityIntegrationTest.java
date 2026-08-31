@@ -91,15 +91,6 @@ class VisibilityIntegrationTest {
                 .andExpect(jsonPath("$.assignee.projectMemberId")
                         .value(assigneeProjectMemberId));
 
-        changeProjectVisibility(
-                owner,
-                projectsUrl,
-                projectId,
-                "RESTRICTED"
-        )
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.visibility").value("RESTRICTED"));
-
         String overviewUrl = WORKSPACES + "/" + workspaceId
                 + "/project-access-overview";
         mockMvc.perform(get(overviewUrl).session(owner))
@@ -130,7 +121,7 @@ class VisibilityIntegrationTest {
         mockMvc.perform(get(projectsUrl).session(otherMember))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(1))
-                .andExpect(jsonPath("$[0].visibility").value("RESTRICTED"));
+                .andExpect(jsonPath("$[0].restricted").value(true));
 
         changeTaskVisibility(owner, tasksUrl, taskId, "ASSIGNEES")
                 .andExpect(status().isOk())
@@ -264,7 +255,7 @@ class VisibilityIntegrationTest {
                                 """)
         )
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.visibility").value("WORKSPACE"))
+                .andExpect(jsonPath("$.restricted").value(false))
                 .andReturn());
     }
 
@@ -306,26 +297,6 @@ class VisibilityIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.visibility").value("PROJECT"))
                 .andReturn());
-    }
-
-    private org.springframework.test.web.servlet.ResultActions
-    changeProjectVisibility(
-            MockHttpSession owner,
-            String projectsUrl,
-            Long projectId,
-            String visibility
-    ) throws Exception {
-        return mockMvc.perform(
-                patch(projectsUrl + "/" + projectId + "/visibility")
-                        .session(owner)
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "visibility": "%s"
-                                }
-                                """.formatted(visibility))
-        );
     }
 
     private org.springframework.test.web.servlet.ResultActions

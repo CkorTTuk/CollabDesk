@@ -41,10 +41,6 @@ public class Project {
     @Enumerated(EnumType.STRING)
     ProjectStatus status;
 
-    @Enumerated(EnumType.STRING)
-    @Column(name = "visibility", nullable = false, length = 20)
-    private ProjectVisibility visibility;
-
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "created_by", nullable = false)
     User createdBy;
@@ -90,17 +86,8 @@ public class Project {
         this.name = normalizedName;
         this.description = normalizedDescription;
         this.status = ProjectStatus.ACTIVE;
-        this.visibility = ProjectVisibility.WORKSPACE;
-
         this.createdBy = createdBy;
         this.createdAt = Instant.now();
-        this.updatedAt = Instant.now();
-    }
-    public void changeVisibility(ProjectVisibility visibility) {
-        this.visibility = Objects.requireNonNull(
-                visibility,
-                "Project visibility cannot be null"
-        );
         this.updatedAt = Instant.now();
     }
 }

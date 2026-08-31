@@ -6,8 +6,10 @@ import collabdesk.project.entity.Project;
 import collabdesk.project.member.dto.ProjectMemberAccessResponse;
 import collabdesk.project.member.entity.ProjectMember;
 import collabdesk.project.member.repository.ProjectMemberRepository;
-import collabdesk.project.role.service.ProjectMemberRoleService;
-import collabdesk.project.role.service.ProjectMemberRoleSnapshot;
+import collabdesk.project.role.service.WorkspaceMemberAccessRoleService;
+import collabdesk.project.role.repository.ProjectAllowedRoleRepository;
+import collabdesk.project.role.entity.ProjectAllowedRole;
+import collabdesk.project.role.dto.AccessRoleSummaryResponse;
 import collabdesk.project.service.ProjectAccessService;
 import collabdesk.workspace.member.entity.WorkspaceMember;
 import org.springframework.stereotype.Service;
@@ -21,16 +23,19 @@ import java.util.stream.Collectors;
 public class WorkspaceProjectAccessOverviewQueryService {
     private final ProjectAccessService projectAccessService;
     private final ProjectMemberRepository projectMemberRepository;
-    private final ProjectMemberRoleService projectMemberRoleService;
+    private final WorkspaceMemberAccessRoleService memberAccessRoleService;
+    private final ProjectAllowedRoleRepository allowedRoleRepository;
 
     public WorkspaceProjectAccessOverviewQueryService(
             ProjectAccessService projectAccessService,
             ProjectMemberRepository projectMemberRepository,
-            ProjectMemberRoleService projectMemberRoleService
+            WorkspaceMemberAccessRoleService memberAccessRoleService,
+            ProjectAllowedRoleRepository allowedRoleRepository
     ) {
         this.projectAccessService = projectAccessService;
         this.projectMemberRepository = projectMemberRepository;
-        this.projectMemberRoleService = projectMemberRoleService;
+        this.memberAccessRoleService = memberAccessRoleService;
+        this.allowedRoleRepository = allowedRoleRepository;
     }
 
     @Transactional(readOnly = true)
@@ -50,8 +55,14 @@ public class WorkspaceProjectAccessOverviewQueryService {
                 .findByProject_IdInOrderByProject_IdAscJoinedAtAsc(
                         projects.stream().map(Project::getId).toList()
                 );
-        ProjectMemberRoleSnapshot roleSnapshot = projectMemberRoleService
-                .loadFor(members.stream().map(ProjectMember::getId).toList());
+        Map<Long, List<AccessRoleSummaryResponse>> memberRoles = memberAccessRoleService
+                .findForMembers(members.stream()
+                        .map(item -> item.getWorkspaceMember().getId())
+                        .toList());
+        Map<Long, List<ProjectAllowedRole>> allowedRoles = allowedRoleRepository
+                .findByProject_IdIn(projects.stream().map(Project::getId).toList())
+                .stream()
+                .collect(Collectors.groupingBy(item -> item.getProject().getId()));
         Map<Long, List<ProjectMember>> membersByProject = members.stream()
                 .collect(Collectors.groupingBy(
                         member -> member.getProject().getId()
@@ -65,7 +76,8 @@ public class WorkspaceProjectAccessOverviewQueryService {
                                         project.getId(),
                                         List.of()
                                 ),
-                                roleSnapshot
+                                memberRoles,
+                                allowedRoles.getOrDefault(project.getId(), List.of())
                         ))
                         .toList()
         );
@@ -74,23 +86,35 @@ public class WorkspaceProjectAccessOverviewQueryService {
     private ProjectAccessOverviewResponse toProjectResponse(
             Project project,
             List<ProjectMember> members,
-            ProjectMemberRoleSnapshot roleSnapshot
+            Map<Long, List<AccessRoleSummaryResponse>> memberRoles,
+            List<ProjectAllowedRole> allowedRoles
     ) {
         return new ProjectAccessOverviewResponse(
                 project.getId(),
                 project.getName(),
                 project.getDescription(),
                 project.getStatus(),
-                project.getVisibility(),
+                project.getCreatedBy().getId(),
+                project.getCreatedBy().getDisplayName(),
+                project.getCreatedAt(),
+                members.stream().anyMatch(ProjectMember::isGrantsAccess)
+                        || !allowedRoles.isEmpty(),
+                allowedRoles.stream()
+                        .map(item -> new AccessRoleSummaryResponse(
+                                item.getRole().getId(),
+                                item.getRole().getName(),
+                                item.getRole().getColor()
+                        ))
+                        .toList(),
                 members.stream()
-                        .map(member -> toMemberResponse(member, roleSnapshot))
+                        .map(member -> toMemberResponse(member, memberRoles))
                         .toList()
         );
     }
 
     private ProjectMemberAccessResponse toMemberResponse(
             ProjectMember member,
-            ProjectMemberRoleSnapshot roleSnapshot
+            Map<Long, List<AccessRoleSummaryResponse>> memberRoles
     ) {
         WorkspaceMember workspaceMember = member.getWorkspaceMember();
         return new ProjectMemberAccessResponse(
@@ -100,7 +124,8 @@ public class WorkspaceProjectAccessOverviewQueryService {
                 workspaceMember.getUser().getDisplayName(),
                 workspaceMember.getUser().getEmail(),
                 workspaceMember.getRole(),
-                roleSnapshot.roles().getOrDefault(member.getId(), List.of())
+                member.isGrantsAccess(),
+                memberRoles.getOrDefault(workspaceMember.getId(), List.of())
         );
     }
 }

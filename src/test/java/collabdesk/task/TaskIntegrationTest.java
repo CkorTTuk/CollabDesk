@@ -16,9 +16,11 @@ import org.springframework.test.web.servlet.ResultActions;
 
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -65,6 +67,8 @@ class TaskIntegrationTest {
                 ))
                 .andExpect(jsonPath("$.status").value("TODO"))
                 .andExpect(jsonPath("$.createdById").isNumber())
+                .andExpect(jsonPath("$.createdByDisplayName").value("Task Flow"))
+                .andExpect(jsonPath("$.createdByEmail").value("task-flow@test.com"))
                 .andExpect(jsonPath("$.createdAt").isNotEmpty())
                 .andExpect(jsonPath("$.updatedAt").isNotEmpty())
                 .andReturn();
@@ -94,12 +98,82 @@ class TaskIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status").value("IN_PROGRESS"));
 
+        mockMvc.perform(get(tasksUrl + "/" + taskId + "/activities")
+                        .session(session))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].type").value("STATUS_CHANGED"))
+                .andExpect(jsonPath("$[0].actorDisplayName").value("Task Flow"))
+                .andExpect(jsonPath("$[0].oldValue").value("TODO"))
+                .andExpect(jsonPath("$[0].newValue").value("IN_PROGRESS"))
+                .andExpect(jsonPath("$[1].type").value("CREATED"));
+
         assertSingleTask(
                 session,
                 tasksUrl,
                 taskId,
                 "IN_PROGRESS"
         );
+    }
+
+    @Test
+    void memberCanClaimManageReleaseTaskAndActivityRecordsEveryAction()
+            throws Exception {
+        MockHttpSession ownerSession = registerAndLogin(
+                "claim-owner@test.com",
+                "Claim Owner"
+        );
+        MockHttpSession memberSession = registerAndLogin(
+                "claim-member@test.com",
+                "Claim Member"
+        );
+        Long workspaceId = createWorkspace(ownerSession, "Claim workspace");
+        addWorkspaceMember(
+                ownerSession,
+                workspaceId,
+                "claim-member@test.com",
+                "MEMBER"
+        );
+        Long projectId = createProject(ownerSession, workspaceId, "Claim project");
+        String tasksUrl = tasksUrl(workspaceId, projectId);
+        Long taskId = idFrom(createTask(
+                ownerSession,
+                tasksUrl,
+                "Unassigned work",
+                null
+        ).andExpect(status().isCreated()).andReturn());
+
+        changeStatus(memberSession, tasksUrl, taskId, "IN_PROGRESS", true)
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(put(tasksUrl + "/" + taskId + "/claim")
+                        .session(memberSession)
+                        .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.assignee.displayName").value("Claim Member"));
+
+        changeStatus(memberSession, tasksUrl, taskId, "IN_PROGRESS", true)
+                .andExpect(status().isOk());
+
+        mockMvc.perform(delete(tasksUrl + "/" + taskId + "/claim")
+                        .session(memberSession)
+                        .with(csrf()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.assignee").doesNotExist());
+
+        changeStatus(memberSession, tasksUrl, taskId, "DONE", true)
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get(tasksUrl + "/" + taskId + "/activities")
+                        .session(memberSession))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(get(tasksUrl + "/" + taskId + "/activities")
+                        .session(ownerSession))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].type").value("RELEASED"))
+                .andExpect(jsonPath("$[1].type").value("STATUS_CHANGED"))
+                .andExpect(jsonPath("$[2].type").value("CLAIMED"))
+                .andExpect(jsonPath("$[3].type").value("CREATED"));
     }
 
     @Test
@@ -410,6 +484,25 @@ class TaskIntegrationTest {
                 .andExpect(status().isCreated())
                 .andReturn();
         return idFrom(result);
+    }
+
+    private void addWorkspaceMember(
+            MockHttpSession ownerSession,
+            Long workspaceId,
+            String email,
+            String role
+    ) throws Exception {
+        mockMvc.perform(post(WORKSPACES_URL + "/" + workspaceId + "/members")
+                        .session(ownerSession)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "%s",
+                                  "role": "%s"
+                                }
+                                """.formatted(email, role)))
+                .andExpect(status().isCreated());
     }
 
     private ResultActions createTask(

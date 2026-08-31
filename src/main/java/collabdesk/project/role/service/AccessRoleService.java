@@ -8,6 +8,8 @@ import collabdesk.project.role.entity.ProjectPermission;
 import collabdesk.project.role.repository.AccessRolePermissionRepository;
 import collabdesk.project.role.repository.AccessRoleRepository;
 import collabdesk.project.role.repository.ProjectMemberRoleRepository;
+import collabdesk.project.role.repository.ProjectAllowedRoleRepository;
+import collabdesk.project.role.repository.WorkspaceMemberAccessRoleRepository;
 import collabdesk.workspace.entity.Workspace;
 import collabdesk.workspace.service.WorkspaceAccessService;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -23,6 +25,8 @@ public class AccessRoleService {
     private final AccessRoleRepository accessRoleRepository;
     private final AccessRolePermissionRepository permissionRepository;
     private final ProjectMemberRoleRepository projectMemberRoleRepository;
+    private final WorkspaceMemberAccessRoleRepository memberAccessRoleRepository;
+    private final ProjectAllowedRoleRepository projectAllowedRoleRepository;
     private final WorkspaceAccessService workspaceAccessService;
 
     private final WorkspaceProjectAccessChangePublisher accessChangePublisher;
@@ -31,12 +35,16 @@ public class AccessRoleService {
             AccessRoleRepository accessRoleRepository,
             AccessRolePermissionRepository permissionRepository,
             ProjectMemberRoleRepository projectMemberRoleRepository,
+            WorkspaceMemberAccessRoleRepository memberAccessRoleRepository,
+            ProjectAllowedRoleRepository projectAllowedRoleRepository,
             WorkspaceAccessService workspaceAccessService,
             WorkspaceProjectAccessChangePublisher accessChangePublisher
     ) {
         this.accessRoleRepository = accessRoleRepository;
         this.permissionRepository = permissionRepository;
         this.projectMemberRoleRepository = projectMemberRoleRepository;
+        this.memberAccessRoleRepository = memberAccessRoleRepository;
+        this.projectAllowedRoleRepository = projectAllowedRoleRepository;
         this.workspaceAccessService = workspaceAccessService;
         this.accessChangePublisher = accessChangePublisher;
     }
@@ -131,7 +139,9 @@ public class AccessRoleService {
     ) {
         workspaceAccessService.requireManager(workspaceId, currentUserId);
         AccessRole role = requireRole(workspaceId, roleId);
-        if (projectMemberRoleRepository.existsByRole_Id(roleId)) {
+        if (projectMemberRoleRepository.existsByRole_Id(roleId)
+                || memberAccessRoleRepository.existsByRole_Id(roleId)
+                || projectAllowedRoleRepository.existsByRole_Id(roleId)) {
             throw new AccessRoleInUseException(
                     "Role is assigned to at least one project member"
             );

@@ -18,6 +18,8 @@ public record TaskResponse(
         TaskStatus status,
         TaskVisibility visibility,
         Long createdById,
+        String createdByDisplayName,
+        String createdByEmail,
         Instant createdAt,
         Instant updatedAt,
         TaskAssigneeResponse assignee,

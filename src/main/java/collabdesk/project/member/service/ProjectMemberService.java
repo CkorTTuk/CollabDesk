@@ -3,8 +3,8 @@ package collabdesk.project.member.service;
 import collabdesk.infrastructure.cache.WorkspaceProjectAccessChangePublisher;
 import collabdesk.project.role.dto.AccessRoleSummaryResponse;
 import collabdesk.project.role.entity.ProjectPermission;
-import collabdesk.project.role.service.ProjectMemberRoleService;
-import collabdesk.project.role.service.ProjectMemberRoleSnapshot;
+import collabdesk.project.role.service.WorkspaceMemberAccessRoleService;
+import collabdesk.project.role.service.ProjectAllowedRoleService;
 import collabdesk.project.role.service.ProjectPermissionService;
 import collabdesk.project.service.AccessibleProject;
 import collabdesk.project.service.ProjectAccessService;
@@ -15,6 +15,8 @@ import collabdesk.workspace.service.WorkspaceAccessService;
 import collabdesk.workspace.member.entity.WorkspaceMember;
 import collabdesk.workspace.member.repository.WorkspaceMemberRepository;
 import collabdesk.workspace.service.exceptions.WorkspaceMemberNotFoundException;
+import collabdesk.workspace.service.exceptions.WorkspaceOwnerMutationException;
+import collabdesk.workspace.entity.WorkspaceRole;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -29,7 +31,9 @@ public class ProjectMemberService {
     private final WorkspaceMemberRepository workspaceMemberRepository;
     private final ProjectAccessService projectAccessService;
     private final WorkspaceAccessService workspaceAccessService;
-    private final ProjectMemberRoleService projectMemberRoleService;
+    private final WorkspaceMemberAccessRoleService memberAccessRoleService;
+    private final ProjectAllowedRoleService projectAllowedRoleService;
+    private final ProjectPermissionService projectPermissionService;
 
     private final WorkspaceProjectAccessChangePublisher accessChangePublisher;
 
@@ -38,14 +42,18 @@ public class ProjectMemberService {
             WorkspaceMemberRepository workspaceMemberRepository,
             ProjectAccessService projectAccessService,
             WorkspaceAccessService workspaceAccessService,
-            ProjectMemberRoleService projectMemberRoleService,
+            WorkspaceMemberAccessRoleService memberAccessRoleService,
+            ProjectAllowedRoleService projectAllowedRoleService,
+            ProjectPermissionService projectPermissionService,
             WorkspaceProjectAccessChangePublisher accessChangePublisher
     ) {
         this.projectMemberRepository = projectMemberRepository;
         this.workspaceMemberRepository = workspaceMemberRepository;
         this.projectAccessService = projectAccessService;
         this.workspaceAccessService = workspaceAccessService;
-        this.projectMemberRoleService = projectMemberRoleService;
+        this.memberAccessRoleService = memberAccessRoleService;
+        this.projectAllowedRoleService = projectAllowedRoleService;
+        this.projectPermissionService = projectPermissionService;
         this.accessChangePublisher = accessChangePublisher;
     }
 
@@ -62,11 +70,8 @@ public class ProjectMemberService {
         );
         List<ProjectMember> members = projectMemberRepository
                 .findByProject_IdOrderByJoinedAtAsc(projectId);
-        ProjectMemberRoleSnapshot snapshot = projectMemberRoleService.loadFor(
-                members.stream().map(ProjectMember::getId).toList()
-        );
         return members.stream()
-                .map(member -> toResponse(member, snapshot))
+                .map(this::toResponse)
                 .toList();
     }
 
@@ -90,25 +95,29 @@ public class ProjectMemberService {
                         "Workspace member was not found"
                 ));
 
-        if (projectMemberRepository.existsByProject_IdAndWorkspaceMember_Id(
-                projectId,
-                workspaceMemberId
-        )) {
-            throw new ProjectMemberAlreadyExistsException(
-                    "Workspace member is already in this project"
+        if (workspaceMember.getRole() == WorkspaceRole.OWNER) {
+            throw new WorkspaceOwnerMutationException(
+                    "Owner project membership cannot be changed"
             );
         }
 
         try {
-            ProjectMember saved = projectMemberRepository.saveAndFlush(
-                    new ProjectMember(access.project(), workspaceMember)
-            );
-            projectMemberRoleService.replace(saved, workspaceId, roleIds);
+            ProjectMember saved = projectMemberRepository
+                    .findByProject_IdAndWorkspaceMember_Id(projectId, workspaceMemberId)
+                    .map(existing -> {
+                        if (existing.isGrantsAccess()) {
+                            throw new ProjectMemberAlreadyExistsException(
+                                    "Workspace member is already in this project"
+                            );
+                        }
+                        existing.grantAccess();
+                        return existing;
+                    })
+                    .orElseGet(() -> projectMemberRepository.saveAndFlush(
+                            new ProjectMember(access.project(), workspaceMember, true)
+                    ));
             accessChangePublisher.publish(workspaceId);
-            return toResponse(
-                    saved,
-                    projectMemberRoleService.loadFor(Set.of(saved.getId()))
-            );
+            return toResponse(saved);
         } catch (DataIntegrityViolationException ex) {
             throw new ProjectMemberAlreadyExistsException(
                     "Workspace member is already in this project"
@@ -135,12 +144,15 @@ public class ProjectMemberService {
                 .orElseThrow(() -> new ProjectMemberNotFoundException(
                         "Project member was not found"
                 ));
-        projectMemberRoleService.replace(member, workspaceId, roleIds);
-        accessChangePublisher.publish(workspaceId);
-        return toResponse(
-                member,
-                projectMemberRoleService.loadFor(Set.of(member.getId()))
+        rejectOwner(member);
+        memberAccessRoleService.replaceValidated(
+                workspaceId,
+                member.getWorkspaceMember(),
+                roleIds
         );
+        projectAllowedRoleService.addAllowed(workspaceId, member.getProject(), roleIds);
+        accessChangePublisher.publish(workspaceId);
+        return toResponse(member);
     }
 
     @Transactional
@@ -161,33 +173,17 @@ public class ProjectMemberService {
                 .orElseThrow(() -> new ProjectMemberNotFoundException(
                         "Project member was not found"
                 ));
+        rejectOwner(member);
         projectMemberRepository.delete(member);
         accessChangePublisher.publish(workspaceId);
     }
 
-    private ProjectMemberResponse toResponse(
-            ProjectMember member,
-            ProjectMemberRoleSnapshot snapshot
-    ) {
+    private ProjectMemberResponse toResponse(ProjectMember member) {
         WorkspaceMember workspaceMember = member.getWorkspaceMember();
-        List<AccessRoleSummaryResponse> roles = snapshot.roles()
-                .getOrDefault(member.getId(), List.of());
-        Set<ProjectPermission> effectivePermissions;
-        switch (workspaceMember.getRole()) {
-            case OWNER, ADMIN -> effectivePermissions =
-                    Set.copyOf(ProjectPermissionService.BASE_MEMBER_PERMISSIONS);
-            case VIEWER -> effectivePermissions = Set.of();
-            case MEMBER -> effectivePermissions =
-                    snapshot.membersWithCustomRoles().contains(member.getId())
-                            ? snapshot.permissions().getOrDefault(
-                                    member.getId(),
-                                    Set.of()
-                            )
-                            : ProjectPermissionService.BASE_MEMBER_PERMISSIONS;
-            default -> throw new IllegalStateException(
-                    "Unsupported workspace role"
-            );
-        }
+        List<AccessRoleSummaryResponse> roles = memberAccessRoleService
+                .findForMember(workspaceMember.getId());
+        Set<ProjectPermission> effectivePermissions = projectPermissionService
+                .findForMember(member.getProject().getId(), workspaceMember);
         return new ProjectMemberResponse(
                 member.getId(),
                 workspaceMember.getId(),
@@ -196,8 +192,17 @@ public class ProjectMemberService {
                 workspaceMember.getUser().getDisplayName(),
                 workspaceMember.getRole(),
                 member.getJoinedAt(),
+                member.isGrantsAccess(),
                 roles,
                 effectivePermissions
         );
+    }
+
+    private void rejectOwner(ProjectMember member) {
+        if (member.getWorkspaceMember().getRole() == WorkspaceRole.OWNER) {
+            throw new WorkspaceOwnerMutationException(
+                    "Owner project membership cannot be changed"
+            );
+        }
     }
 }

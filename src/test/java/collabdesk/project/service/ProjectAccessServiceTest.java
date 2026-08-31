@@ -1,7 +1,7 @@
 package collabdesk.project.service;
 
 import collabdesk.project.entity.Project;
-import collabdesk.project.entity.ProjectVisibility;
+import collabdesk.project.role.repository.ProjectAllowedRoleRepository;
 import collabdesk.project.repository.ProjectRepository;
 import collabdesk.project.member.repository.ProjectMemberRepository;
 import collabdesk.user.entity.User;
@@ -41,13 +41,16 @@ class ProjectAccessServiceTest {
     private ProjectAccessService projectAccessService;
     @Mock
     private ProjectMemberRepository projectMemberRepository;
+    @Mock
+    private ProjectAllowedRoleRepository projectAllowedRoleRepository;
 
     @BeforeEach
     void setUp() {
         projectAccessService = new ProjectAccessService(
                 workspaceAccessService,
                 projectRepository,
-                projectMemberRepository
+                projectMemberRepository,
+                projectAllowedRoleRepository
         );
     }
 
@@ -168,7 +171,10 @@ class ProjectAccessServiceTest {
         when(projectRepository.findByIdAndWorkspace_Id(3L, 1L))
                 .thenReturn(Optional.of(project));
         when(projectMemberRepository
-                .existsByProject_IdAndWorkspaceMember_User_Id(3L, 2L))
+                .existsByProject_IdAndGrantsAccessTrue(3L))
+                .thenReturn(true);
+        when(projectMemberRepository
+                .existsByProject_IdAndWorkspaceMember_User_IdAndGrantsAccessTrue(3L, 2L))
                 .thenReturn(true);
 
         assertSame(
@@ -189,6 +195,8 @@ class ProjectAccessServiceTest {
                 .thenReturn(membership);
         when(projectRepository.findByIdAndWorkspace_Id(3L, 1L))
                 .thenReturn(Optional.of(project));
+        when(projectMemberRepository.existsByProject_IdAndGrantsAccessTrue(3L))
+                .thenReturn(true);
 
         assertThrows(
                 ProjectNotFoundException.class,
@@ -233,9 +241,9 @@ class ProjectAccessServiceTest {
     }
 
     private Project restrictedProject(Workspace workspace, User user) {
-        Project project = new Project(workspace, "Restricted project", null, user);
+        User creator = user(99L, "creator@test.com");
+        Project project = new Project(workspace, "Restricted project", null, creator);
         ReflectionTestUtils.setField(project, "id", 3L);
-        project.changeVisibility(ProjectVisibility.RESTRICTED);
         return project;
     }
 }

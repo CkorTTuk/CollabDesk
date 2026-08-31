@@ -14,6 +14,7 @@ import collabdesk.workspace.service.exceptions.WorkspaceUserNotFoundException;
 import collabdesk.workspace.member.dto.WorkspaceMemberResponse;
 import collabdesk.workspace.member.entity.WorkspaceMember;
 import collabdesk.workspace.member.repository.WorkspaceMemberRepository;
+import collabdesk.project.role.service.WorkspaceMemberAccessRoleService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -50,6 +51,7 @@ class WorkspaceMemberServiceTest {
 
     @Mock
     private WorkspaceProjectAccessChangePublisher accessChangePublisher;
+    @Mock private WorkspaceMemberAccessRoleService memberAccessRoleService;
 
     private WorkspaceMemberService workspaceMemberService;
     private User owner;
@@ -62,6 +64,7 @@ class WorkspaceMemberServiceTest {
                 workspaceMemberRepository,
                 workspaceAccessService,
                 userRepository,
+                memberAccessRoleService,
                 accessChangePublisher
         );
         owner = user(7L, "owner@test.com", "Owner");
@@ -70,6 +73,9 @@ class WorkspaceMemberServiceTest {
                 21L,
                 WorkspaceMember.owner(workspace, owner)
         );
+        org.mockito.Mockito.lenient()
+                .when(memberAccessRoleService.findForMembers(any()))
+                .thenReturn(java.util.Map.of());
     }
 
     @Test
@@ -125,7 +131,7 @@ class WorkspaceMemberServiceTest {
     @Test
     void addNormalizesEmailAndSavesCollaboratorInOwnersWorkspace() {
         User invitedUser = user(8L, "member@test.com", "Member");
-        when(workspaceAccessService.requireOwner(11L, 7L))
+        when(workspaceAccessService.requireManager(11L, 7L))
                 .thenReturn(ownerMembership);
         when(userRepository.findByEmail("member@test.com"))
                 .thenReturn(Optional.of(invitedUser));
@@ -161,7 +167,7 @@ class WorkspaceMemberServiceTest {
 
     @Test
     void addRejectsOwnerRoleBeforeUserLookup() {
-        when(workspaceAccessService.requireOwner(11L, 7L))
+        when(workspaceAccessService.requireManager(11L, 7L))
                 .thenReturn(ownerMembership);
 
         assertThrows(
@@ -182,7 +188,7 @@ class WorkspaceMemberServiceTest {
     void addHidesMissingAndDisabledUsersBehindSameException() {
         User disabled = user(8L, "disabled@test.com", "Disabled");
         disabled.disable();
-        when(workspaceAccessService.requireOwner(11L, 7L))
+        when(workspaceAccessService.requireManager(11L, 7L))
                 .thenReturn(ownerMembership);
         when(userRepository.findByEmail("missing@test.com"))
                 .thenReturn(Optional.empty());
@@ -215,7 +221,7 @@ class WorkspaceMemberServiceTest {
     @Test
     void addRejectsDuplicateMembership() {
         User member = user(8L, "member@test.com", "Member");
-        when(workspaceAccessService.requireOwner(11L, 7L))
+        when(workspaceAccessService.requireManager(11L, 7L))
                 .thenReturn(ownerMembership);
         when(userRepository.findByEmail("member@test.com"))
                 .thenReturn(Optional.of(member));
@@ -242,7 +248,7 @@ class WorkspaceMemberServiceTest {
                 22L,
                 WorkspaceMember.member(workspace, member)
         );
-        when(workspaceAccessService.requireOwner(11L, 7L))
+        when(workspaceAccessService.requireManager(11L, 7L))
                 .thenReturn(ownerMembership);
         when(workspaceMemberRepository.findByIdAndWorkspace_Id(22L, 11L))
                 .thenReturn(Optional.of(membership));
@@ -264,7 +270,7 @@ class WorkspaceMemberServiceTest {
 
     @Test
     void changeRoleReturnsNotFoundForMemberFromAnotherWorkspace() {
-        when(workspaceAccessService.requireOwner(11L, 7L))
+        when(workspaceAccessService.requireManager(11L, 7L))
                 .thenReturn(ownerMembership);
         when(workspaceMemberRepository.findByIdAndWorkspace_Id(99L, 11L))
                 .thenReturn(Optional.empty());
@@ -282,7 +288,7 @@ class WorkspaceMemberServiceTest {
 
     @Test
     void changeRoleRejectsOwnerTargetAndOwnerAssignment() {
-        when(workspaceAccessService.requireOwner(11L, 7L))
+        when(workspaceAccessService.requireManager(11L, 7L))
                 .thenReturn(ownerMembership);
         when(workspaceMemberRepository.findByIdAndWorkspace_Id(21L, 11L))
                 .thenReturn(Optional.of(ownerMembership));
@@ -316,7 +322,7 @@ class WorkspaceMemberServiceTest {
                 22L,
                 WorkspaceMember.member(workspace, member)
         );
-        when(workspaceAccessService.requireOwner(11L, 7L))
+        when(workspaceAccessService.requireManager(11L, 7L))
                 .thenReturn(ownerMembership);
         when(workspaceMemberRepository.findByIdAndWorkspace_Id(22L, 11L))
                 .thenReturn(Optional.of(membership));
@@ -329,7 +335,7 @@ class WorkspaceMemberServiceTest {
 
     @Test
     void removeRejectsOwnerAndDoesNotDelete() {
-        when(workspaceAccessService.requireOwner(11L, 7L))
+        when(workspaceAccessService.requireManager(11L, 7L))
                 .thenReturn(ownerMembership);
         when(workspaceMemberRepository.findByIdAndWorkspace_Id(21L, 11L))
                 .thenReturn(Optional.of(ownerMembership));

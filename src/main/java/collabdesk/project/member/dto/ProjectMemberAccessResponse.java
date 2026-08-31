@@ -14,6 +14,7 @@ public record ProjectMemberAccessResponse(
         String displayName,
         String email,
         WorkspaceRole workspaceRole,
+        boolean grantsAccess,
         List<AccessRoleSummaryResponse> roles
 ) {
 }

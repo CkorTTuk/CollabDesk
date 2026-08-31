@@ -7,6 +7,8 @@ import collabdesk.project.role.entity.AccessRole;
 import collabdesk.project.role.repository.AccessRolePermissionRepository;
 import collabdesk.project.role.repository.AccessRoleRepository;
 import collabdesk.project.role.repository.ProjectMemberRoleRepository;
+import collabdesk.project.role.repository.WorkspaceMemberAccessRoleRepository;
+import collabdesk.project.role.repository.ProjectAllowedRoleRepository;
 import collabdesk.user.entity.User;
 import collabdesk.workspace.entity.Workspace;
 import collabdesk.workspace.service.WorkspaceAccessService;
@@ -39,6 +41,8 @@ class AccessRoleServiceTest {
 
     @Mock
     private ProjectMemberRoleRepository projectMemberRoleRepository;
+    @Mock private WorkspaceMemberAccessRoleRepository memberAccessRoleRepository;
+    @Mock private ProjectAllowedRoleRepository projectAllowedRoleRepository;
 
     @Mock
     private WorkspaceAccessService workspaceAccessService;
@@ -55,6 +59,8 @@ class AccessRoleServiceTest {
                 accessRoleRepository,
                 permissionRepository,
                 projectMemberRoleRepository,
+                memberAccessRoleRepository,
+                projectAllowedRoleRepository,
                 workspaceAccessService,
                 accessChangePublisher
         );

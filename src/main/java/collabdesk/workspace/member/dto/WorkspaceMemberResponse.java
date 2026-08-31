@@ -4,6 +4,8 @@ import collabdesk.workspace.entity.WorkspaceRole;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.Instant;
+import java.util.List;
+import collabdesk.project.role.dto.AccessRoleSummaryResponse;
 
 @Schema(description = "Workspace membership with account information")
 public record WorkspaceMemberResponse(
@@ -12,6 +14,7 @@ public record WorkspaceMemberResponse(
         String email,
         String displayName,
         WorkspaceRole role,
-        Instant joinedAt
+        Instant joinedAt,
+        List<AccessRoleSummaryResponse> accessRoles
 ) {
 }

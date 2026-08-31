@@ -1,11 +1,12 @@
 package collabdesk.project.dto;
 
 import collabdesk.project.entity.ProjectStatus;
-import collabdesk.project.entity.ProjectVisibility;
 import collabdesk.project.member.dto.ProjectMemberAccessResponse;
+import collabdesk.project.role.dto.AccessRoleSummaryResponse;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
+import java.time.Instant;
 
 @Schema(description = "Project summary with visible member access assignments")
 public record ProjectAccessOverviewResponse(
@@ -13,7 +14,11 @@ public record ProjectAccessOverviewResponse(
         String name,
         String description,
         ProjectStatus status,
-        ProjectVisibility visibility,
+        Long createdById,
+        String createdByDisplayName,
+        Instant createdAt,
+        boolean restricted,
+        List<AccessRoleSummaryResponse> allowedRoles,
         List<ProjectMemberAccessResponse> members
 ) {
 }

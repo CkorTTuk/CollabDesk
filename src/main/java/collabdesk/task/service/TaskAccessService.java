@@ -85,4 +85,35 @@ public class TaskAccessService {
         }
         return access;
     }
+
+    @Transactional(readOnly = true)
+    public AccessibleTask requireManageableTask(
+            Long workspaceId,
+            Long projectId,
+            Long taskId,
+            Long currentUserId
+    ) {
+        AccessibleTask access = requireAccessibleTask(
+                workspaceId,
+                projectId,
+                taskId,
+                currentUserId
+        );
+        WorkspaceRole role = access.projectAccess().membership().getRole();
+        if (role == WorkspaceRole.VIEWER) {
+            throw new WorkspaceOperationForbiddenException("Viewer has read-only access");
+        }
+        if (role == WorkspaceRole.OWNER || role == WorkspaceRole.ADMIN
+                || access.task().getCreatedBy().getId().equals(currentUserId)
+                || taskAssigneeRepository
+                .existsByTask_IdAndProjectMember_WorkspaceMember_User_Id(
+                        taskId,
+                        currentUserId
+                )) {
+            return access;
+        }
+        throw new WorkspaceOperationForbiddenException(
+                "Only the task creator or assignee can change it"
+        );
+    }
 }

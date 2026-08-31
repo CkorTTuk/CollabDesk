@@ -69,3 +69,22 @@ export async function removeWorkspaceMember(workspaceId, memberId) {
     throw await createApiError(response, 'Unable to remove the member.')
   }
 }
+
+export async function replaceWorkspaceMemberAccessRoles(
+  workspaceId,
+  memberId,
+  roleIds,
+) {
+  const response = await apiFetch(
+    `${membersUrl(workspaceId)}/${memberId}/access-roles`,
+    await withCsrf({
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roleIds }),
+    }),
+  )
+  if (!response.ok) {
+    throw await createApiError(response, 'Unable to update custom roles.')
+  }
+  return response.json()
+}

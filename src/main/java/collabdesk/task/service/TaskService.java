@@ -10,6 +10,8 @@ import collabdesk.task.entity.TaskStatus;
 import collabdesk.task.entity.TaskVisibility;
 import collabdesk.task.repository.TaskRepository;
 import collabdesk.task.assignee.repository.TaskAssigneeRepository;
+import collabdesk.task.activity.entity.TaskActivityType;
+import collabdesk.task.activity.service.TaskActivityService;
 import collabdesk.workspace.entity.WorkspaceRole;
 import collabdesk.workspace.service.exceptions.WorkspaceOperationForbiddenException;
 import org.springframework.stereotype.Service;
@@ -27,6 +29,7 @@ public class TaskService {
     private final TaskResponseMapper taskResponseMapper;
     private final TaskAccessService taskAccessService;
     private final ProjectPermissionService projectPermissionService;
+    private final TaskActivityService taskActivityService;
 
     public TaskService(
             TaskRepository taskRepository,
@@ -34,7 +37,8 @@ public class TaskService {
             TaskAssigneeRepository taskAssigneeRepository,
             TaskResponseMapper taskResponseMapper,
             TaskAccessService taskAccessService,
-            ProjectPermissionService projectPermissionService
+            ProjectPermissionService projectPermissionService,
+            TaskActivityService taskActivityService
     ) {
         this.taskRepository = taskRepository;
         this.projectAccessService = projectAccessService;
@@ -42,6 +46,7 @@ public class TaskService {
         this.taskResponseMapper = taskResponseMapper;
         this.taskAccessService = taskAccessService;
         this.projectPermissionService = projectPermissionService;
+        this.taskActivityService = taskActivityService;
     }
 
     @Transactional
@@ -58,11 +63,7 @@ public class TaskService {
                         projectId,
                         currentUserId
                 );
-        projectPermissionService.requireProjectPermission(
-                access,
-                currentUserId,
-                ProjectPermission.CREATE_TASK
-        );
+        requireTaskContributor(access);
 
         Task task = new Task(
                 access.project(),
@@ -71,8 +72,16 @@ public class TaskService {
                 access.membership().getUser()
         );
 
+        Task saved = taskRepository.save(task);
+        taskActivityService.record(
+                saved,
+                access.membership().getUser(),
+                TaskActivityType.CREATED,
+                null,
+                TaskStatus.TODO.name()
+        );
         return taskResponseMapper.toResponse(
-                taskRepository.save(task),
+                saved,
                 null,
                 projectPermissionService.findEffectiveProjectPermissions(
                         access,
@@ -127,18 +136,27 @@ public class TaskService {
             String title,
             String description
     ) {
-        AccessibleTask access = taskAccessService.requireAccessibleTask(
+        AccessibleTask access = taskAccessService.requireManageableTask(
                 workspaceId,
                 projectId,
                 taskId,
                 currentUserId
         );
-        projectPermissionService.requireTaskPermission(
-                access,
-                currentUserId,
-                ProjectPermission.EDIT_TASK
-        );
+        boolean changed = !java.util.Objects.equals(access.task().getTitle(), title == null ? null : title.trim())
+                || !java.util.Objects.equals(
+                        access.task().getDescription(),
+                        description == null || description.trim().isEmpty() ? null : description.trim()
+                );
         access.task().edit(title, description);
+        if (changed) {
+            taskActivityService.record(
+                    access.task(),
+                    access.projectAccess().membership().getUser(),
+                    TaskActivityType.EDITED,
+                    null,
+                    null
+            );
+        }
         return taskResponseMapper.toResponse(
                 access.task(),
                 taskAssigneeRepository
@@ -159,33 +177,24 @@ public class TaskService {
             Long currentUserId,
             TaskStatus newStatus
     ) {
-        AccessibleTask access = taskAccessService.requireAccessibleTask(
+        AccessibleTask access = taskAccessService.requireManageableTask(
                 workspaceId,
                 projectId,
                 taskId,
                 currentUserId
         );
-        projectPermissionService.requireTaskPermission(
-                access,
-                currentUserId,
-                ProjectPermission.CHANGE_TASK_STATUS
-        );
-        WorkspaceRole workspaceRole =
-                access.projectAccess().membership().getRole();
-        boolean manager = workspaceRole == WorkspaceRole.OWNER
-                || workspaceRole == WorkspaceRole.ADMIN;
-        if (!manager && !taskAssigneeRepository
-                .existsByTask_IdAndProjectMember_WorkspaceMember_User_Id(
-                        taskId,
-                        currentUserId
-                )) {
-            throw new WorkspaceOperationForbiddenException(
-                    "Only the assigned project member can change task status"
+        Task task = access.task();
+        TaskStatus oldStatus = task.getStatus();
+        if (oldStatus != newStatus) {
+            task.changeStatus(newStatus);
+            taskActivityService.record(
+                    task,
+                    access.projectAccess().membership().getUser(),
+                    TaskActivityType.STATUS_CHANGED,
+                    oldStatus.name(),
+                    newStatus.name()
             );
         }
-        Task task = access.task();
-
-        task.changeStatus(newStatus);
         return taskResponseMapper.toResponse(
                 task,
                 taskAssigneeRepository
@@ -206,18 +215,13 @@ public class TaskService {
             Long currentUserId,
             TaskVisibility visibility
     ) {
-        AccessibleTask access = taskAccessService.requireAccessibleTask(
+        AccessibleTask access = taskAccessService.requireManageableTask(
                 workspaceId,
                 projectId,
                 taskId,
                 currentUserId
         );
         Task task = access.task();
-        projectPermissionService.requireTaskPermission(
-                access,
-                currentUserId,
-                ProjectPermission.CHANGE_TASK_VISIBILITY
-        );
         if (visibility == TaskVisibility.ASSIGNEES
                 && !taskAssigneeRepository.existsByTask_Id(taskId)) {
             throw new TaskVisibilityConflictException(
@@ -225,7 +229,17 @@ public class TaskService {
             );
         }
 
-        task.changeVisibility(visibility);
+        TaskVisibility oldVisibility = task.getVisibility();
+        if (oldVisibility != visibility) {
+            task.changeVisibility(visibility);
+            taskActivityService.record(
+                    task,
+                    access.projectAccess().membership().getUser(),
+                    TaskActivityType.VISIBILITY_CHANGED,
+                    oldVisibility.name(),
+                    visibility.name()
+            );
+        }
         return taskResponseMapper.toResponse(
                 task,
                 taskAssigneeRepository
@@ -236,5 +250,13 @@ public class TaskService {
                         currentUserId
                 )
         );
+    }
+
+    private void requireTaskContributor(AccessibleProject access) {
+        if (access.membership().getRole() == WorkspaceRole.VIEWER) {
+            throw new WorkspaceOperationForbiddenException(
+                    "Viewer has read-only access"
+            );
+        }
     }
 }

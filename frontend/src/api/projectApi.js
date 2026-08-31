@@ -20,7 +20,10 @@ export async function getProjects(workspaceId) {
   return response.json()
 }
 
-export async function createProject(workspaceId, { name, description }) {
+export async function createProject(
+  workspaceId,
+  { name, description, allowedRoleIds = [], allowedWorkspaceMemberIds = [] },
+) {
   const response = await apiFetch(
     projectsUrl(workspaceId),
     await withCsrf({
@@ -31,6 +34,8 @@ export async function createProject(workspaceId, { name, description }) {
       body: JSON.stringify({
         name,
         description: description.trim() || null,
+        allowedRoleIds,
+        allowedWorkspaceMemberIds,
       }),
     }),
   )
@@ -42,27 +47,23 @@ export async function createProject(workspaceId, { name, description }) {
   return response.json()
 }
 
-export async function changeProjectVisibility(
+export async function replaceProjectAllowedRoles(
   workspaceId,
   projectId,
-  visibility,
+  roleIds,
 ) {
   const response = await apiFetch(
-    `${projectsUrl(workspaceId)}/${projectId}/visibility`,
+    `${projectsUrl(workspaceId)}/${projectId}/allowed-roles`,
     await withCsrf({
-      method: 'PATCH',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ visibility }),
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roleIds }),
     }),
   )
 
   if (!response.ok) {
-    throw await createApiError(
-      response,
-      'Unable to update project visibility.',
-    )
+    throw await createApiError(response, 'Unable to update project access.')
   }
+
   return response.json()
 }

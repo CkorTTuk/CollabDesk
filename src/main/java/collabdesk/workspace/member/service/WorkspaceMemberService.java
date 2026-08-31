@@ -1,6 +1,8 @@
 package collabdesk.workspace.member.service;
 
 import collabdesk.infrastructure.cache.WorkspaceProjectAccessChangePublisher;
+import collabdesk.project.role.dto.AccessRoleSummaryResponse;
+import collabdesk.project.role.service.WorkspaceMemberAccessRoleService;
 import collabdesk.user.entity.User;
 import collabdesk.user.entity.UserStatus;
 import collabdesk.user.repository.UserRepository;
@@ -18,23 +20,27 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 @Service
 public class WorkspaceMemberService {
     private final WorkspaceMemberRepository workspaceMemberRepository;
     private final WorkspaceAccessService workspaceAccessService;
     private final UserRepository userRepository;
+    private final WorkspaceMemberAccessRoleService memberAccessRoleService;
 
     private final WorkspaceProjectAccessChangePublisher accessChangePublisher;
     public WorkspaceMemberService(
             WorkspaceMemberRepository workspaceMemberRepository,
             WorkspaceAccessService workspaceAccessService,
             UserRepository userRepository,
+            WorkspaceMemberAccessRoleService memberAccessRoleService,
             WorkspaceProjectAccessChangePublisher accessChangePublisher
     ) {
         this.workspaceMemberRepository = workspaceMemberRepository;
         this.workspaceAccessService = workspaceAccessService;
         this.userRepository = userRepository;
+        this.memberAccessRoleService = memberAccessRoleService;
         this.accessChangePublisher = accessChangePublisher;
     }
     @Transactional(readOnly = true)
@@ -44,10 +50,15 @@ public class WorkspaceMemberService {
     ) {
         workspaceAccessService.requireMember(workspaceId, currentUserId);
 
-        return workspaceMemberRepository
-                .findByWorkspace_IdOrderByJoinedAtAsc(workspaceId)
-                .stream()
-                .map(this::toResponse)
+        List<WorkspaceMember> members = workspaceMemberRepository
+                .findByWorkspace_IdOrderByJoinedAtAsc(workspaceId);
+        Map<Long, List<AccessRoleSummaryResponse>> roles = memberAccessRoleService
+                .findForMembers(members.stream().map(WorkspaceMember::getId).toList());
+        return members.stream()
+                .map(member -> toResponse(
+                        member,
+                        roles.getOrDefault(member.getId(), List.of())
+                ))
                 .toList();
     }
 
@@ -59,7 +70,7 @@ public class WorkspaceMemberService {
             WorkspaceRole role
     ) {
         WorkspaceMember ownerMembership =
-                workspaceAccessService.requireOwner(workspaceId, currentUserId);
+                workspaceAccessService.requireManager(workspaceId, currentUserId);
 
         rejectOwnerRole(role);
 
@@ -85,7 +96,7 @@ public class WorkspaceMemberService {
                 role
         );
 
-        return toResponse(workspaceMemberRepository.save(membership));
+        return toResponse(workspaceMemberRepository.save(membership), List.of());
     }
 
     @Transactional
@@ -95,7 +106,7 @@ public class WorkspaceMemberService {
             Long currentUserId,
             WorkspaceRole newRole
     ) {
-        workspaceAccessService.requireOwner(workspaceId, currentUserId);
+        workspaceAccessService.requireManager(workspaceId, currentUserId);
         rejectOwnerRole(newRole);
 
         WorkspaceMember membership = findScopedMember(workspaceId, memberId);
@@ -107,7 +118,10 @@ public class WorkspaceMemberService {
 
         membership.changeRole(newRole);
         accessChangePublisher.publish(workspaceId);
-        return toResponse(membership);
+        return toResponse(
+                membership,
+                memberAccessRoleService.findForMember(membership.getId())
+        );
     }
 
     @Transactional
@@ -116,7 +130,7 @@ public class WorkspaceMemberService {
             Long memberId,
             Long currentUserId
     ) {
-        workspaceAccessService.requireOwner(workspaceId, currentUserId);
+        workspaceAccessService.requireManager(workspaceId, currentUserId);
 
         WorkspaceMember membership = findScopedMember(workspaceId, memberId);
         if (membership.getRole() == WorkspaceRole.OWNER) {
@@ -145,14 +159,18 @@ public class WorkspaceMemberService {
         }
     }
 
-    private WorkspaceMemberResponse toResponse(WorkspaceMember membership) {
+    private WorkspaceMemberResponse toResponse(
+            WorkspaceMember membership,
+            List<AccessRoleSummaryResponse> accessRoles
+    ) {
         return new WorkspaceMemberResponse(
                 membership.getId(),
                 membership.getUser().getId(),
                 membership.getUser().getEmail(),
                 membership.getUser().getDisplayName(),
                 membership.getRole(),
-                membership.getJoinedAt()
+                membership.getJoinedAt(),
+                List.copyOf(accessRoles)
         );
     }
 }

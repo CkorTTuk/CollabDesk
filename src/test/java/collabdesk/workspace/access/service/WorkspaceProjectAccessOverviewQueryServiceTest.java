@@ -7,6 +7,8 @@ import collabdesk.project.member.repository.ProjectMemberRepository;
 import collabdesk.project.role.dto.AccessRoleSummaryResponse;
 import collabdesk.project.role.service.ProjectMemberRoleService;
 import collabdesk.project.role.service.ProjectMemberRoleSnapshot;
+import collabdesk.project.role.service.WorkspaceMemberAccessRoleService;
+import collabdesk.project.role.repository.ProjectAllowedRoleRepository;
 import collabdesk.project.service.ProjectAccessService;
 import collabdesk.user.entity.User;
 import collabdesk.workspace.entity.Workspace;
@@ -24,6 +26,7 @@ import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.Mockito.never;
@@ -41,6 +44,8 @@ class WorkspaceProjectAccessOverviewQueryServiceTest {
 
     @Mock
     private ProjectMemberRoleService projectMemberRoleService;
+    @Mock private WorkspaceMemberAccessRoleService memberAccessRoleService;
+    @Mock private ProjectAllowedRoleRepository projectAllowedRoleRepository;
 
     private WorkspaceProjectAccessOverviewQueryService service;
 
@@ -49,7 +54,8 @@ class WorkspaceProjectAccessOverviewQueryServiceTest {
         service = new WorkspaceProjectAccessOverviewQueryService(
                 projectAccessService,
                 projectMemberRepository,
-                projectMemberRoleService
+                memberAccessRoleService,
+                projectAllowedRoleRepository
         );
     }
 
@@ -66,7 +72,7 @@ class WorkspaceProjectAccessOverviewQueryServiceTest {
 
         Project first = project(30L, workspace, owner, "First project");
         Project second = project(31L, workspace, owner, "Second project");
-        ProjectMember firstOwner = projectMember(40L, first, ownerMember);
+        ProjectMember firstOwner = projectMember(40L, first, ownerMember, false);
         ProjectMember firstMember = projectMember(41L, first, member);
         ProjectMember secondMember = projectMember(42L, second, member);
         AccessRoleSummaryResponse reviewer = new AccessRoleSummaryResponse(
@@ -82,12 +88,10 @@ class WorkspaceProjectAccessOverviewQueryServiceTest {
                         List.of(30L, 31L)
                 ))
                 .thenReturn(List.of(firstOwner, firstMember, secondMember));
-        when(projectMemberRoleService.loadFor(List.of(40L, 41L, 42L)))
-                .thenReturn(new ProjectMemberRoleSnapshot(
-                        Map.of(41L, List.of(reviewer)),
-                        Map.of(),
-                        Set.of(41L)
-                ));
+        when(memberAccessRoleService.findForMembers(List.of(20L, 21L, 21L)))
+                .thenReturn(Map.of(21L, List.of(reviewer)));
+        when(projectAllowedRoleRepository.findByProject_IdIn(List.of(30L, 31L)))
+                .thenReturn(List.of());
 
         WorkspaceProjectAccessOverviewResponse result =
                 service.findForWorkspace(1L, 10L);
@@ -99,6 +103,10 @@ class WorkspaceProjectAccessOverviewQueryServiceTest {
                         result.projects().get(0).name()
                 ),
                 () -> assertEquals(
+                        first.getCreatedAt(),
+                        result.projects().get(0).createdAt()
+                ),
+                () -> assertEquals(
                         2,
                         result.projects().get(0).members().size()
                 ),
@@ -106,9 +114,15 @@ class WorkspaceProjectAccessOverviewQueryServiceTest {
                         List.of(reviewer),
                         result.projects().get(0).members().get(1).roles()
                 ),
-                () -> assertTrue(
+                () -> assertEquals(
+                        List.of(reviewer),
                         result.projects().get(1).members().get(0).roles()
-                                .isEmpty()
+                ),
+                () -> assertFalse(
+                        result.projects().get(0).members().get(0).grantsAccess()
+                ),
+                () -> assertTrue(
+                        result.projects().get(0).members().get(1).grantsAccess()
                 )
         );
     }
@@ -151,7 +165,20 @@ class WorkspaceProjectAccessOverviewQueryServiceTest {
             Project project,
             WorkspaceMember workspaceMember
     ) {
-        ProjectMember member = new ProjectMember(project, workspaceMember);
+        return projectMember(id, project, workspaceMember, true);
+    }
+
+    private ProjectMember projectMember(
+            Long id,
+            Project project,
+            WorkspaceMember workspaceMember,
+            boolean grantsAccess
+    ) {
+        ProjectMember member = new ProjectMember(
+                project,
+                workspaceMember,
+                grantsAccess
+        );
         ReflectionTestUtils.setField(member, "id", id);
         return member;
     }

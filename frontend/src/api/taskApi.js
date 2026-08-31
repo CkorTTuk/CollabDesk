@@ -143,3 +143,36 @@ export async function changeTaskVisibility(
   }
   return response.json()
 }
+
+export async function claimTask(workspaceId, projectId, taskId) {
+  const response = await apiFetch(
+    `${tasksUrl(workspaceId, projectId)}/${taskId}/claim`,
+    await withCsrf({ method: 'PUT' }),
+  )
+  if (!response.ok) {
+    throw await createApiError(response, 'Unable to take the task.')
+  }
+  return response.json()
+}
+
+export async function releaseTask(workspaceId, projectId, taskId) {
+  const response = await apiFetch(
+    `${tasksUrl(workspaceId, projectId)}/${taskId}/claim`,
+    await withCsrf({ method: 'DELETE' }),
+  )
+  if (!response.ok) {
+    throw await createApiError(response, 'Unable to release the task.')
+  }
+  return response.json()
+}
+
+export async function getTaskActivities(workspaceId, projectId, taskId) {
+  const response = await apiFetch(
+    `${tasksUrl(workspaceId, projectId)}/${taskId}/activities`,
+    { credentials: 'same-origin' },
+  )
+  if (!response.ok) {
+    throw await createApiError(response, 'Unable to load task activity.')
+  }
+  return response.json()
+}

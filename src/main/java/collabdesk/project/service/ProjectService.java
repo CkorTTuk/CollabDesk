@@ -1,29 +1,35 @@
 package collabdesk.project.service;
 
 import collabdesk.infrastructure.cache.WorkspaceProjectAccessChangePublisher;
-import collabdesk.project.role.entity.ProjectPermission;
-import collabdesk.project.role.service.ProjectPermissionService;
 import collabdesk.project.dto.ProjectResponse;
 import collabdesk.project.entity.Project;
-import collabdesk.project.entity.ProjectVisibility;
 import collabdesk.project.repository.ProjectRepository;
 import collabdesk.project.member.entity.ProjectMember;
 import collabdesk.project.member.repository.ProjectMemberRepository;
+import collabdesk.project.role.entity.AccessRole;
+import collabdesk.project.role.entity.ProjectAllowedRole;
+import collabdesk.project.role.repository.AccessRoleRepository;
+import collabdesk.project.role.repository.ProjectAllowedRoleRepository;
+import collabdesk.project.role.service.AccessRoleWorkspaceMismatchException;
+import collabdesk.user.entity.UserStatus;
 import collabdesk.workspace.member.entity.WorkspaceMember;
+import collabdesk.workspace.member.repository.WorkspaceMemberRepository;
 import collabdesk.workspace.entity.WorkspaceRole;
+import collabdesk.workspace.service.exceptions.WorkspaceMemberNotFoundException;
 import collabdesk.workspace.service.WorkspaceAccessService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
+import java.util.*;
 
 @Service
 public class ProjectService {
     private final ProjectRepository projectRepository;
     private final WorkspaceAccessService workspaceAccessService;
     private final ProjectMemberRepository projectMemberRepository;
-    private final ProjectAccessService projectAccessService;
-    private final ProjectPermissionService projectPermissionService;
+    private final AccessRoleRepository accessRoleRepository;
+    private final ProjectAllowedRoleRepository projectAllowedRoleRepository;
+    private final WorkspaceMemberRepository workspaceMemberRepository;
 
     private final WorkspaceProjectAccessChangePublisher accessChangePublisher;
 
@@ -31,14 +37,16 @@ public class ProjectService {
             ProjectRepository projectRepository,
             WorkspaceAccessService workspaceAccessService,
             ProjectMemberRepository projectMemberRepository,
-            ProjectAccessService projectAccessService,
-            ProjectPermissionService projectPermissionService,
+            AccessRoleRepository accessRoleRepository,
+            ProjectAllowedRoleRepository projectAllowedRoleRepository,
+            WorkspaceMemberRepository workspaceMemberRepository,
             WorkspaceProjectAccessChangePublisher accessChangePublisher) {
         this.projectRepository = projectRepository;
         this.workspaceAccessService = workspaceAccessService;
         this.projectMemberRepository = projectMemberRepository;
-        this.projectAccessService = projectAccessService;
-        this.projectPermissionService = projectPermissionService;
+        this.accessRoleRepository = accessRoleRepository;
+        this.projectAllowedRoleRepository = projectAllowedRoleRepository;
+        this.workspaceMemberRepository = workspaceMemberRepository;
         this.accessChangePublisher = accessChangePublisher;
     }
     @Transactional
@@ -46,9 +54,43 @@ public class ProjectService {
             Long workspaceId,
             Long currentUserId,
             String name,
-            String description
+            String description,
+            Set<Long> requestedRoleIds,
+            Set<Long> requestedWorkspaceMemberIds
     ) {
-        WorkspaceMember workspaceMember = workspaceAccessService.requireContributor(workspaceId, currentUserId);
+        WorkspaceMember workspaceMember = workspaceAccessService.requireManager(
+                workspaceId,
+                currentUserId
+        );
+        Set<Long> roleIds = normalized(requestedRoleIds);
+        Set<Long> memberIds = normalized(requestedWorkspaceMemberIds);
+
+        List<AccessRole> roles = roleIds.isEmpty()
+                ? List.of()
+                : accessRoleRepository.findAllByWorkspace_IdAndIdIn(
+                        workspaceId,
+                        roleIds
+                );
+        if (roles.size() != roleIds.size()) {
+            throw new AccessRoleWorkspaceMismatchException(
+                    "At least one role was not found in this workspace"
+            );
+        }
+
+        List<WorkspaceMember> selectedMembers = memberIds.isEmpty()
+                ? List.of()
+                : workspaceMemberRepository.findAllByWorkspace_IdAndIdIn(
+                        workspaceId,
+                        memberIds
+                );
+        if (selectedMembers.size() != memberIds.size()
+                || selectedMembers.stream().anyMatch(member ->
+                        member.getUser().getStatus() == UserStatus.DISABLED)) {
+            throw new WorkspaceMemberNotFoundException(
+                    "At least one active workspace member was not found"
+            );
+        }
+
         Project project =
                 new Project(
                 workspaceMember.getWorkspace(),
@@ -56,12 +98,20 @@ public class ProjectService {
                         description,
                         workspaceMember.getUser()
             );
-        Project savedProject = projectRepository.save(project);
+        Project savedProject = projectRepository.saveAndFlush(project);
         projectMemberRepository.save(
-                new ProjectMember(savedProject, workspaceMember)
+                new ProjectMember(savedProject, workspaceMember, false)
         );
+        projectMemberRepository.saveAll(selectedMembers.stream()
+                .filter(member -> !member.getId().equals(workspaceMember.getId()))
+                .filter(member -> member.getRole() != WorkspaceRole.OWNER)
+                .map(member -> new ProjectMember(savedProject, member, true))
+                .toList());
+        projectAllowedRoleRepository.saveAll(roles.stream()
+                .map(role -> new ProjectAllowedRole(savedProject, role))
+                .toList());
         accessChangePublisher.publish(workspaceId);
-        return toResponse(savedProject);
+        return toResponse(savedProject, isRestricted(savedProject.getId()));
     }
     @Transactional(readOnly = true)
     public List<ProjectResponse> findForWorkspace(
@@ -75,45 +125,41 @@ public class ProjectService {
         return projectRepository.findAccessibleForWorkspace(
                         workspaceId,
                         currentUserId,
+                        membership.getId(),
                         manager
                 )
                 .stream()
-                .map(this::toResponse)
+                .map(project -> toResponse(project, isRestricted(project.getId())))
                 .toList();
     }
 
-    @Transactional
-    public ProjectResponse changeVisibility(
-            Long workspaceId,
-            Long projectId,
-            Long currentUserId,
-            ProjectVisibility visibility
-    ) {
-        AccessibleProject access = projectAccessService.requireAccessibleProject(
-                workspaceId,
-                projectId,
-                currentUserId
-        );
-        projectPermissionService.requireProjectPermission(
-                access,
-                currentUserId,
-                ProjectPermission.EDIT_PROJECT
-        );
-        Project project = access.project();
-        project.changeVisibility(visibility);
-        accessChangePublisher.publish(workspaceId);
-        return toResponse(project);
-    }
-
-    private ProjectResponse toResponse(Project project) {
+    private ProjectResponse toResponse(Project project, boolean restricted) {
         return new ProjectResponse(
                 project.getId(),
                 project.getWorkspace().getId(),
                 project.getName(),
                 project.getDescription(),
                 project.getStatus(),
-                project.getVisibility(),
+                project.getCreatedBy().getId(),
+                project.getCreatedBy().getDisplayName(),
+                restricted,
                 project.getCreatedAt()
         );
+    }
+
+    private boolean isRestricted(Long projectId) {
+        return projectMemberRepository.existsByProject_IdAndGrantsAccessTrue(projectId)
+                || projectAllowedRoleRepository.existsByProject_Id(projectId);
+    }
+
+    private Set<Long> normalized(Set<Long> values) {
+        if (values == null || values.isEmpty()) {
+            return Set.of();
+        }
+        Set<Long> result = new LinkedHashSet<>(values);
+        if (result.contains(null)) {
+            throw new IllegalArgumentException("Access IDs cannot contain null");
+        }
+        return Set.copyOf(result);
     }
 }

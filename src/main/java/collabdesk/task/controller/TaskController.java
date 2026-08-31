@@ -10,6 +10,8 @@ import collabdesk.task.dto.UpdateTaskVisibilityRequest;
 import collabdesk.task.service.TaskService;
 import collabdesk.task.assignee.dto.UpdateTaskAssigneeRequest;
 import collabdesk.task.assignee.service.TaskAssigneeService;
+import collabdesk.task.activity.dto.TaskActivityResponse;
+import collabdesk.task.activity.service.TaskActivityService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -22,6 +24,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -46,13 +49,16 @@ public class TaskController {
 
     private final TaskService taskService;
     private final TaskAssigneeService taskAssigneeService;
+    private final TaskActivityService taskActivityService;
 
     public TaskController(
             TaskService taskService,
-            TaskAssigneeService taskAssigneeService
+            TaskAssigneeService taskAssigneeService,
+            TaskActivityService taskActivityService
     ) {
         this.taskService = taskService;
         this.taskAssigneeService = taskAssigneeService;
+        this.taskActivityService = taskActivityService;
     }
 
     @PostMapping
@@ -232,6 +238,56 @@ public class TaskController {
                 taskId,
                 principal.getUserId(),
                 request.projectMemberId()
+        );
+    }
+
+    @PutMapping("/{taskId}/claim")
+    @Operation(summary = "Claim a free task for the current user")
+    @Parameter(ref = "#/components/parameters/csrfToken")
+    public TaskResponse claim(
+            @PathVariable Long workspaceId,
+            @PathVariable Long projectId,
+            @PathVariable Long taskId,
+            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+    ) {
+        return taskAssigneeService.claim(
+                workspaceId,
+                projectId,
+                taskId,
+                principal.getUserId()
+        );
+    }
+
+    @DeleteMapping("/{taskId}/claim")
+    @Operation(summary = "Release a task claimed by the current user")
+    @Parameter(ref = "#/components/parameters/csrfToken")
+    public TaskResponse release(
+            @PathVariable Long workspaceId,
+            @PathVariable Long projectId,
+            @PathVariable Long taskId,
+            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+    ) {
+        return taskAssigneeService.release(
+                workspaceId,
+                projectId,
+                taskId,
+                principal.getUserId()
+        );
+    }
+
+    @GetMapping("/{taskId}/activities")
+    @Operation(summary = "List task activity, newest first")
+    public List<TaskActivityResponse> activities(
+            @PathVariable Long workspaceId,
+            @PathVariable Long projectId,
+            @PathVariable Long taskId,
+            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+    ) {
+        return taskActivityService.findForTask(
+                workspaceId,
+                projectId,
+                taskId,
+                principal.getUserId()
         );
     }
 

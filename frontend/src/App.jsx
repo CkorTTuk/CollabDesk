@@ -10,15 +10,18 @@ import {
   getWorkspaces,
 } from './api/workspaceApi.js'
 import {
-  changeProjectVisibility,
   createProject,
+  replaceProjectAllowedRoles,
 } from './api/projectApi.js'
 import { getProjectAccessOverview } from './api/projectAccessOverviewApi.js'
 import {
   changeTaskStatus,
   changeTaskVisibility,
+  claimTask,
   createTask,
+  getTaskActivities,
   getTasks,
+  releaseTask,
   updateTaskAssignee,
   updateTask,
 } from './api/taskApi.js'
@@ -26,7 +29,6 @@ import {
   addProjectMember,
   getProjectMembers,
   removeProjectMember,
-  replaceProjectMemberRoles,
 } from './api/projectMemberApi.js'
 import {
   createAccessRole,
@@ -39,6 +41,7 @@ import {
   changeWorkspaceMemberRole,
   getWorkspaceMembers,
   removeWorkspaceMember,
+  replaceWorkspaceMemberAccessRoles,
 } from './api/memberApi.js'
 import './App.css'
 
@@ -83,27 +86,7 @@ const PROJECT_PERMISSIONS = [
   {
     value: 'EDIT_PROJECT',
     label: 'Edit project',
-    description: 'Change project settings and visibility',
-  },
-  {
-    value: 'CREATE_TASK',
-    label: 'Create tasks',
-    description: 'Add new work to the project',
-  },
-  {
-    value: 'EDIT_TASK',
-    label: 'Edit tasks',
-    description: 'Change task content',
-  },
-  {
-    value: 'CHANGE_TASK_STATUS',
-    label: 'Change task status',
-    description: 'Move tasks through the workflow',
-  },
-  {
-    value: 'CHANGE_TASK_VISIBILITY',
-    label: 'Change task visibility',
-    description: 'Restrict tasks to the assigned member',
+    description: 'Change project settings',
   },
 ]
 
@@ -117,10 +100,6 @@ const ACCESS_ROLE_COLORS = [
   '#E76F51',
   '#64748B',
 ]
-
-const ALL_PROJECT_PERMISSIONS = PROJECT_PERMISSIONS.map(
-  (permission) => permission.value,
-)
 
 function getItemAccentStyle(id) {
   const numericId = Number(id) || 0
@@ -146,6 +125,36 @@ function memberInitials(displayName = '') {
     .slice(0, 2)
     .map((part) => part.charAt(0).toUpperCase())
     .join('') || '?'
+}
+
+function readPinnedIds(storageKey) {
+  try {
+    const value = JSON.parse(localStorage.getItem(storageKey) ?? '[]')
+    return new Set(Array.isArray(value) ? value.map(String) : [])
+  } catch {
+    return new Set()
+  }
+}
+
+function usePinnedIds(storageKey) {
+  const [pinnedIds, setPinnedIds] = useState(() => readPinnedIds(storageKey))
+
+  useEffect(() => {
+    setPinnedIds(readPinnedIds(storageKey))
+  }, [storageKey])
+
+  function togglePinned(id) {
+    const normalizedId = String(id)
+    setPinnedIds((current) => {
+      const next = new Set(current)
+      if (next.has(normalizedId)) next.delete(normalizedId)
+      else next.add(normalizedId)
+      localStorage.setItem(storageKey, JSON.stringify([...next]))
+      return next
+    })
+  }
+
+  return [pinnedIds, togglePinned]
 }
 
 const THEME_STORAGE_KEY = 'collabdesk.theme'
@@ -197,17 +206,13 @@ function ThemeToggle({ theme, onToggle }) {
   )
 }
 
-function PageBackButton({ label, context, onClick }) {
+function PageBackButton({ label, current, onClick }) {
   return (
-    <button className="page-back-button" type="button" onClick={onClick}>
-      <span className="page-back-icon" aria-hidden="true">
-        ←
-      </span>
-      <span>
-        <small>{context}</small>
-        <strong>{label}</strong>
-      </span>
-    </button>
+    <nav className="page-breadcrumb" aria-label="Breadcrumb">
+      <button type="button" onClick={onClick}>{label}</button>
+      <span aria-hidden="true">/</span>
+      <strong aria-current="page">{current}</strong>
+    </nav>
   )
 }
 
@@ -264,7 +269,7 @@ function RolePicker({
     >
       {!compact && <span className="role-picker-label">{label}</span>}
       <button
-        className="role-picker-trigger"
+        className={`role-picker-trigger role-picker-trigger-${selectedRole.value.toLowerCase()}`}
         type="button"
         disabled={disabled}
         aria-label={compact ? label : undefined}
@@ -285,7 +290,7 @@ function RolePicker({
         <div className="role-picker-menu" role="listbox" aria-label={label}>
           {MEMBER_ROLES.map((role) => (
             <button
-              className={role.value === value ? 'selected' : ''}
+              className={`role-option role-option-${role.value.toLowerCase()} ${role.value === value ? 'selected' : ''}`}
               type="button"
               role="option"
               aria-selected={role.value === value}
@@ -676,13 +681,8 @@ function FormField({
 function Dashboard({ user, onLogout, theme, onToggleTheme }) {
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const [density, setDensity] = useState(() => localStorage.getItem('collabdesk.density') || 'comfortable')
   const [workspaceHomeRequest, setWorkspaceHomeRequest] = useState(0)
   const [error, setError] = useState('')
-
-  useEffect(() => {
-    localStorage.setItem('collabdesk.density', density)
-  }, [density])
 
   async function handleLogout() {
     setError('')
@@ -706,7 +706,7 @@ function Dashboard({ user, onLogout, theme, onToggleTheme }) {
     .toUpperCase()
 
   return (
-    <div className={`dashboard-page density-${density}`}>
+    <div className="dashboard-page">
       <header className="dashboard-header">
         <div className="dashboard-sidebar-top">
           <Brand />
@@ -720,6 +720,10 @@ function Dashboard({ user, onLogout, theme, onToggleTheme }) {
             <span aria-hidden="true">⌕</span>
             Quick search
           </button>
+          <button type="button" onClick={onToggleTheme}>
+            <span aria-hidden="true">{theme === 'dark' ? '☀' : '☾'}</span>
+            {theme === 'dark' ? 'Light theme' : 'Dark theme'}
+          </button>
           <button className={isSettingsOpen ? 'active' : ''} type="button" onClick={() => setIsSettingsOpen((current) => !current)}>
             <span aria-hidden="true">⚙</span>
             Preferences
@@ -728,17 +732,9 @@ function Dashboard({ user, onLogout, theme, onToggleTheme }) {
         {isSettingsOpen && (
           <section className="sidebar-settings" aria-label="Interface preferences">
             <div>
-              <strong>Interface</strong>
-              <span>Saved in this browser</span>
+              <strong>Preferences</strong>
+              <span>There are no settings here yet.</span>
             </div>
-            <button type="button" onClick={onToggleTheme}>
-              <span>Appearance</span>
-              <strong>{theme === 'dark' ? 'Dark' : 'Light'}</strong>
-            </button>
-            <button type="button" onClick={() => setDensity((current) => current === 'compact' ? 'comfortable' : 'compact')}>
-              <span>Content density</span>
-              <strong>{density === 'compact' ? 'Compact' : 'Comfortable'}</strong>
-            </button>
           </section>
         )}
         <div className="user-menu">
@@ -782,7 +778,12 @@ function WorkspaceSection({ user, homeRequest }) {
   const [moduleUnavailable, setModuleUnavailable] = useState(false)
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
-  const [form, setForm] = useState({ name: '', description: '' })
+  const [form, setForm] = useState({
+    name: '',
+    description: '',
+    allowedRoleIds: [],
+    allowedWorkspaceMemberIds: [],
+  })
   const [query, setQuery] = useState('')
 
   async function loadWorkspaces() {
@@ -1286,6 +1287,117 @@ function AccessRoleManager({ workspace, onChange }) {
   )
 }
 
+function ProjectAccessDialog({
+  project,
+  roles,
+  members,
+  draft,
+  saving,
+  error,
+  onToggleRole,
+  onToggleMember,
+  onSave,
+  onClose,
+}) {
+  const dialogRef = useRef(null)
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow
+    document.body.style.overflow = 'hidden'
+    dialogRef.current?.focus()
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape' && !saving) onClose()
+    }
+
+    document.addEventListener('keydown', handleKeyDown)
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown)
+      document.body.style.overflow = previousOverflow
+    }
+  }, [onClose, saving])
+
+  const isOpen = draft.roleIds.length > 0 || draft.memberIds.length > 0
+
+  return (
+    <div className="access-dialog-layer" role="presentation" onMouseDown={(event) => {
+      if (event.target === event.currentTarget && !saving) onClose()
+    }}>
+      <section
+        className="access-dialog"
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="project-access-title"
+        tabIndex={-1}
+      >
+        <header className="access-dialog-header">
+          <div>
+            <span className="access-dialog-kicker">Project access</span>
+            <h3 id="project-access-title">Who can open {project.name}?</h3>
+            <p>Leave both lists empty to keep this project open to the whole workspace.</p>
+          </div>
+          <button type="button" aria-label="Close project access" onClick={onClose} disabled={saving}>×</button>
+        </header>
+
+        <div className={`access-mode-summary ${isOpen ? 'restricted' : 'open'}`}>
+          <span aria-hidden="true">{isOpen ? '●' : '○'}</span>
+          <div>
+            <strong>{isOpen ? 'Restricted project' : 'Open to workspace'}</strong>
+            <small>{isOpen ? 'Owners, admins and selected people or roles can open it.' : 'Every workspace member can open this project.'}</small>
+          </div>
+        </div>
+
+        <div className="access-dialog-body">
+          <fieldset className="access-dialog-section">
+            <legend>Roles</legend>
+            <p>Anyone with a selected custom role receives access.</p>
+            <div className="access-choice-grid">
+              {roles.map((role) => (
+                <label className={draft.roleIds.includes(role.id) ? 'selected' : ''} key={role.id}>
+                  <input type="checkbox" checked={draft.roleIds.includes(role.id)} onChange={() => onToggleRole(role.id)} />
+                  <span className="access-choice-check" aria-hidden="true">{draft.roleIds.includes(role.id) ? '✓' : ''}</span>
+                  <span className="custom-role-chip" style={{ '--role-color': role.color }}>{role.name}</span>
+                </label>
+              ))}
+              {roles.length === 0 && <small className="access-dialog-empty">No custom roles have been created yet.</small>}
+            </div>
+          </fieldset>
+
+          <fieldset className="access-dialog-section">
+            <legend>People</legend>
+            <p>Give access directly, without changing a person’s workspace role.</p>
+            <div className="access-people-list">
+              {members.map((member) => {
+                const selected = draft.memberIds.includes(member.id)
+                return (
+                  <label className={selected ? 'selected' : ''} key={member.id}>
+                    <input type="checkbox" checked={selected} onChange={() => onToggleMember(member.id)} />
+                    <span className="access-person-avatar" aria-hidden="true">{memberInitials(member.displayName)}</span>
+                    <span><strong>{member.displayName}</strong><small>{member.email}</small></span>
+                    <span className="access-choice-check" aria-hidden="true">{selected ? '✓' : ''}</span>
+                  </label>
+                )
+              })}
+              {members.length === 0 && <small className="access-dialog-empty">There are no other members to select.</small>}
+            </div>
+          </fieldset>
+        </div>
+
+        {error && <div className="form-message error" role="alert">{error}</div>}
+
+        <footer className="access-dialog-footer">
+          <small>Changes take effect as soon as you save.</small>
+          <div>
+            <button className="secondary-button" type="button" onClick={onClose} disabled={saving}>Cancel</button>
+            <button className="primary-button" type="button" onClick={onSave} disabled={saving}>{saving ? 'Saving…' : 'Save access'}</button>
+          </div>
+        </footer>
+      </section>
+    </div>
+  )
+}
+
 function ProjectSection({ workspace, user, onBack }) {
   const [projects, setProjects] = useState([])
   const [projectTeams, setProjectTeams] = useState({})
@@ -1297,8 +1409,72 @@ function ProjectSection({ workspace, user, onBack }) {
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [error, setError] = useState('')
   const [fieldErrors, setFieldErrors] = useState({})
-  const [form, setForm] = useState({ name: '', description: '' })
+  const [form, setForm] = useState({
+    name: '',
+    description: '',
+    allowedRoleIds: [],
+    allowedWorkspaceMemberIds: [],
+  })
   const [projectQuery, setProjectQuery] = useState('')
+  const [accessProject, setAccessProject] = useState(null)
+  const [accessDraft, setAccessDraft] = useState({ roleIds: [], memberIds: [] })
+  const [isSavingAccess, setIsSavingAccess] = useState(false)
+  const [accessError, setAccessError] = useState('')
+  const [projectDateFilter, setProjectDateFilter] = useState('ALL')
+  const [projectCreatorFilter, setProjectCreatorFilter] = useState('ALL')
+  const [projectAccessFilter, setProjectAccessFilter] = useState('ALL')
+  const [projectSortOrder, setProjectSortOrder] = useState('RECENT')
+  const [isProjectFilterOpen, setIsProjectFilterOpen] = useState(false)
+  const projectFilterRef = useRef(null)
+  const [pinnedProjectIds, togglePinnedProject] = usePinnedIds(
+    `collabdesk.pinned-projects.${user.id}.${workspace.id}`,
+  )
+  const canManageRoles = ['OWNER', 'ADMIN'].includes(workspace.role)
+  const projectCreators = Array.from(
+    new Map(projects.map((project) => [project.createdById, {
+      id: project.createdById,
+      name: project.createdByDisplayName,
+    }])).values(),
+  )
+  const activeProjectFilterCount =
+    Number(projectDateFilter !== 'ALL') +
+    Number(projectCreatorFilter !== 'ALL') +
+    Number(projectAccessFilter !== 'ALL')
+  const filteredProjects = projects.filter((project) => {
+    const matchesQuery = `${project.name} ${project.description ?? ''}`
+      .toLowerCase()
+      .includes(projectQuery.trim().toLowerCase())
+    const matchesCreator =
+      projectCreatorFilter === 'ALL' ||
+      String(project.createdById) === projectCreatorFilter
+    const matchesAccess =
+      projectAccessFilter === 'ALL' ||
+      (projectAccessFilter === 'RESTRICTED' && project.restricted) ||
+      (projectAccessFilter === 'WORKSPACE' && !project.restricted)
+    const createdAt = new Date(project.createdAt).getTime()
+    const now = new Date()
+    const todayStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    ).getTime()
+    const threshold = {
+      TODAY: todayStart,
+      LAST_7_DAYS: now.getTime() - 7 * 86_400_000,
+      LAST_30_DAYS: now.getTime() - 30 * 86_400_000,
+    }[projectDateFilter]
+    const matchesDate =
+      projectDateFilter === 'ALL' ||
+      (!Number.isNaN(createdAt) && createdAt >= threshold)
+    return matchesQuery && matchesCreator && matchesAccess && matchesDate
+  }).sort((left, right) => {
+    const pinDifference = Number(pinnedProjectIds.has(String(right.id))) -
+      Number(pinnedProjectIds.has(String(left.id)))
+    if (pinDifference !== 0) return pinDifference
+    if (projectSortOrder === 'NAME') return left.name.localeCompare(right.name)
+    const direction = projectSortOrder === 'RECENT' ? -1 : 1
+    return direction * (new Date(left.createdAt) - new Date(right.createdAt))
+  })
 
   const loadWorkspaceAccess = useCallback(async () => {
     setError('')
@@ -1307,7 +1483,7 @@ function ProjectSection({ workspace, user, onBack }) {
     try {
       const [overview, loadedRoles, loadedMembers] = await Promise.all([
         getProjectAccessOverview(workspace.id),
-        getAccessRoles(workspace.id),
+        canManageRoles ? getAccessRoles(workspace.id) : Promise.resolve([]),
         getWorkspaceMembers(workspace.id),
       ])
       const loadedProjects = overview.projects.map((project) => ({
@@ -1315,7 +1491,11 @@ function ProjectSection({ workspace, user, onBack }) {
         name: project.name,
         description: project.description,
         status: project.status,
-        visibility: project.visibility,
+        restricted: project.restricted,
+        createdById: project.createdById,
+        createdByDisplayName: project.createdByDisplayName,
+        createdAt: project.createdAt,
+        allowedRoles: project.allowedRoles ?? [],
       }))
       const loadedTeams = overview.projects.map((project) => [
         project.projectId,
@@ -1337,11 +1517,31 @@ function ProjectSection({ workspace, user, onBack }) {
     } finally {
       setIsLoading(false)
     }
-  }, [workspace.id])
+  }, [workspace.id, canManageRoles])
 
   useEffect(() => {
     loadWorkspaceAccess()
   }, [loadWorkspaceAccess])
+
+  useEffect(() => {
+    if (!isProjectFilterOpen) return undefined
+    function closeProjectFilters(event) {
+      if (event.key === 'Escape') {
+        setIsProjectFilterOpen(false)
+      } else if (
+        event.type === 'pointerdown' &&
+        !projectFilterRef.current?.contains(event.target)
+      ) {
+        setIsProjectFilterOpen(false)
+      }
+    }
+    document.addEventListener('keydown', closeProjectFilters)
+    document.addEventListener('pointerdown', closeProjectFilters)
+    return () => {
+      document.removeEventListener('keydown', closeProjectFilters)
+      document.removeEventListener('pointerdown', closeProjectFilters)
+    }
+  }, [isProjectFilterOpen])
 
   async function handleCreate(event) {
     event.preventDefault()
@@ -1352,7 +1552,12 @@ function ProjectSection({ workspace, user, onBack }) {
     try {
       await createProject(workspace.id, form)
       await loadWorkspaceAccess()
-      setForm({ name: '', description: '' })
+      setForm({
+        name: '',
+        description: '',
+        allowedRoleIds: [],
+        allowedWorkspaceMemberIds: [],
+      })
       setIsFormOpen(false)
     } catch (createError) {
       setFieldErrors(createError.fieldErrors ?? {})
@@ -1372,17 +1577,64 @@ function ProjectSection({ workspace, user, onBack }) {
     setSelectedProject(null)
   }
 
-  function updateSelectedProject(updatedProject) {
-    setProjects((current) =>
-      current.map((project) =>
-        project.id === updatedProject.id ? updatedProject : project,
-      ),
-    )
-    setSelectedProject(updatedProject)
-  }
-
   function updateProjectTeam(projectId, team) {
     setProjectTeams((current) => ({ ...current, [projectId]: team }))
+  }
+
+  function openProjectAccess(project) {
+    const directMemberIds = (projectTeams[project.id] ?? [])
+      .filter((member) => member.grantsAccess)
+      .map((member) => member.workspaceMemberId)
+    setAccessError('')
+    setAccessDraft({
+      roleIds: (project.allowedRoles ?? []).map((role) => role.id),
+      memberIds: directMemberIds,
+    })
+    setAccessProject(project)
+  }
+
+  function toggleAccessDraft(key, id) {
+    setAccessDraft((current) => ({
+      ...current,
+      [key]: current[key].includes(id)
+        ? current[key].filter((value) => value !== id)
+        : [...current[key], id],
+    }))
+  }
+
+  async function saveProjectAccess() {
+    setIsSavingAccess(true)
+    setAccessError('')
+    try {
+      await replaceProjectAllowedRoles(
+        workspace.id,
+        accessProject.id,
+        accessDraft.roleIds,
+      )
+
+      const team = projectTeams[accessProject.id] ?? []
+      const selectableMembers = workspaceMembers.filter(
+        (member) => member.role !== 'OWNER' && member.userId !== user.id,
+      )
+      for (const member of selectableMembers) {
+        const existing = team.find(
+          (projectMember) => projectMember.workspaceMemberId === member.id,
+        )
+        const selected = accessDraft.memberIds.includes(member.id)
+        if (selected && !existing?.grantsAccess) {
+          await addProjectMember(workspace.id, accessProject.id, member.id, [])
+        } else if (!selected && existing?.grantsAccess) {
+          await removeProjectMember(workspace.id, accessProject.id, existing.id)
+        }
+      }
+
+      setAccessProject(null)
+      await loadWorkspaceAccess()
+    } catch (saveError) {
+      setAccessError(saveError.message || 'Unable to update project access.')
+    } finally {
+      setIsSavingAccess(false)
+    }
   }
 
   if (selectedProject) {
@@ -1391,7 +1643,6 @@ function ProjectSection({ workspace, user, onBack }) {
         workspace={workspace}
         user={user}
         project={selectedProject}
-        onProjectChange={updateSelectedProject}
         onBack={closeProject}
       />
     )
@@ -1400,8 +1651,8 @@ function ProjectSection({ workspace, user, onBack }) {
   return (
     <div className="detail-view">
       <PageBackButton
-        context="Back to"
-        label="All workspaces"
+        label="Workspaces"
+        current={workspace.name}
         onClick={onBack}
       />
 
@@ -1416,7 +1667,6 @@ function ProjectSection({ workspace, user, onBack }) {
             {workspace.name.trim().charAt(0).toUpperCase()}
           </span>
           <div>
-            <p className="eyebrow">Current workspace</p>
             <h2>{workspace.name}</h2>
             <p>
               {workspace.description ||
@@ -1425,15 +1675,17 @@ function ProjectSection({ workspace, user, onBack }) {
           </div>
         </div>
         <div className="workspace-header-actions">
-          <span
-            className={roleBadgeClassName(
-              workspace.role,
-              'context-role-badge',
-            )}
-          >
-            {formatRole(workspace.role)}
-          </span>
-          {workspace.role !== 'VIEWER' && (
+          {['OWNER', 'ADMIN'].includes(workspace.role) && (
+            <span
+              className={roleBadgeClassName(
+                workspace.role,
+                'context-role-badge',
+              )}
+            >
+              {formatRole(workspace.role)}
+            </span>
+          )}
+          {canManageRoles && (
             <button
               className="secondary-button"
               type="button"
@@ -1453,13 +1705,83 @@ function ProjectSection({ workspace, user, onBack }) {
 
       <div className="project-toolbar">
         <div className="project-view-tabs" aria-label="Project views">
-          <button className="active" type="button">Active projects <span>{projects.length}</span></button>
+          <button className="active" type="button">Active projects <span>{filteredProjects.length}</span></button>
           <button type="button" disabled>Archived</button>
         </div>
-        <label className="content-search compact">
-          <span aria-hidden="true">⌕</span>
-          <input value={projectQuery} onChange={(event) => setProjectQuery(event.target.value)} placeholder="Search projects…" />
-        </label>
+        <div className="project-toolbar-tools">
+          <div className="content-search compact project-search">
+            <span aria-hidden="true">⌕</span>
+            <input aria-label="Search projects" value={projectQuery} onChange={(event) => setProjectQuery(event.target.value)} placeholder="Search projects…" />
+            <div className="task-filter-wrap" ref={projectFilterRef}>
+            <button
+              className={`task-filter-trigger ${isProjectFilterOpen || activeProjectFilterCount > 0 ? 'active' : ''}`}
+              type="button"
+              aria-label="Filter and sort projects"
+              aria-expanded={isProjectFilterOpen}
+              onClick={() => setIsProjectFilterOpen((current) => !current)}
+            >
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M3 5h14M6 10h8M8.5 15h3" />
+              </svg>
+              {activeProjectFilterCount > 0 && <span>{activeProjectFilterCount}</span>}
+            </button>
+            {isProjectFilterOpen && (
+              <div className="task-filter-popover project-filter-popover">
+                <div className="task-filter-heading">
+                  <div><strong>Filter projects</strong><span>Refine this workspace</span></div>
+                  {activeProjectFilterCount > 0 && (
+                    <button type="button" onClick={() => {
+                      setProjectDateFilter('ALL')
+                      setProjectCreatorFilter('ALL')
+                      setProjectAccessFilter('ALL')
+                    }}>Clear</button>
+                  )}
+                </div>
+                <fieldset>
+                  <legend>Created</legend>
+                  <div className="task-filter-options compact-options">
+                    {[
+                      ['ALL', 'Any time'],
+                      ['TODAY', 'Today'],
+                      ['LAST_7_DAYS', '7 days'],
+                      ['LAST_30_DAYS', '30 days'],
+                    ].map(([value, label]) => (
+                      <button className={projectDateFilter === value ? 'selected' : ''} type="button" key={value} onClick={() => setProjectDateFilter(value)}>{label}</button>
+                    ))}
+                  </div>
+                </fieldset>
+                <fieldset>
+                  <legend>Created by</legend>
+                  <div className="task-filter-options project-creator-options">
+                    <button className={projectCreatorFilter === 'ALL' ? 'selected' : ''} type="button" onClick={() => setProjectCreatorFilter('ALL')}>Everyone</button>
+                    {projectCreators.map((creator) => (
+                      <button className={projectCreatorFilter === String(creator.id) ? 'selected' : ''} type="button" key={creator.id} onClick={() => setProjectCreatorFilter(String(creator.id))}>
+                        <span className="filter-avatar">{memberInitials(creator.name)}</span>{creator.name}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+                <fieldset>
+                  <legend>Access</legend>
+                  <div className="task-filter-options compact-options">
+                    <button className={projectAccessFilter === 'ALL' ? 'selected' : ''} type="button" onClick={() => setProjectAccessFilter('ALL')}>Any access</button>
+                    <button className={projectAccessFilter === 'WORKSPACE' ? 'selected' : ''} type="button" onClick={() => setProjectAccessFilter('WORKSPACE')}>Workspace</button>
+                    <button className={projectAccessFilter === 'RESTRICTED' ? 'selected' : ''} type="button" onClick={() => setProjectAccessFilter('RESTRICTED')}>Restricted</button>
+                  </div>
+                </fieldset>
+                <fieldset>
+                  <legend>Order by</legend>
+                  <div className="task-filter-options compact-options">
+                    <button className={projectSortOrder === 'RECENT' ? 'selected' : ''} type="button" onClick={() => setProjectSortOrder('RECENT')}>Newest first</button>
+                    <button className={projectSortOrder === 'OLDEST' ? 'selected' : ''} type="button" onClick={() => setProjectSortOrder('OLDEST')}>Oldest first</button>
+                    <button className={projectSortOrder === 'NAME' ? 'selected' : ''} type="button" onClick={() => setProjectSortOrder('NAME')}>Name A–Z</button>
+                  </div>
+                </fieldset>
+              </div>
+            )}
+            </div>
+          </div>
+        </div>
       </div>
 
       {isFormOpen && (
@@ -1511,6 +1833,58 @@ function ProjectSection({ workspace, user, onBack }) {
             </label>
           </div>
 
+          <fieldset className="project-create-access">
+            <legend>Allowed roles</legend>
+            <p>
+              Choose roles only when this project should be restricted. With no
+              selection, every workspace member can open it.
+            </p>
+            <div className="project-create-access-options">
+              {accessRoles.map((role) => (
+                <label key={role.id}>
+                  <input
+                    type="checkbox"
+                    checked={form.allowedRoleIds.includes(role.id)}
+                    onChange={() => setForm((current) => ({
+                      ...current,
+                      allowedRoleIds: current.allowedRoleIds.includes(role.id)
+                        ? current.allowedRoleIds.filter((id) => id !== role.id)
+                        : [...current.allowedRoleIds, role.id],
+                    }))}
+                  />
+                  <span className="custom-role-chip" style={{ '--role-color': role.color }}>
+                    {role.name}
+                  </span>
+                </label>
+              ))}
+              {accessRoles.length === 0 && <small>No custom roles yet.</small>}
+            </div>
+          </fieldset>
+
+          <fieldset className="project-create-access">
+            <legend>Allowed people</legend>
+            <div className="project-create-access-options">
+              {workspaceMembers
+                .filter((member) => member.role !== 'OWNER' && member.userId !== user.id)
+                .map((member) => (
+                  <label key={member.id}>
+                    <input
+                      type="checkbox"
+                      checked={form.allowedWorkspaceMemberIds.includes(member.id)}
+                      onChange={() => setForm((current) => ({
+                        ...current,
+                        allowedWorkspaceMemberIds: current.allowedWorkspaceMemberIds.includes(member.id)
+                          ? current.allowedWorkspaceMemberIds.filter((id) => id !== member.id)
+                          : [...current.allowedWorkspaceMemberIds, member.id],
+                      }))}
+                    />
+                    <span>{member.displayName}</span>
+                    <small>{formatRole(member.role)}</small>
+                  </label>
+                ))}
+            </div>
+          </fieldset>
+
           {error && (
             <div className="form-message error" role="alert">
               {error}
@@ -1550,100 +1924,94 @@ function ProjectSection({ workspace, user, onBack }) {
           <h3>No projects in this workspace</h3>
           <p>Create the first project to start organizing work.</p>
         </div>
+      ) : filteredProjects.length === 0 ? (
+        <div className="workspace-empty project-empty project-filter-empty">
+          <div className="project-empty-mark" aria-hidden="true">⌕</div>
+          <h3>No matching projects</h3>
+          <p>Change the search text or clear one of the active filters.</p>
+          <button className="secondary-button" type="button" onClick={() => {
+            setProjectQuery('')
+            setProjectDateFilter('ALL')
+            setProjectCreatorFilter('ALL')
+            setProjectAccessFilter('ALL')
+          }}>Clear filters</button>
+        </div>
       ) : (
         <div className="project-grid">
-          {projects.filter((project) => `${project.name} ${project.description ?? ''}`.toLowerCase().includes(projectQuery.trim().toLowerCase())).map((project) => {
-            const team = projectTeams[project.id] ?? []
-            const assignedRoles = Array.from(
-              new Map(
-                team
-                  .flatMap((member) => member.roles ?? [])
-                  .map((role) => [role.id, role]),
-              ).values(),
-            )
-            const directMembers = team.filter(
-              (member) => (member.roles ?? []).length === 0,
-            )
-
-            return (
-            <button
+          {filteredProjects.map((project) => (
+            <article
               className="project-card"
               key={project.id}
-              type="button"
               style={getItemAccentStyle(project.id + 1)}
-              onClick={() => openProject(project)}
             >
               <span className="project-card-accent" aria-hidden="true" />
               <div className="project-card-top">
                 <span className="project-status">
                   <span aria-hidden="true" />
-                  {project.status === 'ACTIVE'
-                    ? 'Active'
-                    : project.status}
+                  {project.status === 'ACTIVE' ? 'Active' : project.status}
                 </span>
-                <span
-                  className={`visibility-badge visibility-${project.visibility?.toLowerCase()}`}
-                >
-                  {project.visibility === 'RESTRICTED'
-                    ? 'Restricted'
-                    : 'Workspace'}
-                </span>
-              </div>
-              <h3>{project.name}</h3>
-              <p>
-                {project.description ||
-                  'No project description has been added yet.'}
-              </p>
-              <div className="project-card-access">
-                {assignedRoles.length > 0 && (
-                  <div className="project-card-access-row">
-                    <small>Roles</small>
-                    <div>
-                      {assignedRoles.map((role) => (
-                        <span
-                          className="custom-role-chip"
-                          style={{ '--role-color': role.color }}
-                          key={role.id}
-                        >
-                          {role.name}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {directMembers.length > 0 && (
-                  <div className="project-card-access-row">
-                    <small>People</small>
-                    <div className="project-card-people">
-                      {directMembers.slice(0, 4).map((member) => (
-                        <span
-                          className="project-card-person"
-                          title={member.displayName}
-                          key={member.id}
-                        >
-                          {memberInitials(member.displayName)}
-                        </span>
-                      ))}
-                      {directMembers.length > 4 && (
-                        <span className="project-card-person more">
-                          +{directMembers.length - 4}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-                {team.length === 0 && (
-                  <span className="project-card-no-access">
-                    No people assigned
+                <div className="project-card-access-controls">
+                  <button
+                    className={`pin-button ${pinnedProjectIds.has(String(project.id)) ? 'active' : ''}`}
+                    type="button"
+                    aria-label={pinnedProjectIds.has(String(project.id)) ? `Unpin ${project.name}` : `Pin ${project.name}`}
+                    aria-pressed={pinnedProjectIds.has(String(project.id))}
+                    title={pinnedProjectIds.has(String(project.id)) ? 'Unpin project' : 'Pin project'}
+                    onClick={() => togglePinnedProject(project.id)}
+                  >
+                    <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 3 6 0-.8 4 2.3 2.3v1.2h-3.7L10 17l-.8-6.5H5.5V9.3L7.8 7 7 3Z" /></svg>
+                  </button>
+                  <span className={`visibility-badge visibility-${project.restricted ? 'restricted' : 'workspace'}`}>
+                    {project.restricted ? 'Restricted' : 'Workspace'}
                   </span>
-                )}
+                  {canManageRoles && (
+                    <button
+                      className="project-access-button"
+                      type="button"
+                      aria-label={`Edit access to ${project.name}`}
+                      title="Edit project access"
+                      onClick={() => openProjectAccess(project)}
+                    >
+                      <svg viewBox="0 0 20 20" aria-hidden="true">
+                        <path d="M3.5 6.25h8.5M15.5 6.25h1M3.5 13.75h1M8 13.75h8.5" />
+                        <circle cx="13.75" cy="6.25" r="1.75" />
+                        <circle cx="6.25" cy="13.75" r="1.75" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
               </div>
-              <div className="project-card-footer">
-                <span>Open tasks →</span>
+              <div
+                className="project-card-open"
+                role="button"
+                tabIndex={0}
+                onClick={() => openProject(project)}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault()
+                    openProject(project)
+                  }
+                }}
+              >
+                <button className="project-card-copy" type="button" onClick={() => openProject(project)}>
+                  <h3>{project.name}</h3>
+                  <p>{project.description || 'No project description has been added yet.'}</p>
+                </button>
+                <span className="project-card-footer">
+                  <CreatorProfile
+                    creator={{
+                      displayName: project.createdByDisplayName,
+                      email: workspaceMembers.find((member) => member.userId === project.createdById)?.email,
+                      role: workspaceMembers.find((member) => member.userId === project.createdById)?.role,
+                    }}
+                    createdAt={project.createdAt}
+                    entityLabel="Project creator"
+                  />
+                  <button className="project-open-link" type="button" onClick={() => openProject(project)}>Open project <span aria-hidden="true">→</span></button>
+                </span>
               </div>
-            </button>
-            )
-          })}
+            </article>
+          ))}
         </div>
       )}
           </div>
@@ -1653,10 +2021,12 @@ function ProjectSection({ workspace, user, onBack }) {
           className="workspace-members-column"
           aria-label="Workspace members"
         >
-          <AccessRoleManager
-            workspace={workspace}
-            onChange={loadWorkspaceAccess}
-          />
+          {canManageRoles && (
+            <AccessRoleManager
+              workspace={workspace}
+              onChange={loadWorkspaceAccess}
+            />
+          )}
           <WorkspaceMembers
             workspace={workspace}
             projects={projects}
@@ -1668,7 +2038,94 @@ function ProjectSection({ workspace, user, onBack }) {
           />
         </aside>
       </div>
+      {accessProject && (
+        <ProjectAccessDialog
+          project={accessProject}
+          roles={accessRoles}
+          members={workspaceMembers.filter(
+            (member) => member.role !== 'OWNER' && member.userId !== user.id,
+          )}
+          draft={accessDraft}
+          saving={isSavingAccess}
+          error={accessError}
+          onToggleRole={(id) => toggleAccessDraft('roleIds', id)}
+          onToggleMember={(id) => toggleAccessDraft('memberIds', id)}
+          onSave={saveProjectAccess}
+          onClose={() => {
+            if (!isSavingAccess) setAccessProject(null)
+          }}
+        />
+      )}
     </div>
+  )
+}
+
+function CreatorProfile({ creator, createdAt, entityLabel, compact = false }) {
+  const [isOpen, setIsOpen] = useState(false)
+  const rootRef = useRef(null)
+
+  useEffect(() => {
+    if (!isOpen) return undefined
+    function closeProfile(event) {
+      if (event.key === 'Escape') setIsOpen(false)
+      if (
+        event.type === 'pointerdown' &&
+        !rootRef.current?.contains(event.target)
+      ) setIsOpen(false)
+    }
+    document.addEventListener('keydown', closeProfile)
+    document.addEventListener('pointerdown', closeProfile)
+    return () => {
+      document.removeEventListener('keydown', closeProfile)
+      document.removeEventListener('pointerdown', closeProfile)
+    }
+  }, [isOpen])
+
+  return (
+    <div
+      className={`task-creator-profile ${compact ? 'compact' : ''}`}
+      ref={rootRef}
+      onClick={(event) => event.stopPropagation()}
+      onKeyDown={(event) => event.stopPropagation()}
+    >
+      <button
+        className="task-creator-trigger"
+        type="button"
+        aria-label={`Open ${creator.displayName} profile`}
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen((current) => !current)}
+      >
+        <span aria-hidden="true">{memberInitials(creator.displayName)}</span>
+        {!compact && (
+          <span><small>Created by</small><strong>{creator.displayName}</strong></span>
+        )}
+      </button>
+      {isOpen && (
+        <section className="task-creator-popover" role="dialog" aria-label={`${creator.displayName} profile`}>
+          <span className="task-creator-popover-avatar" aria-hidden="true">{memberInitials(creator.displayName)}</span>
+          <div>
+            <strong>{creator.displayName}</strong>
+            <span>{creator.email || 'Workspace member'}</span>
+          </div>
+          <button type="button" aria-label="Close profile" onClick={() => setIsOpen(false)}>×</button>
+          <footer>
+            <span>{creator.role ? formatRole(creator.role) : entityLabel}</span>
+            <time dateTime={createdAt}>{new Date(createdAt).toLocaleDateString()}</time>
+          </footer>
+        </section>
+      )}
+    </div>
+  )
+}
+
+function TaskCreatorProfile({ task, compact = false }) {
+  return (
+    <CreatorProfile
+      creator={{ displayName: task.createdByDisplayName, email: task.createdByEmail }}
+      createdAt={task.createdAt}
+      entityLabel="Task creator"
+      compact={compact}
+    />
   )
 }
 
@@ -1676,7 +2133,6 @@ function TaskBoard({
   workspace,
   user,
   project,
-  onProjectChange,
   onBack,
 }) {
   const [tasks, setTasks] = useState([])
@@ -1695,16 +2151,25 @@ function TaskBoard({
   const [form, setForm] = useState({ title: '', description: '' })
   const [taskQuery, setTaskQuery] = useState('')
   const [assigneeFilter, setAssigneeFilter] = useState('ALL')
+  const [dateFilter, setDateFilter] = useState('ALL')
+  const [sortOrder, setSortOrder] = useState('RECENT')
+  const [isFilterOpen, setIsFilterOpen] = useState(false)
   const [taskView, setTaskView] = useState('board')
-  const isManager = ['OWNER', 'ADMIN'].includes(workspace.role)
-  const currentProjectMember = projectMembers.find(
-    (member) => member.userId === user.id,
+  const [openActivities, setOpenActivities] = useState({})
+  const [activitiesByTask, setActivitiesByTask] = useState({})
+  const [loadingActivityId, setLoadingActivityId] = useState(null)
+  const [expandedTaskId, setExpandedTaskId] = useState(null)
+  const taskFilterRef = useRef(null)
+  const [pinnedTaskIds, togglePinnedTask] = usePinnedIds(
+    `collabdesk.pinned-tasks.${user.id}.${workspace.id}.${project.id}`,
   )
-  const currentPermissions = isManager
-    ? ALL_PROJECT_PERMISSIONS
-    : currentProjectMember?.effectivePermissions ?? []
-  const hasPermission = (permission) =>
-    currentPermissions.includes(permission)
+  const isManager = ['OWNER', 'ADMIN'].includes(workspace.role)
+  const canCreateTask = workspace.role !== 'VIEWER'
+  const isAssignee = (task) => task.assignee?.userId === user.id
+  const canManageTask = (task) =>
+    isManager || task.createdById === user.id || isAssignee(task)
+  const activeFilterCount =
+    Number(assigneeFilter !== 'ALL') + Number(dateFilter !== 'ALL')
   const visibleTasks = tasks.filter((task) => {
     const matchesQuery = `${task.title} ${task.description ?? ''}`
       .toLowerCase()
@@ -1713,7 +2178,28 @@ function TaskBoard({
       assigneeFilter === 'ALL' ||
       (assigneeFilter === 'UNASSIGNED' && !task.assignee) ||
       String(task.assignee?.projectMemberId) === assigneeFilter
-    return matchesQuery && matchesAssignee
+    const createdAt = new Date(task.createdAt).getTime()
+    const now = new Date()
+    const todayStart = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+    ).getTime()
+    const dateThreshold = {
+      TODAY: todayStart,
+      LAST_7_DAYS: now.getTime() - 7 * 86_400_000,
+      LAST_30_DAYS: now.getTime() - 30 * 86_400_000,
+    }[dateFilter]
+    const matchesDate =
+      dateFilter === 'ALL' ||
+      (!Number.isNaN(createdAt) && createdAt >= dateThreshold)
+    return matchesQuery && matchesAssignee && matchesDate
+  }).sort((left, right) => {
+    const pinDifference = Number(pinnedTaskIds.has(String(right.id))) -
+      Number(pinnedTaskIds.has(String(left.id)))
+    if (pinDifference !== 0) return pinDifference
+    const direction = sortOrder === 'RECENT' ? -1 : 1
+    return direction * (new Date(left.createdAt) - new Date(right.createdAt))
   })
 
   const loadTasks = useCallback(async () => {
@@ -1737,6 +2223,26 @@ function TaskBoard({
   useEffect(() => {
     loadTasks()
   }, [loadTasks])
+
+  useEffect(() => {
+    if (!isFilterOpen) return undefined
+    function closeFilters(event) {
+      if (event.key === 'Escape') {
+        setIsFilterOpen(false)
+      } else if (
+        event.type === 'pointerdown' &&
+        !taskFilterRef.current?.contains(event.target)
+      ) {
+        setIsFilterOpen(false)
+      }
+    }
+    document.addEventListener('keydown', closeFilters)
+    document.addEventListener('pointerdown', closeFilters)
+    return () => {
+      document.removeEventListener('keydown', closeFilters)
+      document.removeEventListener('pointerdown', closeFilters)
+    }
+  }, [isFilterOpen])
 
   async function handleCreate(event) {
     event.preventDefault()
@@ -1773,6 +2279,7 @@ function TaskBoard({
           task.id === updatedTask.id ? updatedTask : task,
         ),
       )
+      invalidateActivity(taskId)
     } catch (updateError) {
       setError(
         updateError.message || 'Unable to update the task status.',
@@ -1807,6 +2314,7 @@ function TaskBoard({
           task.id === updatedTask.id ? updatedTask : task,
         ),
       )
+      invalidateActivity(taskId)
       setEditingTaskId(null)
     } catch (updateError) {
       setError(updateError.message || 'Unable to edit the task.')
@@ -1830,6 +2338,7 @@ function TaskBoard({
           task.id === updatedTask.id ? updatedTask : task,
         ),
       )
+      invalidateActivity(taskId)
     } catch (updateError) {
       setError(
         updateError.message || 'Unable to update the task assignee.',
@@ -1840,21 +2349,57 @@ function TaskBoard({
     }
   }
 
-  async function handleProjectVisibilityChange(visibility) {
+  async function handleClaimChange(task, release = false) {
     setError('')
+    setUpdatingTaskId(task.id)
     try {
-      onProjectChange(
-        await changeProjectVisibility(
+      const updatedTask = release
+        ? await releaseTask(workspace.id, project.id, task.id)
+        : await claimTask(workspace.id, project.id, task.id)
+      setTasks((current) => current.map((item) =>
+        item.id === updatedTask.id ? updatedTask : item,
+      ))
+      setActivitiesByTask((current) => {
+        const next = { ...current }
+        delete next[task.id]
+        return next
+      })
+    } catch (updateError) {
+      setError(updateError.message || 'Unable to update the task assignee.')
+    } finally {
+      setUpdatingTaskId(null)
+    }
+  }
+
+  async function toggleActivity(taskId) {
+    if (openActivities[taskId]) {
+      setOpenActivities((current) => ({ ...current, [taskId]: false }))
+      return
+    }
+    setOpenActivities((current) => ({ ...current, [taskId]: true }))
+    if (activitiesByTask[taskId]) return
+    setLoadingActivityId(taskId)
+    try {
+      const activities = await getTaskActivities(
           workspace.id,
           project.id,
-          visibility,
-        ),
-      )
-    } catch (updateError) {
-      setError(
-        updateError.message || 'Unable to update project visibility.',
-      )
+          taskId,
+        )
+      setActivitiesByTask((current) => ({ ...current, [taskId]: activities }))
+    } catch (loadError) {
+      setError(loadError.message || 'Unable to load task activity.')
+    } finally {
+      setLoadingActivityId(null)
     }
+  }
+
+  function invalidateActivity(taskId) {
+    setActivitiesByTask((current) => {
+      const next = { ...current }
+      delete next[taskId]
+      return next
+    })
+    setOpenActivities((current) => ({ ...current, [taskId]: false }))
   }
 
   async function handleTaskVisibilityChange(taskId, visibility) {
@@ -1872,6 +2417,7 @@ function TaskBoard({
           task.id === updatedTask.id ? updatedTask : task,
         ),
       )
+      invalidateActivity(taskId)
     } catch (updateError) {
       setError(
         updateError.message || 'Unable to update task visibility.',
@@ -1884,8 +2430,8 @@ function TaskBoard({
   return (
     <div className="detail-view">
       <PageBackButton
-        context={`Back to ${workspace.name}`}
-        label="Workspace projects"
+        label={workspace.name}
+        current={project.name}
         onClick={onBack}
       />
 
@@ -1901,31 +2447,33 @@ function TaskBoard({
             {project.description ||
               'Manage project tasks and keep their status up to date.'}
           </p>
+          <div className="project-header-meta">
+            <CreatorProfile
+              creator={{
+                displayName: project.createdByDisplayName,
+                email: projectMembers.find((member) => member.userId === project.createdById)?.email,
+                role: projectMembers.find((member) => member.userId === project.createdById)?.workspaceRole,
+              }}
+              createdAt={project.createdAt}
+              entityLabel="Project creator"
+            />
+            <span className={`visibility-badge visibility-${project.restricted ? 'restricted' : 'workspace'}`}>
+              {project.restricted ? 'Restricted access' : 'Workspace access'}
+            </span>
+          </div>
         </div>
         <div className="workspace-header-actions">
-          {hasPermission('EDIT_PROJECT') && (
-            <label className="visibility-control project-visibility-control">
-              <span>Project access</span>
-              <select
-                value={project.visibility ?? 'WORKSPACE'}
-                onChange={(event) =>
-                  handleProjectVisibilityChange(event.target.value)
-                }
-              >
-                <option value="WORKSPACE">Workspace</option>
-                <option value="RESTRICTED">Restricted</option>
-              </select>
-            </label>
+          {['OWNER', 'ADMIN'].includes(workspace.role) && (
+            <span
+              className={roleBadgeClassName(
+                workspace.role,
+                'context-role-badge',
+              )}
+            >
+              {formatRole(workspace.role)}
+            </span>
           )}
-          <span
-            className={roleBadgeClassName(
-              workspace.role,
-              'context-role-badge',
-            )}
-          >
-            {formatRole(workspace.role)}
-          </span>
-          {hasPermission('CREATE_TASK') && (
+          {canCreateTask && (
             <button
               className="secondary-button"
               type="button"
@@ -2021,18 +2569,66 @@ function TaskBoard({
           <button className={taskView === 'board' ? 'active' : ''} type="button" onClick={() => setTaskView('board')}>Board</button>
           <button className={taskView === 'list' ? 'active' : ''} type="button" onClick={() => setTaskView('list')}>List</button>
         </div>
-        <label className="content-search compact task-search">
+        <div className="content-search compact task-search">
           <span aria-hidden="true">⌕</span>
-          <input value={taskQuery} onChange={(event) => setTaskQuery(event.target.value)} placeholder="Search tasks…" />
-        </label>
-        <label className="task-filter">
-          <span>Assignee</span>
-          <select value={assigneeFilter} onChange={(event) => setAssigneeFilter(event.target.value)}>
-            <option value="ALL">Everyone</option>
-            <option value="UNASSIGNED">Unassigned</option>
-            {projectMembers.map((member) => <option key={member.id} value={member.id}>{member.displayName}</option>)}
-          </select>
-        </label>
+          <input aria-label="Search tasks" value={taskQuery} onChange={(event) => setTaskQuery(event.target.value)} placeholder="Search tasks…" />
+          <div className="task-filter-wrap" ref={taskFilterRef}>
+            <button
+              className={`task-filter-trigger ${isFilterOpen || activeFilterCount > 0 ? 'active' : ''}`}
+              type="button"
+              aria-label="Filter and sort tasks"
+              aria-expanded={isFilterOpen}
+              onClick={() => setIsFilterOpen((current) => !current)}
+            >
+              <svg viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M3 5h14M6 10h8M8.5 15h3" />
+              </svg>
+              {activeFilterCount > 0 && <span>{activeFilterCount}</span>}
+            </button>
+            {isFilterOpen && (
+              <div className="task-filter-popover">
+                <div className="task-filter-heading">
+                  <div><strong>Filter tasks</strong><span>Refine this view</span></div>
+                  {activeFilterCount > 0 && (
+                    <button type="button" onClick={() => { setAssigneeFilter('ALL'); setDateFilter('ALL') }}>Clear</button>
+                  )}
+                </div>
+                <fieldset>
+                  <legend>Created</legend>
+                  <div className="task-filter-options compact-options">
+                    {[
+                      ['ALL', 'Any time'],
+                      ['TODAY', 'Today'],
+                      ['LAST_7_DAYS', '7 days'],
+                      ['LAST_30_DAYS', '30 days'],
+                    ].map(([value, label]) => (
+                      <button className={dateFilter === value ? 'selected' : ''} type="button" key={value} onClick={() => setDateFilter(value)}>{label}</button>
+                    ))}
+                  </div>
+                </fieldset>
+                <fieldset>
+                  <legend>Assigned to</legend>
+                  <div className="task-filter-options assignee-options">
+                    <button className={assigneeFilter === 'ALL' ? 'selected' : ''} type="button" onClick={() => setAssigneeFilter('ALL')}><span className="filter-avatar all">∞</span>Everyone</button>
+                    <button className={assigneeFilter === 'UNASSIGNED' ? 'selected' : ''} type="button" onClick={() => setAssigneeFilter('UNASSIGNED')}><span className="filter-avatar empty">—</span>Unassigned</button>
+                    {projectMembers.map((member) => (
+                      <button className={assigneeFilter === String(member.id) ? 'selected' : ''} type="button" key={member.id} onClick={() => setAssigneeFilter(String(member.id))}>
+                        <span className="filter-avatar">{memberInitials(member.displayName)}</span>{member.displayName}
+                      </button>
+                    ))}
+                  </div>
+                </fieldset>
+                <fieldset>
+                  <legend>Order</legend>
+                  <div className="task-filter-options compact-options">
+                    <button className={sortOrder === 'RECENT' ? 'selected' : ''} type="button" onClick={() => setSortOrder('RECENT')}>Newest first</button>
+                    <button className={sortOrder === 'OLDEST' ? 'selected' : ''} type="button" onClick={() => setSortOrder('OLDEST')}>Oldest first</button>
+                  </div>
+                </fieldset>
+              </div>
+            )}
+          </div>
+        </div>
         <span className="task-result-count">{visibleTasks.length} {visibleTasks.length === 1 ? 'task' : 'tasks'}</span>
       </div>
 
@@ -2066,7 +2662,87 @@ function TaskBoard({
                     <p className="task-column-empty">No tasks here</p>
                   ) : (
                     columnTasks.map((task) => (
-                      <article className="task-card" key={task.id}>
+                      <article className={`task-card ${taskView === 'list' ? 'task-list-row' : ''} ${expandedTaskId === task.id ? 'expanded' : ''}`} key={task.id}>
+                        {taskView === 'list' && (
+                          <div className="task-list-summary">
+                            <span className={`task-list-status status-${task.status.toLowerCase()}`} aria-label={formatRole(task.status)} />
+                            <button className="task-list-title" type="button" onClick={() => setExpandedTaskId((current) => current === task.id ? null : task.id)}>
+                              <strong>{task.title}</strong>
+                              <small>{task.description || 'No description'}</small>
+                            </button>
+                            <div className="task-list-creator">
+                              <TaskCreatorProfile task={task} />
+                            </div>
+                            <div className="task-list-assignee">
+                              {task.assignee ? (
+                                <><span aria-hidden="true">{memberInitials(task.assignee.displayName)}</span><strong>{task.assignee.displayName}</strong></>
+                              ) : (
+                                <><span className="empty" aria-hidden="true">—</span><strong>Unassigned</strong></>
+                              )}
+                            </div>
+                            <time className="task-list-date" dateTime={task.updatedAt}>{formatTaskDate(task.updatedAt)}</time>
+                            <button
+                              className={`pin-button task-pin-button ${pinnedTaskIds.has(String(task.id)) ? 'active' : ''}`}
+                              type="button"
+                              aria-label={pinnedTaskIds.has(String(task.id)) ? `Unpin ${task.title}` : `Pin ${task.title}`}
+                              aria-pressed={pinnedTaskIds.has(String(task.id))}
+                              title={pinnedTaskIds.has(String(task.id)) ? 'Unpin task' : 'Pin task'}
+                              onClick={() => togglePinnedTask(task.id)}
+                            >
+                              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 3 6 0-.8 4 2.3 2.3v1.2h-3.7L10 17l-.8-6.5H5.5V9.3L7.8 7 7 3Z" /></svg>
+                            </button>
+                            <button
+                              className="task-list-expand"
+                              type="button"
+                              aria-label={expandedTaskId === task.id ? 'Collapse task details' : 'Expand task details'}
+                              aria-expanded={expandedTaskId === task.id}
+                              onClick={() => setExpandedTaskId((current) => current === task.id ? null : task.id)}
+                            >
+                              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4" /></svg>
+                            </button>
+                          </div>
+                        )}
+                        {taskView === 'board' && (
+                          <div className="task-board-card-summary">
+                            <button className="task-board-card-title" type="button" onClick={() => setExpandedTaskId((current) => current === task.id ? null : task.id)}>
+                              <strong>{task.title}</strong>
+                              <small>{task.description || 'No description'}</small>
+                            </button>
+                            <div className="task-card-quick-actions">
+                              <button
+                                className={`pin-button task-pin-button ${pinnedTaskIds.has(String(task.id)) ? 'active' : ''}`}
+                                type="button"
+                                aria-label={pinnedTaskIds.has(String(task.id)) ? `Unpin ${task.title}` : `Pin ${task.title}`}
+                                aria-pressed={pinnedTaskIds.has(String(task.id))}
+                                title={pinnedTaskIds.has(String(task.id)) ? 'Unpin task' : 'Pin task'}
+                                onClick={() => togglePinnedTask(task.id)}
+                              >
+                                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 3 6 0-.8 4 2.3 2.3v1.2h-3.7L10 17l-.8-6.5H5.5V9.3L7.8 7 7 3Z" /></svg>
+                              </button>
+                              <button
+                                className="task-list-expand"
+                                type="button"
+                                aria-label={expandedTaskId === task.id ? 'Collapse task details' : 'Expand task details'}
+                                aria-expanded={expandedTaskId === task.id}
+                                onClick={() => setExpandedTaskId((current) => current === task.id ? null : task.id)}
+                              >
+                                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m6 8 4 4 4-4" /></svg>
+                              </button>
+                            </div>
+                            <div className="task-board-card-footer">
+                              <TaskCreatorProfile task={task} compact />
+                              <span className="task-board-card-assignee">
+                                {task.assignee ? (
+                                  <><span aria-hidden="true">{memberInitials(task.assignee.displayName)}</span><strong>{task.assignee.displayName}</strong></>
+                                ) : (
+                                  <><span className="empty" aria-hidden="true">—</span><strong>No assignee</strong></>
+                                )}
+                              </span>
+                              <time dateTime={task.updatedAt}>{formatTaskDate(task.updatedAt)}</time>
+                            </div>
+                          </div>
+                        )}
+                        <div className="task-card-details">
                         <div className="task-card-meta">
                           <time dateTime={task.createdAt}>
                             {formatTaskDate(task.createdAt)}
@@ -2078,7 +2754,7 @@ function TaskBoard({
                               ? 'Assignee only'
                               : 'Project team'}
                           </span>
-                          {hasPermission('EDIT_TASK') && (
+                          {canManageTask(task) && (
                             <button
                               className="task-edit-toggle"
                               type="button"
@@ -2146,18 +2822,21 @@ function TaskBoard({
                             </p>
                           </>
                         )}
+                        <TaskCreatorProfile task={task} />
                         <TaskAssigneePicker
                           task={task}
                           members={projectMembers}
-                          disabled={
-                            !isManager ||
-                            updatingTaskId === task.id
-                          }
+                          canAssign={isManager}
+                          busy={updatingTaskId === task.id}
                           onSave={(memberId) =>
                             handleAssigneeChange(task.id, memberId)
                           }
+                          canClaim={!isManager && !task.assignee && workspace.role !== 'VIEWER'}
+                          canRelease={!isManager && isAssignee(task)}
+                          onClaim={() => handleClaimChange(task)}
+                          onRelease={() => handleClaimChange(task, true)}
                         />
-                        {hasPermission('CHANGE_TASK_VISIBILITY') && (
+                        {canManageTask(task) && (
                           <label className="visibility-control task-visibility-control">
                             <span>Visibility</span>
                             <select
@@ -2180,13 +2859,45 @@ function TaskBoard({
                           <TaskStatusPicker
                             value={task.status}
                             disabled={
-                              !hasPermission('CHANGE_TASK_STATUS') ||
+                              !canManageTask(task) ||
                               updatingTaskId === task.id
                             }
                             onChange={(status) =>
                               handleStatusChange(task.id, status)
                             }
                           />
+                        </div>
+                        {canManageTask(task) && (
+                          <>
+                            <button
+                              className="task-activity-toggle"
+                              type="button"
+                              onClick={() => toggleActivity(task.id)}
+                            >
+                              <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 5v5l3 2M4.8 4.8A7.4 7.4 0 1 1 2.6 10H1m0 0 2.2-2.2M1 10l2.2 2.2" /></svg>
+                              {openActivities[task.id] ? 'Hide history' : 'Show history'}
+                            </button>
+                            {openActivities[task.id] && (
+                              <div className="task-activity-list">
+                                {loadingActivityId === task.id ? (
+                                  <small>Loading history…</small>
+                                ) : (activitiesByTask[task.id] ?? []).length === 0 ? (
+                                  <small>No recorded changes yet.</small>
+                                ) : (
+                                  activitiesByTask[task.id].map((activity) => (
+                                    <div className="task-activity-item" key={activity.id}>
+                                      <span className="task-activity-dot" aria-hidden="true" />
+                                      <span>{formatTaskActivity(activity)}</span>
+                                      <time dateTime={activity.createdAt}>
+                                        {new Date(activity.createdAt).toLocaleString()}
+                                      </time>
+                                    </div>
+                                  ))
+                                )}
+                              </div>
+                            )}
+                          </>
+                        )}
                         </div>
                       </article>
                     ))
@@ -2203,7 +2914,17 @@ function TaskBoard({
   )
 }
 
-function TaskAssigneePicker({ task, members, disabled, onSave }) {
+function TaskAssigneePicker({
+  task,
+  members,
+  canAssign,
+  busy,
+  onSave,
+  canClaim,
+  canRelease,
+  onClaim,
+  onRelease,
+}) {
   const [isOpen, setIsOpen] = useState(false)
   const [selectedId, setSelectedId] = useState(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -2224,8 +2945,9 @@ function TaskAssigneePicker({ task, members, disabled, onSave }) {
 
   return (
     <div className="task-assignees">
+      <span className="task-assignee-label">Assignee</span>
       <div className="task-assignee-summary">
-        <div className="task-assignee-avatars">
+        <div className={`task-assignee-identity ${task.assignee ? '' : 'unassigned'}`}>
           {task.assignee ? (
             <>
             <span
@@ -2239,35 +2961,53 @@ function TaskAssigneePicker({ task, members, disabled, onSave }) {
             </span>
             </>
           ) : (
-            <span className="task-unassigned">Unassigned</span>
+            <>
+              <span className="task-assignee-avatar empty" aria-hidden="true">—</span>
+              <span className="task-unassigned"><strong>No assignee</strong><small>Available for the project team</small></span>
+            </>
           )}
         </div>
-        {!disabled && (
+        {canAssign && (
           <button
             className="task-assign-toggle"
             type="button"
+            disabled={busy}
             onClick={() => setIsOpen((current) => !current)}
           >
-            {isOpen ? 'Close' : 'Assign'}
+            {isOpen ? 'Close' : task.assignee ? 'Change' : 'Choose person'}
+          </button>
+        )}
+        {canClaim && (
+          <button className="task-claim-button" type="button" disabled={busy} onClick={onClaim}>
+            {busy ? 'Assigning…' : 'Assign to me'}
+          </button>
+        )}
+        {canRelease && (
+          <button className="task-claim-button subtle" type="button" disabled={busy} onClick={onRelease}>
+            {busy ? 'Leaving…' : 'Leave task'}
           </button>
         )}
       </div>
       {isOpen && (
         <div className="task-assignee-menu">
-          <label className="task-assignee-option">
+          <div className="task-assignee-menu-header">
+            <div><strong>Assign task</strong><span>Choose one project member</span></div>
+          </div>
+          <label className={`task-assignee-option ${selectedId === null ? 'selected' : ''}`}>
             <input
               type="radio"
               name={`task-${task.id}-assignee`}
               checked={selectedId === null}
               onChange={() => setSelectedId(null)}
             />
+            <span className="task-assignee-option-avatar empty" aria-hidden="true">—</span>
             <span className="task-assignee-option-identity">
               <strong>Unassigned</strong>
-              <small>Only workspace managers can change status</small>
+              <small>Leave this task without an owner</small>
             </span>
           </label>
           {members.map((member) => (
-              <label className="task-assignee-option" key={member.id}>
+              <label className={`task-assignee-option ${selectedId === member.id ? 'selected' : ''}`} key={member.id}>
                 <input
                   type="radio"
                   name={`task-${task.id}-assignee`}
@@ -2283,23 +3023,15 @@ function TaskAssigneePicker({ task, members, disabled, onSave }) {
                   </strong>
                   <small title={member.email}>{member.email}</small>
                 </span>
-                <span
-                  className={roleBadgeClassName(
-                    member.workspaceRole,
-                    'task-assignee-role',
-                  )}
-                >
-                  {formatRole(member.workspaceRole)}
-                </span>
               </label>
             ))}
           <button
             className="task-assignee-save"
             type="button"
-            disabled={isSaving}
+            disabled={isSaving || selectedId === (task.assignee?.projectMemberId ?? null)}
             onClick={save}
           >
-            {isSaving ? 'Saving…' : 'Save'}
+            {isSaving ? 'Saving…' : 'Confirm assignee'}
           </button>
         </div>
       )}
@@ -2313,6 +3045,7 @@ function MemberProfilePopover({
   isChanging,
   triggerRef,
   onEditRole,
+  onEditAccess,
   onRemove,
   onClose,
 }) {
@@ -2410,20 +3143,33 @@ function MemberProfilePopover({
         {canManageMember && (
           <div className="member-profile-member-actions">
             <button
-              className="member-action-button"
+              className="member-action-button member-profile-action"
               type="button"
               disabled={isChanging}
               onClick={onEditRole}
             >
-              Edit workspace role
+              <span className="member-profile-action-icon" aria-hidden="true">R</span>
+              <span><strong>Workspace role</strong><small>Change member, admin or viewer access</small></span>
+              <span aria-hidden="true">→</span>
             </button>
             <button
-              className="danger-button"
+              className="member-action-button member-profile-action"
+              type="button"
+              disabled={isChanging}
+              onClick={onEditAccess}
+            >
+              <span className="member-profile-action-icon" aria-hidden="true">P</span>
+              <span><strong>Project access</strong><small>Choose roles and projects this person can open</small></span>
+              <span aria-hidden="true">→</span>
+            </button>
+            <button
+              className="danger-button member-profile-action danger"
               type="button"
               disabled={isChanging}
               onClick={onRemove}
             >
-              Remove member
+              <span className="member-profile-action-icon" aria-hidden="true">×</span>
+              <span><strong>Remove member</strong><small>Revoke access to this workspace</small></span>
             </button>
           </div>
         )}
@@ -2451,11 +3197,12 @@ function WorkspaceMembers({
   const [changingMemberId, setChangingMemberId] = useState(null)
   const [accessEditingMemberId, setAccessEditingMemberId] = useState(null)
   const [projectAccessDraft, setProjectAccessDraft] = useState({})
+  const [memberRoleDraft, setMemberRoleDraft] = useState([])
   const [savingProjectAccess, setSavingProjectAccess] = useState(false)
   const [profileMemberId, setProfileMemberId] = useState(null)
   const profileTriggerRef = useRef(null)
 
-  const isOwner = workspace.role === 'OWNER'
+  const isOwner = ['OWNER', 'ADMIN'].includes(workspace.role)
 
   async function handleAdd(event) {
     event.preventDefault()
@@ -2553,35 +3300,58 @@ function WorkspaceMembers({
     setPendingRole('MEMBER')
   }
 
+  function startAccessEdit(member) {
+    setError('')
+    setEditingMemberId(null)
+    setAccessEditingMemberId(member.id)
+    setMemberRoleDraft((member.accessRoles ?? []).map((role) => role.id))
+    setProjectAccessDraft(Object.fromEntries(projects.map((project) => {
+      const existing = (projectTeams[project.id] ?? []).some(
+        (projectMember) =>
+          projectMember.workspaceMemberId === member.id &&
+          projectMember.grantsAccess,
+      )
+      return [project.id, { selected: existing }]
+    })))
+  }
+
   function toggleDraftProject(projectId) {
     setProjectAccessDraft((current) => ({
       ...current,
       [projectId]: {
-        roleIds: current[projectId]?.roleIds ?? [],
         selected: !current[projectId]?.selected,
       },
     }))
   }
 
-  function toggleDraftProjectRole(projectId, roleId) {
-    setProjectAccessDraft((current) => {
-      const roleIds = current[projectId]?.roleIds ?? []
-      return {
-        ...current,
-        [projectId]: {
-          selected: true,
-          roleIds: roleIds.includes(roleId)
-            ? roleIds.filter((id) => id !== roleId)
-            : [...roleIds, roleId],
-        },
-      }
-    })
+  function toggleMemberRole(roleId) {
+    setMemberRoleDraft((current) => current.includes(roleId)
+      ? current.filter((id) => id !== roleId)
+      : [...current, roleId])
   }
 
   async function saveProjectAccess(member) {
     setSavingProjectAccess(true)
     setError('')
     try {
+      const updatedRoles = await replaceWorkspaceMemberAccessRoles(
+        workspace.id,
+        member.id,
+        memberRoleDraft,
+      )
+      onMembersChange((current) => current.map((item) => item.id === member.id
+        ? { ...item, accessRoles: updatedRoles }
+        : item))
+      projects.forEach((project) => {
+        onProjectTeamChange(
+          project.id,
+          (projectTeams[project.id] ?? []).map((item) =>
+            item.workspaceMemberId === member.id
+              ? { ...item, roles: updatedRoles }
+              : item,
+          ),
+        )
+      })
       for (const project of projects) {
         const team = projectTeams[project.id] ?? []
         const existing = team.find(
@@ -2590,37 +3360,22 @@ function WorkspaceMembers({
         )
         const draft = projectAccessDraft[project.id] ?? {
           selected: false,
-          roleIds: [],
         }
 
-        if (draft.selected && !existing) {
+        if (draft.selected && !existing?.grantsAccess) {
           const added = await addProjectMember(
             workspace.id,
             project.id,
             member.id,
-            draft.roleIds,
+            [],
           )
-          onProjectTeamChange(project.id, [...team, added])
-        } else if (draft.selected && existing) {
-          const existingRoleIds = (existing.roles ?? [])
-            .map((role) => role.id)
-            .sort()
-          const nextRoleIds = [...draft.roleIds].sort()
-          if (existingRoleIds.join(',') !== nextRoleIds.join(',')) {
-            const updated = await replaceProjectMemberRoles(
-              workspace.id,
-              project.id,
-              existing.id,
-              draft.roleIds,
-            )
-            onProjectTeamChange(
-              project.id,
-              team.map((item) =>
-                item.id === updated.id ? updated : item,
-              ),
-            )
-          }
-        } else if (!draft.selected && existing) {
+          onProjectTeamChange(
+            project.id,
+            existing
+              ? team.map((item) => item.id === existing.id ? added : item)
+              : [...team, added],
+          )
+        } else if (!draft.selected && existing?.grantsAccess) {
           await removeProjectMember(
             workspace.id,
             project.id,
@@ -2634,6 +3389,7 @@ function WorkspaceMembers({
       }
       setAccessEditingMemberId(null)
       setProjectAccessDraft({})
+      setMemberRoleDraft([])
     } catch (saveError) {
       setError(
         saveError.message || 'Unable to update project access.',
@@ -2769,6 +3525,10 @@ function WorkspaceMembers({
                       setProfileMemberId(null)
                       startRoleEdit(member)
                     }}
+                    onEditAccess={() => {
+                      setProfileMemberId(null)
+                      startAccessEdit(member)
+                    }}
                     onRemove={() => {
                       setProfileMemberId(null)
                       handleRemove(member.id)
@@ -2809,26 +3569,49 @@ function WorkspaceMembers({
                   </div>
                 )}
                 {isAccessEditing && (
-                  <div className="workspace-project-access-editor">
+                  <div className="member-access-dialog-layer">
+                    <div className="workspace-project-access-editor" role="dialog" aria-modal="true" aria-label={`Access settings for ${member.displayName}`}>
                     <div className="workspace-project-access-heading">
                       <div>
                         <strong>Projects for {member.displayName}</strong>
                         <small>
-                          Select a project, then attach workspace roles.
-                          Leave roles empty for direct access.
+                          Custom roles belong to the member across the workspace.
+                          Project selection below grants direct access.
                         </small>
                       </div>
                       <span>{assignedProjects.length} active</span>
                     </div>
+                    <fieldset className="project-create-access">
+                      <legend>Custom roles</legend>
+                      <div className="project-create-access-options">
+                        {accessRoles.map((role) => (
+                          <label key={role.id}>
+                            <input
+                              type="checkbox"
+                              checked={memberRoleDraft.includes(role.id)}
+                              onChange={() => toggleMemberRole(role.id)}
+                            />
+                            <span
+                              className="custom-role-chip"
+                              style={{ '--role-color': role.color }}
+                            >
+                              {role.name}
+                            </span>
+                          </label>
+                        ))}
+                        {accessRoles.length === 0 && (
+                          <small>No custom roles yet.</small>
+                        )}
+                      </div>
+                    </fieldset>
                     {projects.length === 0 ? (
                       <p>No projects in this workspace.</p>
                     ) : (
                       <div className="workspace-project-access-list">
                         {projects.map((project) => {
-                          const draft = projectAccessDraft[project.id] ?? {
-                            selected: false,
-                            roleIds: [],
-                          }
+                           const draft = projectAccessDraft[project.id] ?? {
+                             selected: false,
+                           }
                           return (
                             <section
                               className={`workspace-project-access-item ${
@@ -2854,65 +3637,12 @@ function WorkspaceMembers({
                                       ? 'Active'
                                       : project.status}{' '}
                                     ·{' '}
-                                    {project.visibility === 'RESTRICTED'
+                                    {project.restricted
                                       ? 'Restricted'
                                       : 'Workspace'}
                                   </small>
                                 </span>
                               </label>
-                              {draft.selected && (
-                                <div className="workspace-project-role-options">
-                                  <button
-                                    className={`workspace-project-direct ${
-                                      draft.roleIds.length === 0
-                                        ? 'selected'
-                                        : ''
-                                    }`}
-                                    type="button"
-                                    onClick={() =>
-                                      setProjectAccessDraft((current) => ({
-                                        ...current,
-                                        [project.id]: {
-                                          selected: true,
-                                          roleIds: [],
-                                        },
-                                      }))
-                                    }
-                                  >
-                                    Direct access
-                                  </button>
-                                  {accessRoles.map((role) => (
-                                    <label
-                                      className={
-                                        draft.roleIds.includes(role.id)
-                                          ? 'selected'
-                                          : ''
-                                      }
-                                      key={role.id}
-                                    >
-                                      <input
-                                        type="checkbox"
-                                        checked={draft.roleIds.includes(
-                                          role.id,
-                                        )}
-                                        onChange={() =>
-                                          toggleDraftProjectRole(
-                                            project.id,
-                                            role.id,
-                                          )
-                                        }
-                                      />
-                                      <span
-                                        className="custom-role-dot"
-                                        style={{
-                                          '--role-color': role.color,
-                                        }}
-                                      />
-                                      {role.name}
-                                    </label>
-                                  ))}
-                                </div>
-                              )}
                             </section>
                           )
                         })}
@@ -2923,7 +3653,11 @@ function WorkspaceMembers({
                         className="member-action-button subtle"
                         type="button"
                         disabled={savingProjectAccess}
-                        onClick={() => setAccessEditingMemberId(null)}
+                        onClick={() => {
+                          setAccessEditingMemberId(null)
+                          setProjectAccessDraft({})
+                          setMemberRoleDraft([])
+                        }}
                       >
                         Cancel
                       </button>
@@ -2938,6 +3672,7 @@ function WorkspaceMembers({
                           : 'Save project access'}
                       </button>
                     </div>
+                    </div>
                   </div>
                 )}
               </article>
@@ -2946,6 +3681,30 @@ function WorkspaceMembers({
       </div>
     </section>
   )
+}
+
+function formatTaskActivity(activity) {
+  const actor = activity.actorDisplayName
+  switch (activity.type) {
+    case 'CREATED':
+      return `${actor} created the task`
+    case 'EDITED':
+      return `${actor} edited the task`
+    case 'STATUS_CHANGED':
+      return `${actor} changed status from ${formatRole(activity.oldValue)} to ${formatRole(activity.newValue)}`
+    case 'CLAIMED':
+      return `${actor} took the task`
+    case 'RELEASED':
+      return `${actor} released the task`
+    case 'ASSIGNEE_CHANGED':
+      return activity.newValue
+        ? `${actor} assigned ${activity.newValue}`
+        : `${actor} removed ${activity.oldValue ?? 'the assignee'}`
+    case 'VISIBILITY_CHANGED':
+      return `${actor} changed visibility from ${formatRole(activity.oldValue)} to ${formatRole(activity.newValue)}`
+    default:
+      return `${actor} updated the task`
+  }
 }
 
 function formatTaskDate(createdAt, now = new Date()) {

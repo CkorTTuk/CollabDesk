@@ -26,12 +26,34 @@ public interface ProjectRepository
             where p.workspace.id = :workspaceId
               and (
                     :manager = true
-                    or p.visibility = collabdesk.project.entity.ProjectVisibility.WORKSPACE
+                    or p.createdBy.id = :userId
+                    or (
+                        not exists (
+                            select pm.id from ProjectMember pm
+                            where pm.project = p and pm.grantsAccess = true
+                        )
+                        and not exists (
+                            select par.id from ProjectAllowedRole par
+                            where par.project = p
+                        )
+                    )
                     or exists (
                         select pm.id
                         from ProjectMember pm
                         where pm.project = p
                           and pm.workspaceMember.user.id = :userId
+                          and pm.grantsAccess = true
+                    )
+                    or exists (
+                        select par.id
+                        from ProjectAllowedRole par
+                        where par.project = p
+                          and exists (
+                              select wmar.id
+                              from WorkspaceMemberAccessRole wmar
+                              where wmar.workspaceMember.id = :workspaceMemberId
+                                and wmar.role = par.role
+                          )
                     )
               )
             order by p.createdAt asc
@@ -39,6 +61,7 @@ public interface ProjectRepository
     List<Project> findAccessibleForWorkspace(
             @Param("workspaceId") Long workspaceId,
             @Param("userId") Long userId,
+            @Param("workspaceMemberId") Long workspaceMemberId,
             @Param("manager") boolean manager
     );
 }

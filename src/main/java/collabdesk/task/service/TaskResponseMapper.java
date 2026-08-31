@@ -29,6 +29,8 @@ public class TaskResponseMapper {
                 task.getStatus(),
                 task.getVisibility(),
                 task.getCreatedBy().getId(),
+                task.getCreatedBy().getDisplayName(),
+                task.getCreatedBy().getEmail(),
                 task.getCreatedAt(),
                 task.getUpdatedAt(),
                 assignment == null ? null : toAssigneeResponse(assignment),

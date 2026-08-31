@@ -87,14 +87,14 @@ class AccessRoleIntegrationTest {
                                 {
                                   "name": "Reviewer",
                                   "color": "#4f7dF3",
-                                  "permissions": ["CHANGE_TASK_STATUS"]
+                                  "permissions": ["EDIT_PROJECT"]
                                 }
                                 """)
         )
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.color").value("#4F7DF3"))
                 .andExpect(jsonPath("$.permissions[0]")
-                        .value("CHANGE_TASK_STATUS"))
+                        .value("EDIT_PROJECT"))
                 .andReturn());
 
         mockMvc.perform(
@@ -141,7 +141,7 @@ class AccessRoleIntegrationTest {
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.roles.length()").value(0))
                 .andExpect(jsonPath("$.effectivePermissions.length()")
-                        .value(5))
+                        .value(0))
                 .andReturn());
 
         String tasksUrl = WORKSPACES + "/" + workspaceId
@@ -160,7 +160,8 @@ class AccessRoleIntegrationTest {
         ).andExpect(status().isCreated());
 
         mockMvc.perform(
-                put(membersUrl + "/" + projectMemberId + "/roles")
+                put(WORKSPACES + "/" + workspaceId + "/members/"
+                        + workspaceMemberId + "/access-roles")
                         .session(owner)
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -171,9 +172,20 @@ class AccessRoleIntegrationTest {
                                 """.formatted(reviewerRoleId))
         )
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.roles[0].name").value("Reviewer"))
-                .andExpect(jsonPath("$.effectivePermissions.length()")
-                        .value(1));
+                .andExpect(jsonPath("$[0].name").value("Reviewer"));
+
+        mockMvc.perform(
+                put(WORKSPACES + "/" + workspaceId + "/projects/"
+                        + projectId + "/allowed-roles")
+                        .session(owner)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"roleIds": [%d]}
+                                """.formatted(reviewerRoleId))
+        )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].name").value("Reviewer"));
 
         mockMvc.perform(get(overviewUrl).session(owner))
                 .andExpect(status().isOk())
@@ -199,7 +211,7 @@ class AccessRoleIntegrationTest {
                                   "description": null
                                 }
                                 """)
-        ).andExpect(status().isForbidden());
+        ).andExpect(status().isCreated());
 
         Long taskId = idFrom(mockMvc.perform(
                 post(tasksUrl)
@@ -267,7 +279,17 @@ class AccessRoleIntegrationTest {
                         .content("""
                                 {"visibility": "ASSIGNEES"}
                                 """)
-        ).andExpect(status().isForbidden());
+        ).andExpect(status().isOk());
+
+        mockMvc.perform(
+                get(tasksUrl + "/" + taskId + "/activities")
+                        .session(member)
+        )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].type").value("VISIBILITY_CHANGED"))
+                .andExpect(jsonPath("$[1].type").value("STATUS_CHANGED"))
+                .andExpect(jsonPath("$[2].type").value("ASSIGNEE_CHANGED"))
+                .andExpect(jsonPath("$[3].type").value("CREATED"));
 
         mockMvc.perform(
                 delete(rolesUrl + "/" + reviewerRoleId)
@@ -276,7 +298,8 @@ class AccessRoleIntegrationTest {
         ).andExpect(status().isConflict());
 
         mockMvc.perform(
-                put(membersUrl + "/" + projectMemberId + "/roles")
+                put(WORKSPACES + "/" + workspaceId + "/members/"
+                        + workspaceMemberId + "/access-roles")
                         .session(owner)
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -285,9 +308,18 @@ class AccessRoleIntegrationTest {
                                 """)
         )
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.roles.length()").value(0))
-                .andExpect(jsonPath("$.effectivePermissions.length()")
-                        .value(5));
+                .andExpect(jsonPath("$.length()").value(0));
+
+        mockMvc.perform(
+                put(WORKSPACES + "/" + workspaceId + "/projects/"
+                        + projectId + "/allowed-roles")
+                        .session(owner)
+                        .with(csrf())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"roleIds": []}
+                                """)
+        ).andExpect(status().isOk());
 
         mockMvc.perform(
                 delete(rolesUrl + "/" + reviewerRoleId)

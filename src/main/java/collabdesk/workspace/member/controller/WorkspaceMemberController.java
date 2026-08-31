@@ -6,6 +6,9 @@ import collabdesk.workspace.member.dto.AddWorkspaceMemberRequest;
 import collabdesk.workspace.member.dto.UpdateWorkspaceMemberRoleRequest;
 import collabdesk.workspace.member.dto.WorkspaceMemberResponse;
 import collabdesk.workspace.member.service.WorkspaceMemberService;
+import collabdesk.project.role.dto.AccessRoleSummaryResponse;
+import collabdesk.project.role.dto.ReplaceProjectMemberRolesRequest;
+import collabdesk.project.role.service.WorkspaceMemberAccessRoleService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -22,6 +25,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -40,11 +44,14 @@ import java.util.List;
 public class WorkspaceMemberController {
 
     private final WorkspaceMemberService workspaceMemberService;
+    private final WorkspaceMemberAccessRoleService memberAccessRoleService;
 
     public WorkspaceMemberController(
-            WorkspaceMemberService workspaceMemberService
+            WorkspaceMemberService workspaceMemberService,
+            WorkspaceMemberAccessRoleService memberAccessRoleService
     ) {
         this.workspaceMemberService = workspaceMemberService;
+        this.memberAccessRoleService = memberAccessRoleService;
     }
 
     @GetMapping
@@ -79,7 +86,7 @@ public class WorkspaceMemberController {
             summary = "Add a workspace member",
             description = """
                     Adds an existing active CollabDesk account by email.
-                    Requires the OWNER workspace role.
+                    Requires the OWNER or ADMIN workspace role.
                     """
     )
     @Parameter(ref = "#/components/parameters/csrfToken")
@@ -95,7 +102,7 @@ public class WorkspaceMemberController {
             @ApiResponse(responseCode = "401", description = "Authentication required"),
             @ApiResponse(
                     responseCode = "403",
-                    description = "OWNER role required",
+                    description = "OWNER or ADMIN role required",
                     content = @Content(schema = @Schema(
                             implementation = ApiProblemResponse.class
                     ))
@@ -131,7 +138,7 @@ public class WorkspaceMemberController {
     @PatchMapping("/{memberId}/role")
     @Operation(
             summary = "Change a workspace member role",
-            description = "Changes a non-owner member role. Requires OWNER."
+            description = "Changes a non-owner member role. Requires OWNER or ADMIN."
     )
     @Parameter(ref = "#/components/parameters/csrfToken")
     @ApiResponses({
@@ -146,7 +153,7 @@ public class WorkspaceMemberController {
             @ApiResponse(responseCode = "401", description = "Authentication required"),
             @ApiResponse(
                     responseCode = "403",
-                    description = "OWNER role required",
+                    description = "OWNER or ADMIN role required",
                     content = @Content(schema = @Schema(
                             implementation = ApiProblemResponse.class
                     ))
@@ -180,6 +187,23 @@ public class WorkspaceMemberController {
         );
     }
 
+    @PutMapping("/{memberId}/access-roles")
+    @Operation(summary = "Replace a workspace member's custom access roles")
+    @Parameter(ref = "#/components/parameters/csrfToken")
+    public List<AccessRoleSummaryResponse> replaceAccessRoles(
+            @PathVariable Long workspaceId,
+            @PathVariable Long memberId,
+            @Valid @RequestBody ReplaceProjectMemberRolesRequest request,
+            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+    ) {
+        return memberAccessRoleService.replace(
+                workspaceId,
+                memberId,
+                principal.getUserId(),
+                request.roleIds()
+        );
+    }
+
     @DeleteMapping("/{memberId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @Operation(
@@ -192,7 +216,7 @@ public class WorkspaceMemberController {
             @ApiResponse(responseCode = "401", description = "Authentication required"),
             @ApiResponse(
                     responseCode = "403",
-                    description = "OWNER role required",
+                    description = "OWNER or ADMIN role required",
                     content = @Content(schema = @Schema(
                             implementation = ApiProblemResponse.class
                     ))

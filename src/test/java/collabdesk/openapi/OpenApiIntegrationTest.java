@@ -105,13 +105,6 @@ class OpenApiIntegrationTest {
                         "$.components.schemas.TaskAssigneeResponse"
                 ).exists())
                 .andExpect(jsonPath(
-                        "$.components.schemas.UpdateProjectVisibilityRequest"
-                ).exists())
-                .andExpect(jsonPath(
-                        "$.components.schemas.UpdateProjectVisibilityRequest"
-                                + ".properties.visibility.enum.length()"
-                ).value(2))
-                .andExpect(jsonPath(
                         "$.components.schemas.UpdateTaskVisibilityRequest"
                 ).exists())
                 .andExpect(jsonPath(
@@ -189,10 +182,19 @@ class OpenApiIntegrationTest {
                         "$.paths['/api/v1/workspaces/{workspaceId}/projects/{projectId}/tasks/{taskId}/assignee'].put"
                 ).exists())
                 .andExpect(jsonPath(
-                        "$.paths['/api/v1/workspaces/{workspaceId}/projects/{projectId}/visibility'].patch"
+                        "$.paths['/api/v1/workspaces/{workspaceId}/projects/{projectId}/tasks/{taskId}/visibility'].patch"
                 ).exists())
                 .andExpect(jsonPath(
-                        "$.paths['/api/v1/workspaces/{workspaceId}/projects/{projectId}/tasks/{taskId}/visibility'].patch"
+                        "$.paths['/api/v1/workspaces/{workspaceId}/projects/{projectId}/allowed-roles'].put"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/workspaces/{workspaceId}/members/{memberId}/access-roles'].put"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/workspaces/{workspaceId}/projects/{projectId}/tasks/{taskId}/claim'].put"
+                ).exists())
+                .andExpect(jsonPath(
+                        "$.paths['/api/v1/workspaces/{workspaceId}/projects/{projectId}/tasks/{taskId}/activities'].get"
                 ).exists())
                 .andExpect(jsonPath("$.paths['/csrf'].get").exists());
     }

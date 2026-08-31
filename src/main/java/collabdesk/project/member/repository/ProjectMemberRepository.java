@@ -29,6 +29,11 @@ public interface ProjectMemberRepository
             Long projectId
     );
 
+    Optional<ProjectMember> findByProject_IdAndWorkspaceMember_Id(
+            Long projectId,
+            Long workspaceMemberId
+    );
+
     boolean existsByProject_IdAndWorkspaceMember_Id(
             Long projectId,
             Long workspaceMemberId
@@ -40,6 +45,13 @@ public interface ProjectMemberRepository
             Collection<Long> ids
     );
     boolean existsByProject_IdAndWorkspaceMember_User_Id(
+            Long projectId,
+            Long userId
+    );
+
+    boolean existsByProject_IdAndGrantsAccessTrue(Long projectId);
+
+    boolean existsByProject_IdAndWorkspaceMember_User_IdAndGrantsAccessTrue(
             Long projectId,
             Long userId
     );

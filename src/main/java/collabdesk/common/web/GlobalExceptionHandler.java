@@ -7,6 +7,7 @@ import collabdesk.project.member.service.ProjectMemberAlreadyExistsException;
 import collabdesk.project.member.service.ProjectMemberNotFoundException;
 import collabdesk.task.service.TaskNotFoundException;
 import collabdesk.task.service.TaskVisibilityConflictException;
+import collabdesk.task.assignee.service.TaskClaimConflictException;
 import collabdesk.workspace.service.exceptions.*;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -19,6 +20,15 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler{
+    @ExceptionHandler(TaskClaimConflictException.class)
+    public ProblemDetail handleTaskClaimConflict(TaskClaimConflictException ex) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT,
+                ex.getMessage()
+        );
+        problem.setTitle("Task claim conflict");
+        return problem;
+    }
     @ExceptionHandler(AccessRoleNotFoundException.class)
     public ProblemDetail handleAccessRoleNotFound(
             AccessRoleNotFoundException ex

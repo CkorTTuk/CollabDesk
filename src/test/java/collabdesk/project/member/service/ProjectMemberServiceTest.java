@@ -6,6 +6,9 @@ import collabdesk.project.member.entity.ProjectMember;
 import collabdesk.project.member.repository.ProjectMemberRepository;
 import collabdesk.project.role.service.ProjectMemberRoleService;
 import collabdesk.project.role.service.ProjectMemberRoleSnapshot;
+import collabdesk.project.role.service.WorkspaceMemberAccessRoleService;
+import collabdesk.project.role.service.ProjectAllowedRoleService;
+import collabdesk.project.role.service.ProjectPermissionService;
 import collabdesk.project.service.AccessibleProject;
 import collabdesk.project.service.ProjectAccessService;
 import collabdesk.user.entity.User;
@@ -48,6 +51,10 @@ class ProjectMemberServiceTest {
     @Mock
     private ProjectMemberRoleService projectMemberRoleService;
 
+    @Mock private WorkspaceMemberAccessRoleService memberAccessRoleService;
+    @Mock private ProjectAllowedRoleService projectAllowedRoleService;
+    @Mock private ProjectPermissionService projectPermissionService;
+
     @Mock
     private WorkspaceProjectAccessChangePublisher accessChangePublisher;
 
@@ -64,7 +71,9 @@ class ProjectMemberServiceTest {
                 workspaceMemberRepository,
                 projectAccessService,
                 workspaceAccessService,
-                projectMemberRoleService,
+                memberAccessRoleService,
+                projectAllowedRoleService,
+                projectPermissionService,
                 accessChangePublisher
         );
 
@@ -78,6 +87,12 @@ class ProjectMemberServiceTest {
         ReflectionTestUtils.setField(memberMembership, "id", 21L);
         project = new Project(workspace, "Project", null, owner);
         ReflectionTestUtils.setField(project, "id", 30L);
+        org.mockito.Mockito.lenient()
+                .when(memberAccessRoleService.findForMember(any()))
+                .thenReturn(java.util.List.of());
+        org.mockito.Mockito.lenient()
+                .when(projectPermissionService.findForMember(any(), any()))
+                .thenReturn(Set.of());
     }
 
     @Test
@@ -92,9 +107,6 @@ class ProjectMemberServiceTest {
                     ReflectionTestUtils.setField(saved, "id", 40L);
                     return saved;
                 });
-        when(projectMemberRoleService.loadFor(Set.of(40L)))
-                .thenReturn(emptySnapshot());
-
         service.add(11L, 30L, 7L, 21L, Set.of());
 
         verify(accessChangePublisher).publish(11L);
@@ -105,16 +117,14 @@ class ProjectMemberServiceTest {
         ProjectMember projectMember = projectMember(40L);
         when(projectMemberRepository.findByIdAndProject_Id(40L, 30L))
                 .thenReturn(Optional.of(projectMember));
-        when(projectMemberRoleService.loadFor(Set.of(40L)))
-                .thenReturn(emptySnapshot());
-
         service.replaceRoles(11L, 30L, 40L, 7L, Set.of(50L));
 
-        verify(projectMemberRoleService).replace(
-                projectMember,
+        verify(memberAccessRoleService).replaceValidated(
                 11L,
+                memberMembership,
                 Set.of(50L)
         );
+        verify(projectAllowedRoleService).addAllowed(11L, project, Set.of(50L));
         verify(accessChangePublisher).publish(11L);
     }
 

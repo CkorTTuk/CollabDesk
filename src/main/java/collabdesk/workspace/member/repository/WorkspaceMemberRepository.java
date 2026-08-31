@@ -4,6 +4,7 @@ import collabdesk.workspace.member.entity.WorkspaceMember;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
+import java.util.Collection;
 import java.util.Optional;
 
 public interface WorkspaceMemberRepository extends JpaRepository<WorkspaceMember, Long> {
@@ -21,6 +22,11 @@ public interface WorkspaceMemberRepository extends JpaRepository<WorkspaceMember
     Optional<WorkspaceMember> findByWorkspace_IdAndUser_Id(
             Long workspace_Id,
             Long userId
+    );
+
+    List<WorkspaceMember> findAllByWorkspace_IdAndIdIn(
+            Long workspaceId,
+            Collection<Long> ids
     );
 
     boolean existsByWorkspace_IdAndUser_Id(

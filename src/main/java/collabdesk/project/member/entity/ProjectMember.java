@@ -37,7 +37,18 @@ public class ProjectMember {
     @Column(name = "joined_at", nullable = false)
     private Instant joinedAt;
 
+    @Column(name = "grants_access", nullable = false)
+    private boolean grantsAccess;
+
     public ProjectMember(Project project, WorkspaceMember workspaceMember) {
+        this(project, workspaceMember, true);
+    }
+
+    public ProjectMember(
+            Project project,
+            WorkspaceMember workspaceMember,
+            boolean grantsAccess
+    ) {
         this.project = Objects.requireNonNull(project, "Project cannot be null");
         this.workspaceMember = Objects.requireNonNull(
                 workspaceMember,
@@ -55,5 +66,11 @@ public class ProjectMember {
         }
 
         this.joinedAt = Instant.now();
+        this.grantsAccess = grantsAccess;
     }
+
+    public void grantAccess() {
+        this.grantsAccess = true;
+    }
+
 }

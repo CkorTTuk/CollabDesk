@@ -2,32 +2,28 @@ package collabdesk.project.role.service;
 
 import collabdesk.project.role.entity.ProjectPermission;
 import collabdesk.project.service.AccessibleProject;
-import collabdesk.project.member.entity.ProjectMember;
-import collabdesk.project.member.repository.ProjectMemberRepository;
+import collabdesk.project.role.repository.ProjectAllowedRoleRepository;
 import collabdesk.task.service.AccessibleTask;
+import collabdesk.workspace.member.entity.WorkspaceMember;
 import collabdesk.workspace.entity.WorkspaceRole;
 import collabdesk.workspace.service.exceptions.WorkspaceOperationForbiddenException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.EnumSet;
 import java.util.Set;
 
 @Service
 public class ProjectPermissionService {
 
     public static final Set<ProjectPermission> BASE_MEMBER_PERMISSIONS =
-            Set.copyOf(EnumSet.allOf(ProjectPermission.class));
+            Set.of();
 
-    private final ProjectMemberRepository projectMemberRepository;
-    private final ProjectMemberRoleService projectMemberRoleService;
+    private final ProjectAllowedRoleRepository projectAllowedRoleRepository;
 
     public ProjectPermissionService(
-            ProjectMemberRepository projectMemberRepository,
-            ProjectMemberRoleService projectMemberRoleService
+            ProjectAllowedRoleRepository projectAllowedRoleRepository
     ) {
-        this.projectMemberRepository = projectMemberRepository;
-        this.projectMemberRoleService = projectMemberRoleService;
+        this.projectAllowedRoleRepository = projectAllowedRoleRepository;
     }
 
     @Transactional(readOnly = true)
@@ -63,31 +59,16 @@ public class ProjectPermissionService {
         WorkspaceRole workspaceRole = access.membership().getRole();
         if (workspaceRole == WorkspaceRole.OWNER
                 || workspaceRole == WorkspaceRole.ADMIN) {
-            return Set.copyOf(EnumSet.allOf(ProjectPermission.class));
+            return Set.of(ProjectPermission.EDIT_PROJECT);
         }
         if (workspaceRole == WorkspaceRole.VIEWER) {
             return Set.of();
         }
 
-        ProjectMember projectMember = projectMemberRepository
-                .findByProject_IdAndWorkspaceMember_User_Id(
-                        access.project().getId(),
-                        currentUserId
-                )
-                .orElse(null);
-        if (projectMember == null) {
-            return Set.of();
-        }
-
-        ProjectMemberRoleSnapshot snapshot =
-                projectMemberRoleService.loadFor(Set.of(projectMember.getId()));
-        if (!snapshot.membersWithCustomRoles().contains(projectMember.getId())) {
-            return BASE_MEMBER_PERMISSIONS;
-        }
-        return snapshot.permissions().getOrDefault(
-                projectMember.getId(),
-                Set.of()
-        );
+        return projectAllowedRoleRepository.canEditProject(
+                access.project().getId(),
+                access.membership().getId()
+        ) ? Set.of(ProjectPermission.EDIT_PROJECT) : Set.of();
     }
 
     @Transactional(readOnly = true)
@@ -102,10 +83,25 @@ public class ProjectPermissionService {
     }
 
     @Transactional(readOnly = true)
+    public Set<ProjectPermission> findForMember(
+            Long projectId,
+            WorkspaceMember member
+    ) {
+        if (member.getRole() == WorkspaceRole.OWNER
+                || member.getRole() == WorkspaceRole.ADMIN) {
+            return Set.of(ProjectPermission.EDIT_PROJECT);
+        }
+        if (member.getRole() == WorkspaceRole.VIEWER) {
+            return Set.of();
+        }
+        return projectAllowedRoleRepository.canEditProject(projectId, member.getId())
+                ? Set.of(ProjectPermission.EDIT_PROJECT)
+                : Set.of();
+    }
+
+    @Transactional(readOnly = true)
     public boolean usesDefaultPermissions(Long projectMemberId) {
-        return !projectMemberRoleService.loadFor(Set.of(projectMemberId))
-                .membersWithCustomRoles()
-                .contains(projectMemberId);
+        return false;
     }
 
     private void require(

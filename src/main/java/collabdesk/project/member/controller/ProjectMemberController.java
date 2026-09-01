@@ -1,6 +1,6 @@
 package collabdesk.project.member.controller;
 
-import collabdesk.auth.security.AuthenticatedUserPrincipal;
+import collabdesk.auth.security.CollabDeskPrincipal;
 import collabdesk.project.role.dto.ReplaceProjectMemberRolesRequest;
 import collabdesk.openapi.ApiProblemResponse;
 import collabdesk.project.member.dto.AddProjectMemberRequest;
@@ -54,7 +54,7 @@ public class ProjectMemberController {
     public List<ProjectMemberResponse> findAll(
             @PathVariable Long workspaceId,
             @PathVariable Long projectId,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
     ) {
         return projectMemberService.findAll(
                 workspaceId,
@@ -82,7 +82,7 @@ public class ProjectMemberController {
             @PathVariable Long workspaceId,
             @PathVariable Long projectId,
             @Valid @RequestBody AddProjectMemberRequest request,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
     ) {
         return projectMemberService.add(
                 workspaceId,
@@ -111,7 +111,7 @@ public class ProjectMemberController {
             @PathVariable Long projectId,
             @PathVariable Long projectMemberId,
             @Valid @RequestBody ReplaceProjectMemberRolesRequest request,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
     ) {
         return projectMemberService.replaceRoles(
                 workspaceId,
@@ -139,7 +139,7 @@ public class ProjectMemberController {
             @PathVariable Long workspaceId,
             @PathVariable Long projectId,
             @PathVariable Long projectMemberId,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
     ) {
         projectMemberService.remove(
                 workspaceId,

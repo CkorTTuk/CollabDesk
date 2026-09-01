@@ -4,7 +4,7 @@ import collabdesk.auth.dto.CurrentUserResponse;
 import collabdesk.auth.dto.RegisterRequest;
 import collabdesk.auth.dto.RegisterResponse;
 import collabdesk.auth.registration.RegistrationService;
-import collabdesk.auth.security.AuthenticatedUserPrincipal;
+import collabdesk.auth.security.CollabDeskPrincipal;
 import collabdesk.openapi.ApiProblemResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -74,7 +74,7 @@ public class AuthController {
             @ApiResponse(responseCode = "401", description = "Authentication required")
     })
     public CurrentUserResponse currentUser(
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
     ) {
         return CurrentUserResponse.from(principal);
     }

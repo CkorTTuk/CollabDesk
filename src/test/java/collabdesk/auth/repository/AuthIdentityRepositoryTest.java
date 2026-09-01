@@ -83,6 +83,59 @@ class AuthIdentityRepositoryTest {
     }
 
     @Test
+    void savesGoogleIdentityWithoutPasswordAndLoadsItsUserEagerly() {
+        User savedUser = saveUser("google@example.com");
+        authIdentityRepository.saveAndFlush(
+                AuthIdentity.google(savedUser, "stable-google-subject")
+        );
+        Long userId = savedUser.getId();
+
+        entityManager.clear();
+
+        AuthIdentity identity = authIdentityRepository
+                .findWithUserByProviderAndProviderSubject(
+                        AuthProvider.GOOGLE,
+                        "stable-google-subject"
+                )
+                .orElseThrow();
+
+        assertAll(
+                () -> assertEquals(AuthProvider.GOOGLE, identity.getProvider()),
+                () -> assertNull(identity.getPasswordHash()),
+                () -> assertEquals(userId, identity.getUser().getId()),
+                () -> assertTrue(entityManager.getEntityManagerFactory()
+                        .getPersistenceUnitUtil()
+                        .isLoaded(identity, "user")),
+                () -> assertTrue(authIdentityRepository.existsByUser_IdAndProvider(
+                        userId,
+                        AuthProvider.GOOGLE
+                ))
+        );
+    }
+
+    @Test
+    void allowsLocalAndGoogleIdentityForTheSameUser() {
+        User savedUser = saveUser("both@example.com");
+        saveLocalIdentity(savedUser, savedUser.getEmail());
+        authIdentityRepository.saveAndFlush(
+                AuthIdentity.google(savedUser, "google-subject-for-same-user")
+        );
+
+        assertAll(
+                () -> assertTrue(authIdentityRepository
+                        .existsByProviderAndProviderSubject(
+                                AuthProvider.LOCAL,
+                                savedUser.getEmail()
+                        )),
+                () -> assertTrue(authIdentityRepository
+                        .existsByProviderAndProviderSubject(
+                                AuthProvider.GOOGLE,
+                                "google-subject-for-same-user"
+                        ))
+        );
+    }
+
+    @Test
     void returnsEmptyWhenProviderAndSubjectDoNotExist() {
         assertTrue(
                 authIdentityRepository

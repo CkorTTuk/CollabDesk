@@ -1,6 +1,6 @@
 package collabdesk.task.controller;
 
-import collabdesk.auth.security.AuthenticatedUserPrincipal;
+import collabdesk.auth.security.CollabDeskPrincipal;
 import collabdesk.openapi.ApiProblemResponse;
 import collabdesk.task.dto.CreateTaskRequest;
 import collabdesk.task.dto.TaskResponse;
@@ -97,7 +97,7 @@ public class TaskController {
             @PathVariable Long workspaceId,
             @PathVariable Long projectId,
             @Valid @RequestBody CreateTaskRequest request,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
     ) {
         return taskService.create(
                 workspaceId,
@@ -127,7 +127,7 @@ public class TaskController {
     public List<TaskResponse> findAll(
             @PathVariable Long workspaceId,
             @PathVariable Long projectId,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
     ) {
         return taskService.findForProject(
                 workspaceId,
@@ -153,7 +153,7 @@ public class TaskController {
             @PathVariable Long projectId,
             @PathVariable Long taskId,
             @Valid @RequestBody UpdateTaskRequest request,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
     ) {
         return taskService.edit(
                 workspaceId,
@@ -201,7 +201,7 @@ public class TaskController {
             @PathVariable Long projectId,
             @PathVariable Long taskId,
             @Valid @RequestBody UpdateTaskStatusRequest request,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
     ) {
         return taskService.changeStatus(
                 workspaceId,
@@ -230,7 +230,7 @@ public class TaskController {
             @PathVariable Long projectId,
             @PathVariable Long taskId,
             @Valid @RequestBody UpdateTaskAssigneeRequest request,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
     ) {
         return taskAssigneeService.assign(
                 workspaceId,
@@ -248,7 +248,7 @@ public class TaskController {
             @PathVariable Long workspaceId,
             @PathVariable Long projectId,
             @PathVariable Long taskId,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
     ) {
         return taskAssigneeService.claim(
                 workspaceId,
@@ -265,7 +265,7 @@ public class TaskController {
             @PathVariable Long workspaceId,
             @PathVariable Long projectId,
             @PathVariable Long taskId,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
     ) {
         return taskAssigneeService.release(
                 workspaceId,
@@ -281,7 +281,7 @@ public class TaskController {
             @PathVariable Long workspaceId,
             @PathVariable Long projectId,
             @PathVariable Long taskId,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
     ) {
         return taskActivityService.findForTask(
                 workspaceId,
@@ -316,7 +316,7 @@ public class TaskController {
             @PathVariable Long projectId,
             @PathVariable Long taskId,
             @Valid @RequestBody UpdateTaskVisibilityRequest request,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
     ) {
         return taskService.changeVisibility(
                 workspaceId,

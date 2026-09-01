@@ -32,6 +32,10 @@
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-security-oauth2-client</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-cache</artifactId>
         </dependency>
         <dependency>
@@ -181,6 +185,11 @@
                 <artifactId>maven-surefire-plugin</artifactId>
                 <configuration>
                     <argLine>-Xshare:off -javaagent:${settings.localRepository}/org/mockito/mockito-core/${mockito.version}/mockito-core-${mockito.version}.jar</argLine>
+                    <systemPropertyVariables>
+                        <GOOGLE_CLIENT_ID>test-google-client-id</GOOGLE_CLIENT_ID>
+                        <GOOGLE_CLIENT_SECRET>test-google-client-secret</GOOGLE_CLIENT_SECRET>
+                        <APP_FRONTEND_URL>http://localhost:5173</APP_FRONTEND_URL>
+                    </systemPropertyVariables>
                 </configuration>
             </plugin>
         </plugins>

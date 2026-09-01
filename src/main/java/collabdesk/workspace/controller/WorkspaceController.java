@@ -1,6 +1,6 @@
 package collabdesk.workspace.controller;
 
-import collabdesk.auth.security.AuthenticatedUserPrincipal;
+import collabdesk.auth.security.CollabDeskPrincipal;
 import collabdesk.openapi.ApiProblemResponse;
 import collabdesk.workspace.dto.CreateWorkspaceRequest;
 import collabdesk.workspace.dto.WorkspaceResponse;
@@ -53,7 +53,7 @@ public class WorkspaceController {
     })
     public WorkspaceResponse create(
             @Valid @RequestBody CreateWorkspaceRequest createWorkspaceRequest,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
             ){
         return workspaceService.create(
                 principal.getUserId(),
@@ -70,7 +70,7 @@ public class WorkspaceController {
             @ApiResponse(responseCode = "200", description = "Workspace list"),
             @ApiResponse(responseCode = "401", description = "Authentication required")
     })
-    public List<WorkspaceResponse> findCurrentUserWorkspaces(@AuthenticationPrincipal AuthenticatedUserPrincipal principal){
+    public List<WorkspaceResponse> findCurrentUserWorkspaces(@AuthenticationPrincipal CollabDeskPrincipal principal){
         return workspaceService.findForUser(principal.getUserId());
     }
 }

@@ -11,7 +11,7 @@ import java.util.Collection;
 import java.util.List;
 
 public final class AuthenticatedUserPrincipal
-        implements UserDetails, CredentialsContainer {
+        implements UserDetails, CredentialsContainer, CollabDeskPrincipal {
     @Getter
     private final Long userId;
     @Getter

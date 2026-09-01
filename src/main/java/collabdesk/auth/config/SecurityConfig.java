@@ -1,6 +1,8 @@
 package collabdesk.auth.config;
 
+import collabdesk.auth.google.CollabDeskOidcUserService;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -10,7 +12,15 @@ import org.springframework.security.web.SecurityFilterChain;
 @Configuration
 public class SecurityConfig {
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public SecurityFilterChain securityFilterChain(
+            HttpSecurity http,
+            CollabDeskOidcUserService oidcUserService,
+            @Value("${app.frontend-url}") String configuredFrontendUrl
+    ) throws Exception {
+        String frontendUrl = configuredFrontendUrl.endsWith("/")
+                ? configuredFrontendUrl.substring(0, configuredFrontendUrl.length() - 1)
+                : configuredFrontendUrl;
+
         http
                 .authorizeHttpRequests(authorize ->
                         authorize
@@ -22,6 +32,12 @@ public class SecurityConfig {
                                 .requestMatchers(
                                         HttpMethod.GET,
                                         "/csrf"
+                                ).permitAll()
+
+                                .requestMatchers(
+                                        HttpMethod.GET,
+                                        "/oauth2/**",
+                                        "/login/oauth2/**"
                                 ).permitAll()
 
                                 .requestMatchers(
@@ -69,6 +85,19 @@ public class SecurityConfig {
                                 .failureHandler((request, response, exception) -> {
                                     response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                                 }).permitAll()
+                )
+
+                .oauth2Login(oauth2 ->
+                        oauth2
+                                .userInfoEndpoint(userInfo ->
+                                        userInfo.oidcUserService(oidcUserService)
+                                )
+                                .successHandler((request, response, authentication) ->
+                                        response.sendRedirect(frontendUrl)
+                                )
+                                .failureHandler((request, response, exception) ->
+                                        response.sendRedirect(frontendUrl + "/?oauth=failed")
+                                )
                 )
 
 

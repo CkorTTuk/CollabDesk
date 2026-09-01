@@ -1,6 +1,6 @@
 package collabdesk.project.role.controller;
 
-import collabdesk.auth.security.AuthenticatedUserPrincipal;
+import collabdesk.auth.security.CollabDeskPrincipal;
 import collabdesk.project.role.dto.AccessRoleSummaryResponse;
 import collabdesk.project.role.dto.ReplaceProjectMemberRolesRequest;
 import collabdesk.project.role.service.ProjectAllowedRoleService;
@@ -33,7 +33,7 @@ public class ProjectAllowedRoleController {
     public List<AccessRoleSummaryResponse> findAll(
             @PathVariable Long workspaceId,
             @PathVariable Long projectId,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
     ) {
         return service.findAll(workspaceId, projectId, principal.getUserId());
     }
@@ -45,7 +45,7 @@ public class ProjectAllowedRoleController {
             @PathVariable Long workspaceId,
             @PathVariable Long projectId,
             @Valid @RequestBody ReplaceProjectMemberRolesRequest request,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
     ) {
         return service.replace(
                 workspaceId,

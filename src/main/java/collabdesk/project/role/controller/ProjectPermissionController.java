@@ -2,7 +2,7 @@ package collabdesk.project.role.controller;
 
 import collabdesk.project.role.dto.EffectivePermissionsResponse;
 import collabdesk.project.role.service.ProjectPermissionService;
-import collabdesk.auth.security.AuthenticatedUserPrincipal;
+import collabdesk.auth.security.CollabDeskPrincipal;
 import collabdesk.project.service.AccessibleProject;
 import collabdesk.project.service.ProjectAccessService;
 import collabdesk.project.member.repository.ProjectMemberRepository;
@@ -40,7 +40,7 @@ public class ProjectPermissionController {
     public EffectivePermissionsResponse findCurrent(
             @PathVariable Long workspaceId,
             @PathVariable Long projectId,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
     ) {
         AccessibleProject access = projectAccessService.requireAccessibleProject(
                 workspaceId,

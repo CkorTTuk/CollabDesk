@@ -2,7 +2,7 @@ package collabdesk.project.role.controller;
 
 import collabdesk.project.role.dto.*;
 import collabdesk.project.role.service.AccessRoleService;
-import collabdesk.auth.security.AuthenticatedUserPrincipal;
+import collabdesk.auth.security.CollabDeskPrincipal;
 import collabdesk.openapi.ApiProblemResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -35,7 +35,7 @@ public class AccessRoleController {
     @Operation(summary = "List custom workspace roles")
     public List<AccessRoleResponse> findAll(
             @PathVariable Long workspaceId,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
     ) {
         return accessRoleService.findAll(workspaceId, principal.getUserId());
     }
@@ -59,7 +59,7 @@ public class AccessRoleController {
     public AccessRoleResponse create(
             @PathVariable Long workspaceId,
             @Valid @RequestBody CreateAccessRoleRequest request,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
     ) {
         return accessRoleService.create(
                 workspaceId,
@@ -75,7 +75,7 @@ public class AccessRoleController {
             @PathVariable Long workspaceId,
             @PathVariable Long roleId,
             @Valid @RequestBody UpdateAccessRoleRequest request,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
     ) {
         return accessRoleService.update(
                 workspaceId,
@@ -103,7 +103,7 @@ public class AccessRoleController {
     public void delete(
             @PathVariable Long workspaceId,
             @PathVariable Long roleId,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
     ) {
         accessRoleService.delete(
                 workspaceId,

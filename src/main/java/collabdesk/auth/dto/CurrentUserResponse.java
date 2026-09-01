@@ -1,6 +1,6 @@
 package collabdesk.auth.dto;
 
-import collabdesk.auth.security.AuthenticatedUserPrincipal;
+import collabdesk.auth.security.CollabDeskPrincipal;
 import collabdesk.user.entity.UserStatus;
 import io.swagger.v3.oas.annotations.media.Schema;
 
@@ -12,11 +12,11 @@ public record CurrentUserResponse(
         UserStatus status
 ) {
     public static CurrentUserResponse from(
-            AuthenticatedUserPrincipal principal
+            CollabDeskPrincipal principal
     ) {
         return new CurrentUserResponse(
                 principal.getUserId(),
-                principal.getUsername(),
+                principal.getEmail(),
                 principal.getDisplayName(),
                 principal.getStatus()
         );

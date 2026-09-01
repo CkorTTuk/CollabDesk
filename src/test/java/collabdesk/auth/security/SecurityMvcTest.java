@@ -1,6 +1,7 @@
 package collabdesk.auth.security;
 
 import collabdesk.auth.config.SecurityConfig;
+import collabdesk.auth.google.CollabDeskOidcUserService;
 import collabdesk.auth.registration.RegistrationResult;
 import collabdesk.auth.registration.RegistrationService;
 import collabdesk.auth.controller.AuthController;
@@ -12,6 +13,8 @@ import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.oauth2.client.registration.ClientRegistrationRepository;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
@@ -19,6 +22,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.authentication;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -46,6 +50,12 @@ class SecurityMvcTest {
 
     @MockitoBean
     private LocalUserDetailsService localUserDetailsService;
+
+    @MockitoBean
+    private CollabDeskOidcUserService oidcUserService;
+
+    @MockitoBean
+    private ClientRegistrationRepository clientRegistrationRepository;
 
     @MockitoBean
     private PasswordEncoder passwordEncoder;
@@ -116,5 +126,41 @@ class SecurityMvcTest {
                 .andExpect(status().isUnauthorized());
 
         verifyNoInteractions(registrationService);
+    }
+
+    @Test
+    void currentUserAcceptsThePrincipalSharedByLocalAndGoogleLogin() throws Exception {
+        CollabDeskPrincipal principal = new CollabDeskPrincipal() {
+            @Override
+            public Long getUserId() {
+                return 91L;
+            }
+
+            @Override
+            public String getEmail() {
+                return "google@example.com";
+            }
+
+            @Override
+            public String getDisplayName() {
+                return "Google User";
+            }
+
+            @Override
+            public UserStatus getStatus() {
+                return UserStatus.ACTIVE;
+            }
+        };
+        var authToken = UsernamePasswordAuthenticationToken.authenticated(
+                principal,
+                null,
+                java.util.List.of()
+        );
+
+        mockMvc.perform(get("/api/v1/auth/me").with(authentication(authToken)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(91))
+                .andExpect(jsonPath("$.email").value("google@example.com"))
+                .andExpect(jsonPath("$.displayName").value("Google User"));
     }
 }

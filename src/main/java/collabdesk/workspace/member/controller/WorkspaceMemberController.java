@@ -1,6 +1,6 @@
 package collabdesk.workspace.member.controller;
 
-import collabdesk.auth.security.AuthenticatedUserPrincipal;
+import collabdesk.auth.security.CollabDeskPrincipal;
 import collabdesk.openapi.ApiProblemResponse;
 import collabdesk.workspace.member.dto.AddWorkspaceMemberRequest;
 import collabdesk.workspace.member.dto.UpdateWorkspaceMemberRoleRequest;
@@ -72,7 +72,7 @@ public class WorkspaceMemberController {
     })
     public List<WorkspaceMemberResponse> findAll(
             @PathVariable Long workspaceId,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
     ) {
         return workspaceMemberService.findForWorkspace(
                 workspaceId,
@@ -125,7 +125,7 @@ public class WorkspaceMemberController {
     public WorkspaceMemberResponse add(
             @PathVariable Long workspaceId,
             @Valid @RequestBody AddWorkspaceMemberRequest request,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
     ) {
         return workspaceMemberService.add(
                 workspaceId,
@@ -177,7 +177,7 @@ public class WorkspaceMemberController {
             @PathVariable Long workspaceId,
             @PathVariable Long memberId,
             @Valid @RequestBody UpdateWorkspaceMemberRoleRequest request,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
     ) {
         return workspaceMemberService.changeRole(
                 workspaceId,
@@ -194,7 +194,7 @@ public class WorkspaceMemberController {
             @PathVariable Long workspaceId,
             @PathVariable Long memberId,
             @Valid @RequestBody ReplaceProjectMemberRolesRequest request,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
     ) {
         return memberAccessRoleService.replace(
                 workspaceId,
@@ -239,7 +239,7 @@ public class WorkspaceMemberController {
     public void remove(
             @PathVariable Long workspaceId,
             @PathVariable Long memberId,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
     ) {
         workspaceMemberService.remove(
                 workspaceId,

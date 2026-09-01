@@ -1,6 +1,6 @@
 package collabdesk.workspace.access.controller;
 
-import collabdesk.auth.security.AuthenticatedUserPrincipal;
+import collabdesk.auth.security.CollabDeskPrincipal;
 import collabdesk.openapi.ApiProblemResponse;
 import collabdesk.project.dto.WorkspaceProjectAccessOverviewResponse;
 import collabdesk.workspace.access.service.WorkspaceProjectAccessOverviewService;
@@ -48,7 +48,7 @@ public class WorkspaceProjectAccessOverviewController {
     })
     public WorkspaceProjectAccessOverviewResponse find(
             @PathVariable Long workspaceId,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
     ) {
         return overviewService.findForWorkspace(
                 workspaceId,

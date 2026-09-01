@@ -1,6 +1,6 @@
 package collabdesk.project.controller;
 
-import collabdesk.auth.security.AuthenticatedUserPrincipal;
+import collabdesk.auth.security.CollabDeskPrincipal;
 import collabdesk.openapi.ApiProblemResponse;
 import collabdesk.project.dto.CreateProjectRequest;
 import collabdesk.project.dto.ProjectResponse;
@@ -68,7 +68,7 @@ public class ProjectController {
     public ProjectResponse create(
             @PathVariable Long workspaceId,
             @Valid @RequestBody CreateProjectRequest request,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
             ){
         return projectService.create(
                 workspaceId,
@@ -97,7 +97,7 @@ public class ProjectController {
     })
     public List<ProjectResponse> findAll(
             @PathVariable Long workspaceId,
-            @AuthenticationPrincipal AuthenticatedUserPrincipal principal
+            @AuthenticationPrincipal CollabDeskPrincipal principal
     ){
         return projectService.findForWorkspace(
                 workspaceId,

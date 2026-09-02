@@ -1,6 +1,7 @@
 package collabdesk.auth.config;
 
 import collabdesk.auth.google.CollabDeskOidcUserService;
+import collabdesk.auth.security.CollabDeskAuthorities;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -56,6 +57,10 @@ public class SecurityConfig {
                                 ).authenticated()
 
                                 .requestMatchers(
+                                        "/api/v1/account/onboarding/**"
+                                ).authenticated()
+
+                                .requestMatchers(
                                         HttpMethod.GET,
                                         "/v3/api-docs",
                                         "/v3/api-docs.yaml",
@@ -63,6 +68,9 @@ public class SecurityConfig {
                                         "/swagger-ui.html",
                                         "/swagger-ui/**"
                                 ).authenticated()
+
+                                .requestMatchers("/api/v1/**")
+                                .hasAuthority(CollabDeskAuthorities.PROFILE_COMPLETE)
 
                                 .anyRequest().authenticated()
                 )

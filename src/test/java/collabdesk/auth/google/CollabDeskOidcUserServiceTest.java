@@ -1,6 +1,7 @@
 package collabdesk.auth.google;
 
 import collabdesk.auth.security.GoogleOidcPrincipal;
+import collabdesk.auth.external.ExternalAccountResult;
 import collabdesk.user.entity.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -55,9 +56,13 @@ class CollabDeskOidcUserServiceTest {
         when(user.getEmail()).thenReturn("student@example.com");
         when(user.getDisplayName()).thenReturn("Student");
         when(user.getStatus()).thenReturn(collabdesk.user.entity.UserStatus.ACTIVE);
+        when(user.isEmailVerified()).thenReturn(true);
+        when(user.isOnboardingCompleted()).thenReturn(true);
         when(clientRegistration.getRegistrationId()).thenReturn("google");
         when(delegate.loadUser(request)).thenReturn(oidcUser);
-        when(googleAccountService.findOrCreate(oidcUser)).thenReturn(user);
+        when(googleAccountService.findOrCreate(oidcUser)).thenReturn(
+                new ExternalAccountResult(user, false, false)
+        );
         when(oidcUser.getAuthorities()).thenReturn(java.util.List.of());
         when(oidcUser.getIdToken()).thenReturn(TestOidcTokens.idToken());
         when(oidcUser.getUserInfo()).thenReturn(null);

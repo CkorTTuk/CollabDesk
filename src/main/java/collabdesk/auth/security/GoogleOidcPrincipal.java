@@ -2,8 +2,12 @@ package collabdesk.auth.security;
 
 import collabdesk.user.entity.User;
 import collabdesk.user.entity.UserStatus;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+
+import java.util.ArrayList;
+import java.util.Collection;
 
 
 public final class GoogleOidcPrincipal
@@ -14,10 +18,12 @@ public final class GoogleOidcPrincipal
     private final String email;
     private final String displayName;
     private final UserStatus status;
+    private final boolean emailVerified;
+    private final boolean onboardingCompleted;
 
     public GoogleOidcPrincipal(User user, OidcUser oidcUser) {
         super(
-                oidcUser.getAuthorities(),
+                authorities(user, oidcUser),
                 oidcUser.getIdToken(),
                 oidcUser.getUserInfo(),
                 "sub"
@@ -26,6 +32,8 @@ public final class GoogleOidcPrincipal
         this.email = user.getEmail();
         this.displayName = user.getDisplayName();
         this.status = user.getStatus();
+        this.emailVerified = user.isEmailVerified();
+        this.onboardingCompleted = user.isOnboardingCompleted();
     }
 
     @Override
@@ -46,5 +54,32 @@ public final class GoogleOidcPrincipal
     @Override
     public UserStatus getStatus() {
         return status;
+    }
+
+    @Override
+    public boolean isEmailVerified() {
+        return emailVerified;
+    }
+
+    @Override
+    public boolean isOnboardingCompleted() {
+        return onboardingCompleted;
+    }
+
+    private static Collection<GrantedAuthority> authorities(
+            User user,
+            OidcUser oidcUser
+    ) {
+        ArrayList<GrantedAuthority> authorities = new ArrayList<>(
+                oidcUser.getAuthorities()
+        );
+        for (GrantedAuthority authority : CollabDeskAuthorities.forProfile(
+                user.isOnboardingCompleted()
+        )) {
+            if (!authorities.contains(authority)) {
+                authorities.add(authority);
+            }
+        }
+        return authorities;
     }
 }

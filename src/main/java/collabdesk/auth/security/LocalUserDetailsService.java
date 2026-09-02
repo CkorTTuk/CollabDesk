@@ -38,6 +38,8 @@ public class LocalUserDetailsService implements UserDetailsService {
                 user.getEmail(),
                 user.getDisplayName(),
                 user.getStatus(),
+                user.isEmailVerified(),
+                user.isOnboardingCompleted(),
                 authIdentity.getPasswordHash()
                 );
     }

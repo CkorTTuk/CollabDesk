@@ -8,7 +8,6 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
-import java.util.List;
 
 public final class AuthenticatedUserPrincipal
         implements UserDetails, CredentialsContainer, CollabDeskPrincipal {
@@ -20,14 +19,36 @@ public final class AuthenticatedUserPrincipal
     private final String displayName;
     @Getter
     private final UserStatus status;
+    private final boolean emailVerified;
+    private final boolean onboardingCompleted;
     private String passwordHash;
 
-    public AuthenticatedUserPrincipal(Long userId, String email, String displayName, UserStatus userStatus, String passwordHash) {
+    public AuthenticatedUserPrincipal(
+            Long userId,
+            String email,
+            String displayName,
+            UserStatus userStatus,
+            boolean emailVerified,
+            boolean onboardingCompleted,
+            String passwordHash
+    ) {
         this.userId = userId;
         this.email = email;
         this.displayName = displayName;
         this.status = userStatus;
+        this.emailVerified = emailVerified;
+        this.onboardingCompleted = onboardingCompleted;
         this.passwordHash = passwordHash;
+    }
+
+    @Override
+    public boolean isEmailVerified() {
+        return emailVerified;
+    }
+
+    @Override
+    public boolean isOnboardingCompleted() {
+        return onboardingCompleted;
     }
 
     @Override
@@ -42,7 +63,7 @@ public final class AuthenticatedUserPrincipal
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of();
+        return CollabDeskAuthorities.forProfile(onboardingCompleted);
     }
 
     @Override

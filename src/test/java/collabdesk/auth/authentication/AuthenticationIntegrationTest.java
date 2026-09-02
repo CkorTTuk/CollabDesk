@@ -76,6 +76,8 @@ class AuthenticationIntegrationTest {
                 .andExpect(jsonPath("$.email").value("student@example.com"))
                 .andExpect(jsonPath("$.displayName").value("Student"))
                 .andExpect(jsonPath("$.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.emailVerified").value(true))
+                .andExpect(jsonPath("$.onboardingCompleted").value(true))
                 .andExpect(jsonPath("$.password").doesNotExist())
                 .andExpect(jsonPath("$.passwordHash").doesNotExist())
                 .andExpect(jsonPath("$.authorities").doesNotExist());

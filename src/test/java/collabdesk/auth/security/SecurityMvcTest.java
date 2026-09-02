@@ -28,7 +28,11 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@WebMvcTest({AuthController.class, CsrfController.class})
+@WebMvcTest({
+        AuthController.class,
+        CsrfController.class,
+        SecurityProbeController.class
+})
 @Import(SecurityConfig.class)
 class SecurityMvcTest {
 
@@ -130,37 +134,59 @@ class SecurityMvcTest {
 
     @Test
     void currentUserAcceptsThePrincipalSharedByLocalAndGoogleLogin() throws Exception {
-        CollabDeskPrincipal principal = new CollabDeskPrincipal() {
-            @Override
-            public Long getUserId() {
-                return 91L;
-            }
-
-            @Override
-            public String getEmail() {
-                return "google@example.com";
-            }
-
-            @Override
-            public String getDisplayName() {
-                return "Google User";
-            }
-
-            @Override
-            public UserStatus getStatus() {
-                return UserStatus.ACTIVE;
-            }
-        };
-        var authToken = UsernamePasswordAuthenticationToken.authenticated(
-                principal,
-                null,
-                java.util.List.of()
-        );
+        var authToken = createAuthentication(false);
 
         mockMvc.perform(get("/api/v1/auth/me").with(authentication(authToken)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").value(91))
                 .andExpect(jsonPath("$.email").value("google@example.com"))
-                .andExpect(jsonPath("$.displayName").value("Google User"));
+                .andExpect(jsonPath("$.displayName").value("Google User"))
+                .andExpect(jsonPath("$.emailVerified").value(true))
+                .andExpect(jsonPath("$.onboardingCompleted").value(false));
+    }
+
+    @Test
+    void incompleteProfileCanUseOnboardingApiButNotMainApi() throws Exception {
+        var authToken = createAuthentication(false);
+
+        mockMvc.perform(get("/api/v1/account/onboarding/probe")
+                        .with(authentication(authToken)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/v1/security-probe")
+                        .with(authentication(authToken)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void completedProfileCanUseMainApi() throws Exception {
+        mockMvc.perform(get("/api/v1/security-probe")
+                        .with(authentication(createAuthentication(true))))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void anonymousUserCannotUseMainApi() throws Exception {
+        mockMvc.perform(get("/api/v1/security-probe"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    private UsernamePasswordAuthenticationToken createAuthentication(
+            boolean onboardingCompleted
+    ) {
+        AuthenticatedUserPrincipal principal = new AuthenticatedUserPrincipal(
+                91L,
+                "google@example.com",
+                "Google User",
+                UserStatus.ACTIVE,
+                true,
+                onboardingCompleted,
+                null
+        );
+        return UsernamePasswordAuthenticationToken.authenticated(
+                principal,
+                null,
+                principal.getAuthorities()
+        );
     }
 }

@@ -80,7 +80,23 @@ public class AuthIdentity {
             User user,
             String providerSubject
     ) {
+        return external(user, AuthProvider.GOOGLE, providerSubject);
+    }
+
+    public static AuthIdentity github(
+            User user,
+            String providerSubject
+    ) {
+        return external(user, AuthProvider.GITHUB, providerSubject);
+    }
+
+    private static AuthIdentity external(
+            User user,
+            AuthProvider provider,
+            String providerSubject
+    ) {
         Objects.requireNonNull(user, "user must not be null");
+        Objects.requireNonNull(provider, "provider must not be null");
 
         if (providerSubject == null || providerSubject.isBlank()) {
             throw new IllegalArgumentException(
@@ -91,7 +107,7 @@ public class AuthIdentity {
 
         return new AuthIdentity(
                 user,
-                AuthProvider.GOOGLE,
+                provider,
                 providerSubject,
                 null
         );

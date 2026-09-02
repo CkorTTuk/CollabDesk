@@ -7,4 +7,6 @@ public interface CollabDeskPrincipal {
     String getEmail();
     String getDisplayName();
     UserStatus getStatus();
+    boolean isEmailVerified();
+    boolean isOnboardingCompleted();
 }

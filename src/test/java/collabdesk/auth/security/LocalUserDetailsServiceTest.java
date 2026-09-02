@@ -51,6 +51,13 @@ class LocalUserDetailsServiceTest {
                 () -> assertEquals("student@example.com", principal.getEmail()),
                 () -> assertEquals("Student", principal.getDisplayName()),
                 () -> assertEquals(UserStatus.ACTIVE, principal.getStatus()),
+                () -> assertTrue(principal.isEmailVerified()),
+                () -> assertTrue(principal.isOnboardingCompleted()),
+                () -> assertTrue(principal.getAuthorities().stream().anyMatch(
+                        authority -> CollabDeskAuthorities.PROFILE_COMPLETE.equals(
+                                authority.getAuthority()
+                        )
+                )),
                 () -> assertEquals(PASSWORD_HASH, principal.getPassword()),
                 () -> assertTrue(principal.isEnabled())
         );

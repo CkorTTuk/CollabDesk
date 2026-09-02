@@ -11,6 +11,8 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.context.annotation.Import;
 import org.springframework.dao.DataIntegrityViolationException;
 
+import java.time.LocalDate;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 @DataJpaTest
@@ -41,6 +43,12 @@ public class UserRepositoryTest {
                 () -> assertEquals(savedId, foundUser.getId()),
                 () -> assertEquals("email@test.com", foundUser.getEmail()),
                 () -> assertEquals("User", foundUser.getDisplayName()),
+                () -> assertEquals("User", foundUser.getFirstName()),
+                () -> assertNull(foundUser.getLastName()),
+                () -> assertNull(foundUser.getBirthDate()),
+                () -> assertNull(foundUser.getAvatarKey()),
+                () -> assertNotNull(foundUser.getEmailVerifiedAt()),
+                () -> assertNotNull(foundUser.getOnboardingCompletedAt()),
                 () -> assertEquals(UserStatus.ACTIVE, foundUser.getStatus()),
                 () -> assertNotNull(foundUser.getCreatedAt()),
                 () -> assertNotNull(foundUser.getUpdatedAt()),
@@ -125,6 +133,42 @@ public class UserRepositoryTest {
         assertEquals(
                 initialVersion + 1,
                 savedUser.getVersion()
+        );
+    }
+
+    @Test
+    void persistsCompletedProfileAndPendingExternalState() {
+        User pendingUser = User.pendingExternal(
+                "oauth@test.com",
+                "temporary-name"
+        );
+        pendingUser.completeOnboarding(
+                "Alex",
+                "Morgan",
+                LocalDate.of(2000, 2, 3)
+        );
+        pendingUser.changeAvatar("avatars/user-1.webp");
+
+        User savedUser = userRepository.saveAndFlush(pendingUser);
+        Long userId = savedUser.getId();
+        entityManager.clear();
+
+        User loadedUser = userRepository.findById(userId).orElseThrow();
+
+        assertAll(
+                () -> assertEquals("Alex", loadedUser.getFirstName()),
+                () -> assertEquals("Morgan", loadedUser.getLastName()),
+                () -> assertEquals("Alex Morgan", loadedUser.getDisplayName()),
+                () -> assertEquals(
+                        LocalDate.of(2000, 2, 3),
+                        loadedUser.getBirthDate()
+                ),
+                () -> assertEquals(
+                        "avatars/user-1.webp",
+                        loadedUser.getAvatarKey()
+                ),
+                () -> assertTrue(loadedUser.isEmailVerified()),
+                () -> assertTrue(loadedUser.isOnboardingCompleted())
         );
     }
 }

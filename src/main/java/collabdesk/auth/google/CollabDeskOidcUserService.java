@@ -1,7 +1,6 @@
 package collabdesk.auth.google;
 
 import collabdesk.auth.security.GoogleOidcPrincipal;
-import collabdesk.user.entity.User;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserRequest;
 import org.springframework.security.oauth2.client.oidc.userinfo.OidcUserService;
@@ -42,7 +41,7 @@ public class CollabDeskOidcUserService
         }
 
         OidcUser oidcUser = delegate.loadUser(request);
-        User user = googleAccountService.findOrCreate(oidcUser);
-        return new GoogleOidcPrincipal(user, oidcUser);
+        var account = googleAccountService.findOrCreate(oidcUser);
+        return new GoogleOidcPrincipal(account.user(), oidcUser);
     }
 }

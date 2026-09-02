@@ -136,6 +136,33 @@ class AuthIdentityRepositoryTest {
     }
 
     @Test
+    void savesGitHubIdentityWithoutPassword() {
+        User savedUser = saveUser("github@example.com");
+
+        AuthIdentity savedIdentity = authIdentityRepository.saveAndFlush(
+                AuthIdentity.github(savedUser, "12345678")
+        );
+        Long identityId = savedIdentity.getId();
+        entityManager.clear();
+
+        AuthIdentity loadedIdentity = authIdentityRepository
+                .findById(identityId)
+                .orElseThrow();
+
+        assertAll(
+                () -> assertEquals(
+                        AuthProvider.GITHUB,
+                        loadedIdentity.getProvider()
+                ),
+                () -> assertEquals(
+                        "12345678",
+                        loadedIdentity.getProviderSubject()
+                ),
+                () -> assertNull(loadedIdentity.getPasswordHash())
+        );
+    }
+
+    @Test
     void returnsEmptyWhenProviderAndSubjectDoNotExist() {
         assertTrue(
                 authIdentityRepository

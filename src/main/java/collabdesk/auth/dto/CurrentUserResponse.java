@@ -9,7 +9,9 @@ public record CurrentUserResponse(
         Long id,
         String email,
         String displayName,
-        UserStatus status
+        UserStatus status,
+        boolean emailVerified,
+        boolean onboardingCompleted
 ) {
     public static CurrentUserResponse from(
             CollabDeskPrincipal principal
@@ -18,7 +20,9 @@ public record CurrentUserResponse(
                 principal.getUserId(),
                 principal.getEmail(),
                 principal.getDisplayName(),
-                principal.getStatus()
+                principal.getStatus(),
+                principal.isEmailVerified(),
+                principal.isOnboardingCompleted()
         );
     }
 }

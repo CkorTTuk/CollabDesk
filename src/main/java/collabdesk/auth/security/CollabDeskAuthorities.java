@@ -7,6 +7,7 @@ import java.util.List;
 
 public final class CollabDeskAuthorities {
     public static final String PROFILE_COMPLETE = "PROFILE_COMPLETE";
+    public static final String MFA_PENDING = "MFA_PENDING";
 
     private static final List<GrantedAuthority> PROFILE_COMPLETE_AUTHORITIES =
             List.of(new SimpleGrantedAuthority(PROFILE_COMPLETE));

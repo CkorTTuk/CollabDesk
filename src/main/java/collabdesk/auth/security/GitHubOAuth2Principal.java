@@ -5,17 +5,15 @@ import collabdesk.user.entity.User;
 import collabdesk.user.entity.UserStatus;
 import org.jspecify.annotations.Nullable;
 import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.oauth2.core.oidc.user.DefaultOidcUser;
-import org.springframework.security.oauth2.core.oidc.user.OidcUser;
+import org.springframework.security.oauth2.core.user.DefaultOAuth2User;
+import org.springframework.security.oauth2.core.user.OAuth2User;
 
 import java.util.ArrayList;
 import java.util.Collection;
 
-
-public final class GoogleOidcPrincipal
-        extends DefaultOidcUser
+public final class GitHubOAuth2Principal
+        extends DefaultOAuth2User
         implements CollabDeskPrincipal {
-
     private final Long userId;
     private final String email;
     private final String displayName;
@@ -25,12 +23,17 @@ public final class GoogleOidcPrincipal
     @Nullable
     private final ExternalProfileSuggestion externalProfileSuggestion;
 
-    public GoogleOidcPrincipal(User user, OidcUser oidcUser) {
+    public GitHubOAuth2Principal(
+            User user,
+            OAuth2User oauth2User,
+            @Nullable String suggestedFirstName,
+            @Nullable String suggestedLastName,
+            @Nullable String suggestedAvatarUrl
+    ) {
         super(
-                authorities(user, oidcUser),
-                oidcUser.getIdToken(),
-                oidcUser.getUserInfo(),
-                "sub"
+                authorities(user, oauth2User),
+                oauth2User.getAttributes(),
+                "id"
         );
         this.userId = user.getId();
         this.email = user.getEmail();
@@ -41,10 +44,20 @@ public final class GoogleOidcPrincipal
         this.externalProfileSuggestion = onboardingCompleted
                 ? null
                 : new ExternalProfileSuggestion(
-                        oidcUser.getGivenName(),
-                        oidcUser.getFamilyName(),
-                        oidcUser.getPicture()
+                        suggestedFirstName,
+                        suggestedLastName,
+                        suggestedAvatarUrl
                 );
+    }
+
+    public GitHubOAuth2Principal(User user, GitHubOAuth2Principal principal) {
+        this(
+                user,
+                principal,
+                suggestionValue(principal, SuggestionField.FIRST_NAME),
+                suggestionValue(principal, SuggestionField.LAST_NAME),
+                suggestionValue(principal, SuggestionField.AVATAR_URL)
+        );
     }
 
     @Override
@@ -84,10 +97,10 @@ public final class GoogleOidcPrincipal
 
     private static Collection<GrantedAuthority> authorities(
             User user,
-            OidcUser oidcUser
+            OAuth2User oauth2User
     ) {
         ArrayList<GrantedAuthority> authorities = new ArrayList<>(
-                oidcUser.getAuthorities()
+                oauth2User.getAuthorities()
         );
         for (GrantedAuthority authority : CollabDeskAuthorities.forProfile(
                 user.isOnboardingCompleted()
@@ -97,5 +110,27 @@ public final class GoogleOidcPrincipal
             }
         }
         return authorities;
+    }
+
+    @Nullable
+    private static String suggestionValue(
+            GitHubOAuth2Principal principal,
+            SuggestionField field
+    ) {
+        ExternalProfileSuggestion suggestion = principal.getExternalProfileSuggestion();
+        if (suggestion == null) {
+            return null;
+        }
+        return switch (field) {
+            case FIRST_NAME -> suggestion.firstName();
+            case LAST_NAME -> suggestion.lastName();
+            case AVATAR_URL -> suggestion.avatarUrl();
+        };
+    }
+
+    private enum SuggestionField {
+        FIRST_NAME,
+        LAST_NAME,
+        AVATAR_URL
     }
 }

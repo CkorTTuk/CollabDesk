@@ -22,7 +22,7 @@ export async function getCurrentUser() {
   return response.json()
 }
 
-export async function registerUser({ email, displayName, password }) {
+export async function registerUser({ email, password, passwordConfirmation }) {
   const response = await apiFetch(
     `${AUTH_URL}/register`,
     await withCsrf({
@@ -30,7 +30,7 @@ export async function registerUser({ email, displayName, password }) {
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ email, displayName, password }),
+      body: JSON.stringify({ email, password, passwordConfirmation }),
     }),
   )
 

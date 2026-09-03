@@ -4,6 +4,7 @@ import collabdesk.auth.dto.CurrentUserResponse;
 import collabdesk.auth.dto.RegisterRequest;
 import collabdesk.auth.dto.RegisterResponse;
 import collabdesk.auth.registration.RegistrationService;
+import collabdesk.auth.registration.PasswordsDoNotMatchException;
 import collabdesk.auth.security.CollabDeskPrincipal;
 import collabdesk.openapi.ApiProblemResponse;
 import io.swagger.v3.oas.annotations.Operation;
@@ -36,7 +37,7 @@ public class AuthController {
     @ResponseStatus(HttpStatus.CREATED)
     @Operation(
             summary = "Register an account",
-            description = "Creates a new active local CollabDesk account"
+            description = "Creates a new active local CollabDesk account that must complete onboarding"
     )
     @Parameter(ref = "#/components/parameters/csrfToken")
     @ApiResponses({
@@ -57,9 +58,12 @@ public class AuthController {
             )
     })
     public RegisterResponse register(@Valid @RequestBody RegisterRequest registerRequest) {
+        if (!registerRequest.password().equals(registerRequest.passwordConfirmation())) {
+            throw new PasswordsDoNotMatchException();
+        }
         return RegisterResponse.from(
                 registrationService.register(
-                        registerRequest.email(), registerRequest.displayName(), registerRequest.password()
+                        registerRequest.email(), registerRequest.password()
                 )
         );
     }

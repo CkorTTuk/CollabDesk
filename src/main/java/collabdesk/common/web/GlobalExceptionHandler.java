@@ -1,14 +1,24 @@
 package collabdesk.common.web;
 
-import collabdesk.project.role.service.*;
+import collabdesk.account.onboarding.OnboardingAccountUnavailableException;
 import collabdesk.auth.registration.EmailAlreadyExistsException;
-import collabdesk.project.service.ProjectNotFoundException;
+import collabdesk.auth.registration.PasswordsDoNotMatchException;
 import collabdesk.project.member.service.ProjectMemberAlreadyExistsException;
 import collabdesk.project.member.service.ProjectMemberNotFoundException;
+import collabdesk.project.role.service.AccessRoleAlreadyExistsException;
+import collabdesk.project.role.service.AccessRoleInUseException;
+import collabdesk.project.role.service.AccessRoleNotFoundException;
+import collabdesk.project.role.service.AccessRoleWorkspaceMismatchException;
+import collabdesk.project.service.ProjectNotFoundException;
+import collabdesk.task.assignee.service.TaskClaimConflictException;
 import collabdesk.task.service.TaskNotFoundException;
 import collabdesk.task.service.TaskVisibilityConflictException;
-import collabdesk.task.assignee.service.TaskClaimConflictException;
-import collabdesk.workspace.service.exceptions.*;
+import collabdesk.workspace.service.exceptions.WorkspaceAccessDeniedException;
+import collabdesk.workspace.service.exceptions.WorkspaceMemberAlreadyExistsException;
+import collabdesk.workspace.service.exceptions.WorkspaceMemberNotFoundException;
+import collabdesk.workspace.service.exceptions.WorkspaceOperationForbiddenException;
+import collabdesk.workspace.service.exceptions.WorkspaceOwnerMutationException;
+import collabdesk.workspace.service.exceptions.WorkspaceUserNotFoundException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -19,7 +29,29 @@ import java.util.HashMap;
 import java.util.Map;
 
 @RestControllerAdvice
-public class GlobalExceptionHandler{
+public class GlobalExceptionHandler {
+    @ExceptionHandler(PasswordsDoNotMatchException.class)
+    public ProblemDetail handlePasswordsDoNotMatch() {
+        ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);
+        problem.setTitle("Validation failed");
+        problem.setProperty("code", "passwords_do_not_match");
+        problem.setProperty(
+                "errors",
+                Map.of("passwordConfirmation", "Passwords do not match")
+        );
+        return problem;
+    }
+
+    @ExceptionHandler(OnboardingAccountUnavailableException.class)
+    public ProblemDetail handleOnboardingAccountUnavailable() {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.FORBIDDEN,
+                "Account is unavailable"
+        );
+        problem.setTitle("Account unavailable");
+        return problem;
+    }
+
     @ExceptionHandler(TaskClaimConflictException.class)
     public ProblemDetail handleTaskClaimConflict(TaskClaimConflictException ex) {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
@@ -30,9 +62,7 @@ public class GlobalExceptionHandler{
         return problem;
     }
     @ExceptionHandler(AccessRoleNotFoundException.class)
-    public ProblemDetail handleAccessRoleNotFound(
-            AccessRoleNotFoundException ex
-    ) {
+    public ProblemDetail handleAccessRoleNotFound() {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.NOT_FOUND,
                 "Access role was not found"
@@ -42,9 +72,7 @@ public class GlobalExceptionHandler{
     }
 
     @ExceptionHandler(AccessRoleAlreadyExistsException.class)
-    public ProblemDetail handleAccessRoleAlreadyExists(
-            AccessRoleAlreadyExistsException ex
-    ) {
+    public ProblemDetail handleAccessRoleAlreadyExists() {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.CONFLICT,
                 "A role with this name already exists in the workspace"
@@ -54,7 +82,7 @@ public class GlobalExceptionHandler{
     }
 
     @ExceptionHandler(AccessRoleInUseException.class)
-    public ProblemDetail handleAccessRoleInUse(AccessRoleInUseException ex) {
+    public ProblemDetail handleAccessRoleInUse() {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.CONFLICT,
                 "The role is assigned to at least one project member"
@@ -64,9 +92,7 @@ public class GlobalExceptionHandler{
     }
 
     @ExceptionHandler(AccessRoleWorkspaceMismatchException.class)
-    public ProblemDetail handleAccessRoleWorkspaceMismatch(
-            AccessRoleWorkspaceMismatchException ex
-    ) {
+    public ProblemDetail handleAccessRoleWorkspaceMismatch() {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.NOT_FOUND,
                 "At least one role was not found in this workspace"
@@ -76,7 +102,7 @@ public class GlobalExceptionHandler{
     }
 
     @ExceptionHandler(EmailAlreadyExistsException.class)
-    public ProblemDetail handleEmailAlreadyExistsException(EmailAlreadyExistsException ex) {
+    public ProblemDetail handleEmailAlreadyExistsException() {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.CONFLICT,
                 "An account with this email already exists"
@@ -98,9 +124,7 @@ public class GlobalExceptionHandler{
     }
 
     @ExceptionHandler(WorkspaceAccessDeniedException.class)
-    public ProblemDetail handleWorkspaceAccessDeniedException(
-            WorkspaceAccessDeniedException ex
-    ) {
+    public ProblemDetail handleWorkspaceAccessDeniedException() {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.NOT_FOUND,
                 "Workspace was not found or is not accessible"
@@ -110,9 +134,7 @@ public class GlobalExceptionHandler{
     }
 
     @ExceptionHandler(ProjectNotFoundException.class)
-    public ProblemDetail handleProjectNotFoundException(
-            ProjectNotFoundException ex
-    ) {
+    public ProblemDetail handleProjectNotFoundException() {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.NOT_FOUND,
                 "Project was not found or is not accessible"
@@ -122,9 +144,7 @@ public class GlobalExceptionHandler{
     }
 
     @ExceptionHandler(TaskNotFoundException.class)
-    public ProblemDetail handleTaskNotFoundException(
-            TaskNotFoundException ex
-    ) {
+    public ProblemDetail handleTaskNotFoundException() {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.NOT_FOUND,
                 "Task was not found or is not accessible"
@@ -146,9 +166,7 @@ public class GlobalExceptionHandler{
     }
 
     @ExceptionHandler(ProjectMemberNotFoundException.class)
-    public ProblemDetail handleProjectMemberNotFoundException(
-            ProjectMemberNotFoundException ex
-    ) {
+    public ProblemDetail handleProjectMemberNotFoundException() {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.NOT_FOUND,
                 "Project member was not found"
@@ -158,9 +176,7 @@ public class GlobalExceptionHandler{
     }
 
     @ExceptionHandler(ProjectMemberAlreadyExistsException.class)
-    public ProblemDetail handleProjectMemberAlreadyExistsException(
-            ProjectMemberAlreadyExistsException ex
-    ) {
+    public ProblemDetail handleProjectMemberAlreadyExistsException() {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.CONFLICT,
                 "Workspace member is already in this project"
@@ -169,9 +185,7 @@ public class GlobalExceptionHandler{
         return problem;
     }
     @ExceptionHandler(WorkspaceOperationForbiddenException.class)
-    public ProblemDetail handleWorkspaceOperationForbiddenException(
-            WorkspaceOperationForbiddenException ex
-    ) {
+    public ProblemDetail handleWorkspaceOperationForbiddenException() {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.FORBIDDEN,
                 "Your workspace role does not allow this operation"
@@ -180,9 +194,7 @@ public class GlobalExceptionHandler{
         return problem;
     }
     @ExceptionHandler(WorkspaceMemberNotFoundException.class)
-    public ProblemDetail handleWorkspaceMemberNotFoundException(
-            WorkspaceMemberNotFoundException ex
-    ) {
+    public ProblemDetail handleWorkspaceMemberNotFoundException() {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.NOT_FOUND,
                 "Workspace member was not found"
@@ -191,9 +203,7 @@ public class GlobalExceptionHandler{
         return problem;
     }
     @ExceptionHandler(WorkspaceMemberAlreadyExistsException.class)
-    public ProblemDetail handleWorkspaceMemberAlreadyExistsException(
-            WorkspaceMemberAlreadyExistsException ex
-    ) {
+    public ProblemDetail handleWorkspaceMemberAlreadyExistsException() {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.CONFLICT,
                 "User is already a workspace member"
@@ -202,9 +212,7 @@ public class GlobalExceptionHandler{
         return problem;
     }
     @ExceptionHandler(WorkspaceUserNotFoundException.class)
-    public ProblemDetail handleWorkspaceUserNotFoundException(
-            WorkspaceUserNotFoundException ex
-    ) {
+    public ProblemDetail handleWorkspaceUserNotFoundException() {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.NOT_FOUND,
                 "Account with this email was not found"
@@ -214,9 +222,7 @@ public class GlobalExceptionHandler{
     }
 
     @ExceptionHandler(WorkspaceOwnerMutationException.class)
-    public ProblemDetail handleWorkspaceOwnerMutationException(
-            WorkspaceOwnerMutationException ex
-    ) {
+    public ProblemDetail handleWorkspaceOwnerMutationException() {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(
                 HttpStatus.CONFLICT,
                 "Owner membership cannot be changed"

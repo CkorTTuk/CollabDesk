@@ -2,8 +2,10 @@ package collabdesk.auth.config;
 
 import collabdesk.auth.google.CollabDeskOidcUserService;
 import collabdesk.auth.security.CollabDeskAuthorities;
+import collabdesk.auth.github.GitHubOAuth2UserService;
+import collabdesk.auth.security.CollabDeskOAuth2FailureHandler;
+import collabdesk.auth.security.CollabDeskOAuth2SuccessHandler;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -16,12 +18,10 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(
             HttpSecurity http,
             CollabDeskOidcUserService oidcUserService,
-            @Value("${app.frontend-url}") String configuredFrontendUrl
+            GitHubOAuth2UserService gitHubOAuth2UserService,
+            CollabDeskOAuth2SuccessHandler oauth2SuccessHandler,
+            CollabDeskOAuth2FailureHandler oauth2FailureHandler
     ) throws Exception {
-        String frontendUrl = configuredFrontendUrl.endsWith("/")
-                ? configuredFrontendUrl.substring(0, configuredFrontendUrl.length() - 1)
-                : configuredFrontendUrl;
-
         http
                 .authorizeHttpRequests(authorize ->
                         authorize
@@ -98,14 +98,12 @@ public class SecurityConfig {
                 .oauth2Login(oauth2 ->
                         oauth2
                                 .userInfoEndpoint(userInfo ->
-                                        userInfo.oidcUserService(oidcUserService)
+                                        userInfo
+                                                .oidcUserService(oidcUserService)
+                                                .userService(gitHubOAuth2UserService)
                                 )
-                                .successHandler((request, response, authentication) ->
-                                        response.sendRedirect(frontendUrl)
-                                )
-                                .failureHandler((request, response, exception) ->
-                                        response.sendRedirect(frontendUrl + "/?oauth=failed")
-                                )
+                                .successHandler(oauth2SuccessHandler)
+                                .failureHandler(oauth2FailureHandler)
                 )
 
 

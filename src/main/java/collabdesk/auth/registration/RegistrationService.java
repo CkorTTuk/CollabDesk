@@ -28,11 +28,11 @@ public class RegistrationService {
         this.passwordEncoder = passwordEncoder;
     }
     @Transactional
-    public RegistrationResult register(String email, String displayName, String rawPassword){
-        if( email == null || displayName == null || rawPassword == null){
+    public RegistrationResult register(String email, String rawPassword){
+        if( email == null || rawPassword == null){
             throw new NullPointerException("Parameters cannot be null");
         }
-        if( email.isBlank() || displayName.isBlank() || rawPassword.isBlank() ){
+        if( email.isBlank() || rawPassword.isBlank() ){
             throw new IllegalArgumentException("You must provide all parameters non-Empty");
         }
         String normalizedEmail = email.trim().toLowerCase(Locale.ROOT);
@@ -41,7 +41,10 @@ public class RegistrationService {
         }
 
         String passwordHash = passwordEncoder.encode(rawPassword);
-        User user = new User(normalizedEmail, displayName);
+        User user = User.pendingLocalOnboarding(
+                normalizedEmail,
+                temporaryDisplayName(normalizedEmail)
+        );
 
         User savedUser = userRepository.save(user);
 
@@ -50,5 +53,13 @@ public class RegistrationService {
 
         return new RegistrationResult(savedUser.getId(), savedUser.getEmail(), savedUser.getDisplayName(), savedUser.getStatus());
 
+    }
+
+    private String temporaryDisplayName(String normalizedEmail) {
+        int separatorIndex = normalizedEmail.indexOf('@');
+        String localPart = separatorIndex > 0
+                ? normalizedEmail.substring(0, separatorIndex)
+                : "New member";
+        return localPart.substring(0, Math.min(localPart.length(), 100));
     }
 }

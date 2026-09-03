@@ -2,6 +2,7 @@ package collabdesk.auth.security;
 
 import collabdesk.auth.config.SecurityConfig;
 import collabdesk.auth.google.CollabDeskOidcUserService;
+import collabdesk.auth.github.GitHubOAuth2UserService;
 import collabdesk.auth.registration.RegistrationResult;
 import collabdesk.auth.registration.RegistrationService;
 import collabdesk.auth.controller.AuthController;
@@ -41,8 +42,8 @@ class SecurityMvcTest {
     private static final String VALID_REGISTRATION_JSON = """
             {
               "email": "student@example.com",
-              "displayName": "Student",
-              "password": "password123"
+              "password": "password123",
+              "passwordConfirmation": "password123"
             }
             """;
 
@@ -57,6 +58,15 @@ class SecurityMvcTest {
 
     @MockitoBean
     private CollabDeskOidcUserService oidcUserService;
+
+    @MockitoBean
+    private GitHubOAuth2UserService gitHubOAuth2UserService;
+
+    @MockitoBean
+    private CollabDeskOAuth2SuccessHandler oauth2SuccessHandler;
+
+    @MockitoBean
+    private CollabDeskOAuth2FailureHandler oauth2FailureHandler;
 
     @MockitoBean
     private ClientRegistrationRepository clientRegistrationRepository;
@@ -79,7 +89,6 @@ class SecurityMvcTest {
     void anonymousRegistrationWithValidCsrfCallsService() throws Exception {
         when(registrationService.register(
                 "student@example.com",
-                "Student",
                 "password123"
         )).thenReturn(new RegistrationResult(
                 1L,
@@ -98,7 +107,6 @@ class SecurityMvcTest {
 
         verify(registrationService).register(
                 "student@example.com",
-                "Student",
                 "password123"
         );
     }

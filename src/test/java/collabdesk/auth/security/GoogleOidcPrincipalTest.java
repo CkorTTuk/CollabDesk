@@ -13,7 +13,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -69,13 +72,17 @@ class GoogleOidcPrincipalTest {
         when(user.getStatus()).thenReturn(UserStatus.ACTIVE);
         when(user.isEmailVerified()).thenReturn(true);
         when(user.isOnboardingCompleted()).thenReturn(false);
-
         Instant now = Instant.now();
         OidcIdToken idToken = new OidcIdToken(
                 "signed-id-token",
                 now,
                 now.plusSeconds(300),
-                Map.of("sub", "new-google-subject")
+                Map.of(
+                        "sub", "new-google-subject",
+                        "given_name", "  Suggested  ",
+                        "family_name", " Person ",
+                        "picture", " https://example.com/avatar.png "
+                )
         );
         var oidcAuthority = new SimpleGrantedAuthority("OIDC_USER");
         OidcUser oidcUser = new DefaultOidcUser(
@@ -89,6 +96,14 @@ class GoogleOidcPrincipalTest {
         assertAll(
                 () -> assertTrue(principal.isEmailVerified()),
                 () -> assertFalse(principal.isOnboardingCompleted()),
+                () -> assertEquals(
+                        "Suggested",
+                        principal.getExternalProfileSuggestion().firstName()
+                ),
+                () -> assertEquals(
+                        "Person",
+                        principal.getExternalProfileSuggestion().lastName()
+                ),
                 () -> assertEquals(Set.of(oidcAuthority), principal.getAuthorities())
         );
     }

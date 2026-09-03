@@ -4,9 +4,6 @@ import collabdesk.TestcontainersConfiguration;
 import collabdesk.auth.config.PasswordEncoderConfig;
 import collabdesk.auth.entity.AuthIdentity;
 import collabdesk.auth.entity.AuthProvider;
-import collabdesk.auth.registration.EmailAlreadyExistsException;
-import collabdesk.auth.registration.RegistrationResult;
-import collabdesk.auth.registration.RegistrationService;
 import collabdesk.auth.repository.AuthIdentityRepository;
 import collabdesk.user.entity.User;
 import collabdesk.user.entity.UserStatus;
@@ -18,7 +15,13 @@ import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabas
 import org.springframework.context.annotation.Import;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrowsExactly;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 @DataJpaTest
 @Import({TestcontainersConfiguration.class,
@@ -27,7 +30,7 @@ import static org.junit.jupiter.api.Assertions.*;
 @AutoConfigureTestDatabase(
         replace = AutoConfigureTestDatabase.Replace.NONE
 )
-public class RegistrationTest {
+class RegistrationTest {
 
     @Autowired
     private UserRepository userRepository;
@@ -38,8 +41,8 @@ public class RegistrationTest {
     @Autowired
     private PasswordEncoder passwordEncoder;
     @Test
-    public void ThereShouldBeOnlyOneUserAfterRegistrationWithCorrectDataTest() {
-        RegistrationResult registrationResult = registrationService.register("  eMAAIILL@GmAiL.CoM", "Name", "password");
+    void correctRegistrationCreatesOneUserAndOneLocalIdentity() {
+        RegistrationResult registrationResult = registrationService.register("  eMAAIILL@GmAiL.CoM", "password");
 
         int i = userRepository.findAll().size();
 
@@ -53,10 +56,13 @@ public class RegistrationTest {
         assertAll(()->{
             assertEquals(user.getId(), registrationResult.id());
             assertEquals("emaaiill@gmail.com", registrationResult.email());
-            assertEquals("Name", registrationResult.displayName());
+            assertEquals("emaaiill", registrationResult.displayName());
             assertEquals(UserStatus.ACTIVE, registrationResult.status());
             assertEquals("emaaiill@gmail.com",user.getEmail());
-            assertEquals("Name", user.getDisplayName());
+            assertEquals("emaaiill", user.getDisplayName());
+            assertTrue(user.isEmailVerified());
+            assertFalse(user.isOnboardingCompleted());
+            assertNull(user.getFirstName());
             assertEquals(user.getId(), authIdentity.getUser().getId());
             assertEquals(AuthProvider.LOCAL, authIdentity.getProvider());
             assertEquals("emaaiill@gmail.com", authIdentity.getProviderSubject());
@@ -65,10 +71,10 @@ public class RegistrationTest {
         });
     }
     @Test
-    public void DuplicatedEmailShouldNotAddAnotherEntityTest(){
-        registrationService.register("email@example.com", "Name", "password");
+    void duplicateEmailDoesNotCreateAnotherUserOrIdentity() {
+        registrationService.register("email@example.com", "password");
         assertThrowsExactly(EmailAlreadyExistsException.class, ()->{
-           registrationService.register("   emAIL@eXAMPle.cOm  ", "Name", "password");
+           registrationService.register("   emAIL@eXAMPle.cOm  ", "password");
         });
 
         int i = userRepository.findAll().size();

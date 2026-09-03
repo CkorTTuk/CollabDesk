@@ -95,18 +95,32 @@ public class User {
     }
 
     public static User pendingExternal(String email, String temporaryDisplayName) {
+        return pendingOnboarding(email, temporaryDisplayName);
+    }
+
+    public static User pendingLocal(String email, String displayName) {
+        User user = new User(email, displayName);
+        user.emailVerifiedAt = null;
+        return user;
+    }
+
+    public static User pendingLocalOnboarding(
+            String email,
+            String temporaryDisplayName
+    ) {
+        return pendingOnboarding(email, temporaryDisplayName);
+    }
+
+    private static User pendingOnboarding(
+            String email,
+            String temporaryDisplayName
+    ) {
         User user = new User(email, temporaryDisplayName);
         user.firstName = null;
         user.lastName = null;
         user.birthDate = null;
         user.avatarKey = null;
         user.onboardingCompletedAt = null;
-        return user;
-    }
-
-    public static User pendingLocal(String email, String displayName) {
-        User user = new User(email, displayName);
-        user.emailVerifiedAt = null;
         return user;
     }
 

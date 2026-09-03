@@ -2,7 +2,6 @@ package collabdesk.auth.registration;
 
 import collabdesk.TestcontainersConfiguration;
 import collabdesk.auth.entity.AuthIdentity;
-import collabdesk.auth.registration.RegistrationService;
 import collabdesk.auth.repository.AuthIdentityRepository;
 import collabdesk.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
@@ -43,7 +42,6 @@ class RegistrationRollbackTest {
                 IllegalStateException.class,
                 () -> registrationService.register(
                         "rollback@example.com",
-                        "Rollback User",
                         "password123"
                 )
         );

@@ -1,6 +1,7 @@
 package collabdesk.workspace;
 
 import collabdesk.TestcontainersConfiguration;
+import collabdesk.testing.LocalAccountTestSupport;
 import collabdesk.user.entity.User;
 import collabdesk.user.repository.UserRepository;
 import collabdesk.workspace.entity.Workspace;
@@ -8,7 +9,6 @@ import collabdesk.workspace.member.entity.WorkspaceMember;
 import collabdesk.workspace.entity.WorkspaceRole;
 import collabdesk.workspace.member.repository.WorkspaceMemberRepository;
 import collabdesk.workspace.repository.WorkspaceRepository;
-import jakarta.servlet.http.HttpSession;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -23,7 +23,6 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -37,8 +36,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @Import(TestcontainersConfiguration.class)
 class WorkspaceIntegrationTest {
 
-    private static final String REGISTER_URL = "/api/v1/auth/register";
-    private static final String LOGIN_URL = "/api/v1/auth/login";
     private static final String WORKSPACES_URL = "/api/v1/workspaces";
     private static final String PASSWORD = "password123";
 
@@ -222,32 +219,13 @@ class WorkspaceIntegrationTest {
             String email,
             String displayName
     ) throws Exception {
-        mockMvc.perform(
-                post(REGISTER_URL)
-                        .with(csrf())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("""
-                                {
-                                  "email": "%s",
-                                  "displayName": "%s",
-                                  "password": "%s"
-                                }
-                                """.formatted(email, displayName, PASSWORD))
-        ).andExpect(status().isCreated());
-
-        MvcResult loginResult = mockMvc.perform(
-                post(LOGIN_URL)
-                        .with(csrf())
-                        .param("email", email)
-                        .param("password", PASSWORD)
-                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-        )
-                .andExpect(status().isNoContent())
-                .andReturn();
-
-        HttpSession session = loginResult.getRequest().getSession(false);
-        assertNotNull(session);
-        return (MockHttpSession) session;
+        return LocalAccountTestSupport.registerAndLogin(
+                mockMvc,
+                userRepository,
+                email,
+                displayName,
+                PASSWORD
+        );
     }
 
     private org.springframework.test.web.servlet.ResultActions createWorkspace(

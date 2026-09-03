@@ -52,7 +52,6 @@ class AuthenticationIntegrationTest {
     void successfulLoginPersistsAuthenticationAndExposesSafeCurrentUser() throws Exception {
         registrationService.register(
                 "  Student@Example.com  ",
-                "Student",
                 PASSWORD
         );
 
@@ -74,10 +73,10 @@ class AuthenticationIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.id").isNumber())
                 .andExpect(jsonPath("$.email").value("student@example.com"))
-                .andExpect(jsonPath("$.displayName").value("Student"))
+                .andExpect(jsonPath("$.displayName").value("student"))
                 .andExpect(jsonPath("$.status").value("ACTIVE"))
                 .andExpect(jsonPath("$.emailVerified").value(true))
-                .andExpect(jsonPath("$.onboardingCompleted").value(true))
+                .andExpect(jsonPath("$.onboardingCompleted").value(false))
                 .andExpect(jsonPath("$.password").doesNotExist())
                 .andExpect(jsonPath("$.passwordHash").doesNotExist())
                 .andExpect(jsonPath("$.authorities").doesNotExist());
@@ -87,7 +86,6 @@ class AuthenticationIntegrationTest {
     void badPasswordReturnsUnauthorizedWithoutAuthentication() throws Exception {
         registrationService.register(
                 "bad-password@example.com",
-                "Bad Password",
                 PASSWORD
         );
 
@@ -115,7 +113,6 @@ class AuthenticationIntegrationTest {
     void disabledAccountCannotLoginWithCorrectPassword() throws Exception {
         registrationService.register(
                 "disabled@example.com",
-                "Disabled User",
                 PASSWORD
         );
         User user = userRepository.findByEmail("disabled@example.com")
@@ -136,7 +133,6 @@ class AuthenticationIntegrationTest {
     void loginWithoutCsrfIsForbiddenAndDoesNotAuthenticate() throws Exception {
         registrationService.register(
                 "no-csrf@example.com",
-                "No CSRF",
                 PASSWORD
         );
 
@@ -155,7 +151,6 @@ class AuthenticationIntegrationTest {
     void logoutInvalidatesAuthenticatedSession() throws Exception {
         registrationService.register(
                 "logout@example.com",
-                "Logout User",
                 PASSWORD
         );
         MockHttpSession session = sessionFrom(
@@ -177,7 +172,6 @@ class AuthenticationIntegrationTest {
     void logoutWithoutCsrfIsForbiddenAndKeepsAuthentication() throws Exception {
         registrationService.register(
                 "logout-no-csrf@example.com",
-                "Logout Without CSRF",
                 PASSWORD
         );
         MockHttpSession session = sessionFrom(
@@ -209,13 +203,13 @@ class AuthenticationIntegrationTest {
         );
     }
 
-    private MockHttpSession sessionFrom(MvcResult result) {
+    private static MockHttpSession sessionFrom(MvcResult result) {
         HttpSession session = result.getRequest().getSession(false);
         assertNotNull(session);
         return (MockHttpSession) session;
     }
 
-    private SecurityContext securityContextFrom(MockHttpSession session) {
+    private static SecurityContext securityContextFrom(MockHttpSession session) {
         Object value = session.getAttribute(
                 HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY
         );

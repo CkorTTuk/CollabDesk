@@ -43,6 +43,7 @@ import {
   removeWorkspaceMember,
   replaceWorkspaceMemberAccessRoles,
 } from './api/memberApi.js'
+import OnboardingScreen from './OnboardingScreen.jsx'
 import './App.css'
 
 const EMPTY_LOGIN = {
@@ -52,8 +53,8 @@ const EMPTY_LOGIN = {
 
 const EMPTY_REGISTRATION = {
   email: '',
-  displayName: '',
   password: '',
+  passwordConfirmation: '',
 }
 
 const TASK_COLUMNS = [
@@ -196,6 +197,17 @@ function GoogleIcon() {
       <path fill="#34A853" d="M12 22c2.7 0 4.97-.9 6.62-2.36l-3.24-2.54c-.9.6-2.05.96-3.38.96-2.61 0-4.82-1.76-5.61-4.13H3.04v2.62A10 10 0 0 0 12 22Z" />
       <path fill="#FBBC05" d="M6.39 13.93A6 6 0 0 1 6.07 12c0-.67.11-1.32.32-1.93V7.45H3.04A10 10 0 0 0 2 12c0 1.64.39 3.19 1.04 4.55l3.35-2.62Z" />
       <path fill="#EA4335" d="M12 5.94c1.47 0 2.79.5 3.83 1.5l2.87-2.88A9.62 9.62 0 0 0 12 2a10 10 0 0 0-8.96 5.45l3.35 2.62C7.18 7.7 9.39 5.94 12 5.94Z" />
+    </svg>
+  )
+}
+
+function GitHubIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path
+        fill="currentColor"
+        d="M12 2a10 10 0 0 0-3.16 19.49c.5.09.68-.22.68-.48v-1.87c-2.78.6-3.37-1.18-3.37-1.18-.45-1.16-1.11-1.47-1.11-1.47-.91-.62.07-.61.07-.61 1 .07 1.53 1.03 1.53 1.03.9 1.53 2.35 1.09 2.92.83.09-.65.35-1.09.64-1.34-2.22-.25-4.55-1.11-4.55-4.94 0-1.09.39-1.98 1.03-2.68-.1-.25-.45-1.27.1-2.64 0 0 .84-.27 2.75 1.02A9.6 9.6 0 0 1 12 6.82a9.6 9.6 0 0 1 2.5.34c1.91-1.29 2.75-1.02 2.75-1.02.55 1.37.2 2.39.1 2.64.64.7 1.03 1.59 1.03 2.68 0 3.84-2.34 4.68-4.57 4.93.36.31.68.92.68 1.86V21c0 .27.18.58.69.48A10 10 0 0 0 12 2Z"
+      />
     </svg>
   )
 }
@@ -439,9 +451,18 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
 
   useEffect(() => {
     const url = new URL(window.location.href)
-    if (url.searchParams.get('oauth') !== 'failed') return
+    const oauthError = url.searchParams.get('oauth')
+    if (!oauthError) return
 
-    setMessage('Google sign-in could not be completed. Please try again.')
+    const oauthMessages = {
+      disabled: 'This account is disabled. Contact an administrator for help.',
+      email_missing:
+        'The provider did not supply a verified primary email address.',
+      identity_conflict:
+        'This provider account conflicts with an existing sign-in method.',
+      failed: 'External sign-in could not be completed. Please try again.',
+    }
+    setMessage(oauthMessages[oauthError] ?? oauthMessages.failed)
     setMessageType('error')
     url.searchParams.delete('oauth')
     window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`)
@@ -479,16 +500,37 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
     setFieldErrors({})
     setMessage('')
     setMessageType('')
+
+    if (registrationForm.password !== registrationForm.passwordConfirmation) {
+      setFieldErrors({
+        passwordConfirmation: 'Passwords do not match.',
+      })
+      return
+    }
+
     setIsSubmitting(true)
 
+    let registeredEmail = ''
     try {
       const account = await registerUser(registrationForm)
+      registeredEmail = account.email
+      const user = await loginUser({
+        email: registrationForm.email,
+        password: registrationForm.password,
+      })
       setRegistrationForm(EMPTY_REGISTRATION)
-      setLoginForm((current) => ({ ...current, email: account.email }))
-      onModeChange('login')
-      setMessage('Account created. Sign in with your new credentials.')
-      setMessageType('success')
+      onAuthenticated(user)
     } catch (error) {
+      if (registeredEmail) {
+        setRegistrationForm(EMPTY_REGISTRATION)
+        setLoginForm({ email: registeredEmail, password: '' })
+        onModeChange('login')
+        setMessage(
+          'Account created, but automatic sign-in failed. Please sign in to continue onboarding.',
+        )
+        setMessageType('error')
+        return
+      }
       setFieldErrors(error.fieldErrors ?? {})
       setMessage(error.message || 'Unable to create the account.')
       setMessageType('error')
@@ -547,7 +589,7 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
             <p>
               {isLogin
                 ? 'Enter the credentials you used when registering.'
-                : 'Create your profile and start organizing team work.'}
+                : 'Create your credentials, then finish your profile.'}
             </p>
           </div>
 
@@ -564,10 +606,19 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
             </div>
           )}
 
-          <a className="google-auth-button" href="/oauth2/authorization/google">
-            <GoogleIcon />
-            Continue with Google
-          </a>
+          <div className="oauth-buttons">
+            <a className="oauth-auth-button" href="/oauth2/authorization/google">
+              <GoogleIcon />
+              Continue with Google
+            </a>
+            <a
+              className="oauth-auth-button github-auth-button"
+              href="/oauth2/authorization/github"
+            >
+              <GitHubIcon />
+              Continue with GitHub
+            </a>
+          </div>
 
           <div className="auth-divider" aria-hidden="true">
             <span />
@@ -608,22 +659,6 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
           ) : (
             <form className="auth-form" onSubmit={handleRegistration}>
               <FormField
-                id="register-name"
-                label="Display name"
-                type="text"
-                autoComplete="name"
-                placeholder="Alex Morgan"
-                maxLength={100}
-                value={registrationForm.displayName}
-                onChange={(value) =>
-                  setRegistrationForm((current) => ({
-                    ...current,
-                    displayName: value,
-                  }))
-                }
-                error={fieldErrors.displayName}
-              />
-              <FormField
                 id="register-email"
                 label="Email"
                 type="email"
@@ -655,6 +690,23 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
                   }))
                 }
                 error={fieldErrors.password}
+              />
+              <FormField
+                id="register-password-confirmation"
+                label="Confirm password"
+                type="password"
+                autoComplete="new-password"
+                placeholder="Enter the same password again"
+                minLength={8}
+                maxLength={64}
+                value={registrationForm.passwordConfirmation}
+                onChange={(value) =>
+                  setRegistrationForm((current) => ({
+                    ...current,
+                    passwordConfirmation: value,
+                  }))
+                }
+                error={fieldErrors.passwordConfirmation}
               />
               <button className="primary-button" disabled={isSubmitting}>
                 {isSubmitting ? 'Creating account…' : 'Create account'}
@@ -3861,6 +3913,14 @@ function App() {
           </button>
         </div>
       </main>
+    )
+  } else if (user && !user.onboardingCompleted) {
+    content = (
+      <OnboardingScreen
+        user={user}
+        onCompleted={handleAuthenticated}
+        onLogout={handleLogout}
+      />
     )
   } else if (user) {
     content = (

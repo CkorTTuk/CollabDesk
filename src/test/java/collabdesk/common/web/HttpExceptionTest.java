@@ -4,7 +4,6 @@ import collabdesk.auth.registration.EmailAlreadyExistsException;
 import collabdesk.auth.registration.RegistrationResult;
 import collabdesk.auth.registration.RegistrationService;
 import collabdesk.auth.controller.AuthController;
-import collabdesk.common.web.GlobalExceptionHandler;
 import collabdesk.user.entity.UserStatus;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -40,7 +39,6 @@ class HttpExceptionTest {
     void validRequestReturnsCreatedResponseAndCallsService() throws Exception {
         when(registrationService.register(
                 "student@example.com",
-                "Student",
                 "password123"
         )).thenReturn(new RegistrationResult(
                 1L,
@@ -54,8 +52,8 @@ class HttpExceptionTest {
                         .content("""
                                 {
                                   "email": "student@example.com",
-                                  "displayName": "Student",
-                                  "password": "password123"
+                                  "password": "password123",
+                                  "passwordConfirmation": "password123"
                                 }
                                 """))
                 .andExpect(status().isCreated())
@@ -69,7 +67,6 @@ class HttpExceptionTest {
 
         verify(registrationService).register(
                 "student@example.com",
-                "Student",
                 "password123"
         );
     }
@@ -81,33 +78,33 @@ class HttpExceptionTest {
                         .content("""
                                 {
                                   "email": "not-an-email",
-                                  "displayName": "Student",
-                                  "password": "password123"
+                                  "password": "password123",
+                                  "passwordConfirmation": "password123"
                                 }
                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Validation failed"))
                 .andExpect(jsonPath("$.errors.email").value("must be a well-formed email address"))
-                .andExpect(jsonPath("$.errors.displayName").doesNotExist())
                 .andExpect(jsonPath("$.errors.password").doesNotExist());
 
         verifyNoInteractions(registrationService);
     }
 
     @Test
-    void blankDisplayNameReturnsBadRequestAndDoesNotCallService() throws Exception {
+    void mismatchedPasswordsReturnBadRequestAndDoNotCallService() throws Exception {
         mockMvc.perform(post(REGISTER_URL)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
                                 {
                                   "email": "student@example.com",
-                                  "displayName": "   ",
-                                  "password": "password123"
+                                  "password": "password123",
+                                  "passwordConfirmation": "different123"
                                 }
                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Validation failed"))
-                .andExpect(jsonPath("$.errors.displayName").value("must not be blank"))
+                .andExpect(jsonPath("$.code").value("passwords_do_not_match"))
+                .andExpect(jsonPath("$.errors.passwordConfirmation").value("Passwords do not match"))
                 .andExpect(jsonPath("$.errors.email").doesNotExist())
                 .andExpect(jsonPath("$.errors.password").doesNotExist());
 
@@ -121,15 +118,14 @@ class HttpExceptionTest {
                         .content("""
                                 {
                                   "email": "student@example.com",
-                                  "displayName": "Student",
-                                  "password": "short"
+                                  "password": "short",
+                                  "passwordConfirmation": "short"
                                 }
                 """))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.title").value("Validation failed"))
                 .andExpect(jsonPath("$.errors.password").value("size must be between 8 and 64"))
-                .andExpect(jsonPath("$.errors.email").doesNotExist())
-                .andExpect(jsonPath("$.errors.displayName").doesNotExist());
+                .andExpect(jsonPath("$.errors.email").doesNotExist());
 
         verifyNoInteractions(registrationService);
     }
@@ -141,8 +137,8 @@ class HttpExceptionTest {
                         .content("""
                                 {
                                   "email": "student@example.com",
-                                  "displayName": "Student",
-                                  "password": "password123"
+                                  "password": "password123",
+                                  "passwordConfirmation": "password123"
                                 """))
                 .andExpect(status().isBadRequest());
 
@@ -153,7 +149,6 @@ class HttpExceptionTest {
     void duplicateEmailReturnsConflictProblemDetail() throws Exception {
         when(registrationService.register(
                 "student@example.com",
-                "Student",
                 "password123"
         )).thenThrow(new EmailAlreadyExistsException(
                 "there is already an account with that email"
@@ -164,8 +159,8 @@ class HttpExceptionTest {
                         .content("""
                                 {
                                   "email": "student@example.com",
-                                  "displayName": "Student",
-                                  "password": "password123"
+                                  "password": "password123",
+                                  "passwordConfirmation": "password123"
                                 }
                                 """))
                 .andExpect(status().isConflict())
@@ -178,7 +173,6 @@ class HttpExceptionTest {
 
         verify(registrationService).register(
                 "student@example.com",
-                "Student",
                 "password123"
         );
     }

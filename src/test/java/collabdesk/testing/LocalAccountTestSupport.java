@@ -3,6 +3,7 @@ package collabdesk.testing;
 import collabdesk.user.entity.User;
 import collabdesk.user.repository.UserRepository;
 import jakarta.servlet.http.HttpSession;
+import java.time.Instant;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockHttpSession;
 import org.springframework.test.web.servlet.MockMvc;
@@ -39,6 +40,7 @@ public final class LocalAccountTestSupport {
                 .andExpect(status().isCreated());
 
         User user = userRepository.findByEmail(email).orElseThrow();
+        user.markEmailVerified(Instant.now());
         user.completeOnboarding(displayName, null, null);
         userRepository.saveAndFlush(user);
     }

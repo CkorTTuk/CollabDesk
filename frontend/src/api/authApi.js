@@ -44,6 +44,51 @@ export async function registerUser({ email, password, passwordConfirmation }) {
   return response.json()
 }
 
+export async function confirmEmailVerification({ email, code }) {
+  const response = await apiFetch(
+    `${AUTH_URL}/email-verification/confirm`,
+    await withCsrf({
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email, code }),
+    }),
+  )
+
+  if (!response.ok) {
+    throw await createApiError(
+      response,
+      'Unable to verify the email address.',
+    )
+  }
+
+  clearCsrfToken()
+  return response.json()
+}
+
+export async function resendEmailVerification({ email }) {
+  const response = await apiFetch(
+    `${AUTH_URL}/email-verification/resend`,
+    await withCsrf({
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ email }),
+    }),
+  )
+
+  if (!response.ok) {
+    throw await createApiError(
+      response,
+      'Unable to send another verification code.',
+    )
+  }
+
+  return response.json()
+}
+
 export async function loginUser({ email, password }) {
   const form = new URLSearchParams()
   form.set('email', email)

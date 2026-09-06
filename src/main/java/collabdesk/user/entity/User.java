@@ -108,7 +108,9 @@ public class User {
             String email,
             String temporaryDisplayName
     ) {
-        return pendingOnboarding(email, temporaryDisplayName);
+        User user = pendingOnboarding(email, temporaryDisplayName);
+        user.emailVerifiedAt = null;
+        return user;
     }
 
     private static User pendingOnboarding(

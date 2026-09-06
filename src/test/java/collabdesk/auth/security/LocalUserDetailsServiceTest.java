@@ -101,6 +101,24 @@ class LocalUserDetailsServiceTest {
     }
 
     @Test
+    void unverifiedLocalIdentityCannotBeUsedForPasswordLogin() {
+        User user = userRepository.saveAndFlush(
+                User.pendingLocalOnboarding(
+                        "pending@example.com",
+                        "Pending"
+                )
+        );
+        saveLocalIdentity(user, user.getEmail());
+
+        assertThrowsExactly(
+                UsernameNotFoundException.class,
+                () -> userDetailsService.loadUserByUsername(
+                        "pending@example.com"
+                )
+        );
+    }
+
+    @Test
     void disabledUserIsReturnedAsNotEnabled() {
         User user = saveUser("disabled@example.com", "Disabled User");
         user.disable();

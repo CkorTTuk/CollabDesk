@@ -11,6 +11,10 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.session.ChangeSessionIdAuthenticationStrategy;
+import org.springframework.security.web.authentication.session.SessionAuthenticationStrategy;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextRepository;
 
 @Configuration
 public class SecurityConfig {
@@ -20,14 +24,17 @@ public class SecurityConfig {
             CollabDeskOidcUserService oidcUserService,
             GitHubOAuth2UserService gitHubOAuth2UserService,
             CollabDeskOAuth2SuccessHandler oauth2SuccessHandler,
-            CollabDeskOAuth2FailureHandler oauth2FailureHandler
+            CollabDeskOAuth2FailureHandler oauth2FailureHandler,
+            SecurityContextRepository securityContextRepository
     ) throws Exception {
         http
                 .authorizeHttpRequests(authorize ->
                         authorize
                                 .requestMatchers(
                                         HttpMethod.POST,
-                                        "/api/v1/auth/register"
+                                        "/api/v1/auth/register",
+                                        "/api/v1/auth/email-verification/confirm",
+                                        "/api/v1/auth/email-verification/resend"
                                 ).permitAll()
 
                                 .requestMatchers(
@@ -94,6 +101,9 @@ public class SecurityConfig {
                                     response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
                                 }).permitAll()
                 )
+                .securityContext(context -> context
+                        .securityContextRepository(securityContextRepository)
+                )
 
                 .oauth2Login(oauth2 ->
                         oauth2
@@ -117,5 +127,15 @@ public class SecurityConfig {
 
 
         return http.build();
+    }
+
+    @Bean
+    public SecurityContextRepository securityContextRepository() {
+        return new HttpSessionSecurityContextRepository();
+    }
+
+    @Bean
+    public SessionAuthenticationStrategy sessionAuthenticationStrategy() {
+        return new ChangeSessionIdAuthenticationStrategy();
     }
 }

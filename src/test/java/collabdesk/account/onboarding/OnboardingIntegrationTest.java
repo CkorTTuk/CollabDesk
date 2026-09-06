@@ -5,6 +5,7 @@ import collabdesk.auth.security.AuthenticatedUserPrincipal;
 import collabdesk.auth.security.CollabDeskAuthorities;
 import collabdesk.auth.security.GitHubOAuth2Principal;
 import collabdesk.auth.security.GoogleOidcPrincipal;
+import collabdesk.auth.verification.VerificationCodeGenerator;
 import collabdesk.user.entity.User;
 import collabdesk.user.repository.UserRepository;
 import jakarta.servlet.http.HttpSession;
@@ -25,6 +26,7 @@ import org.springframework.security.core.context.SecurityContextImpl;
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.time.LocalDate;
 import java.time.Instant;
@@ -35,6 +37,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -54,10 +57,14 @@ class OnboardingIntegrationTest {
     @Autowired
     private UserRepository userRepository;
 
+    @MockitoBean
+    private VerificationCodeGenerator verificationCodeGenerator;
+
     @Test
     void localRegistrationSignsInToAnIncompleteProfileThenCompletesOnboarding()
             throws Exception {
         String email = "local-onboarding@example.com";
+        when(verificationCodeGenerator.generate()).thenReturn("004271");
         mockMvc.perform(post("/api/v1/auth/register")
                         .with(csrf())
                         .contentType(MediaType.APPLICATION_JSON)
@@ -70,12 +77,18 @@ class OnboardingIntegrationTest {
                                 """.formatted(email, PASSWORD, PASSWORD)))
                 .andExpect(status().isCreated());
 
-        MvcResult loginResult = mockMvc.perform(post("/api/v1/auth/login")
+        MvcResult loginResult = mockMvc.perform(post(
+                        "/api/v1/auth/email-verification/confirm")
                         .with(csrf())
-                        .contentType(MediaType.APPLICATION_FORM_URLENCODED)
-                        .param("email", email)
-                        .param("password", PASSWORD))
-                .andExpect(status().isNoContent())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "email": "%s",
+                                  "code": "004271"
+                                }
+                                """.formatted(email)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.emailVerified").value(true))
                 .andReturn();
         HttpSession httpSession = loginResult.getRequest().getSession(false);
         assertTrue(httpSession instanceof MockHttpSession);

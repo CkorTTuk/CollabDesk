@@ -1,9 +1,11 @@
 export class ApiError extends Error {
-  constructor(message, status = 0, fieldErrors = {}) {
+  constructor(message, status = 0, fieldErrors = {}, details = {}) {
     super(message)
     this.name = 'ApiError'
     this.status = status
     this.fieldErrors = fieldErrors
+    this.code = details.code ?? null
+    this.retryAfterSeconds = details.retryAfterSeconds ?? null
   }
 }
 
@@ -32,5 +34,8 @@ export async function createApiError(response, fallbackMessage) {
     fallbackMessage ||
     `Request failed with status ${response.status}`
 
-  return new ApiError(message, response.status, body?.errors ?? {})
+  return new ApiError(message, response.status, body?.errors ?? {}, {
+    code: body?.code,
+    retryAfterSeconds: body?.retryAfterSeconds,
+  })
 }

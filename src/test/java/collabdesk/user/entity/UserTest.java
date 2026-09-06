@@ -121,4 +121,20 @@ class UserTest {
                 () -> assertTrue(user.isOnboardingCompleted())
         );
     }
+
+    @Test
+    void createsUnverifiedLocalUserWithPendingOnboarding() {
+        User user = User.pendingLocalOnboarding(
+                "local@example.com",
+                "local"
+        );
+
+        assertAll(
+                () -> assertFalse(user.isEmailVerified()),
+                () -> assertNull(user.getEmailVerifiedAt()),
+                () -> assertFalse(user.isOnboardingCompleted()),
+                () -> assertNull(user.getOnboardingCompletedAt()),
+                () -> assertNull(user.getFirstName())
+        );
+    }
 }

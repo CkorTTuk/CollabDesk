@@ -3,6 +3,7 @@ package collabdesk.auth.registration;
 import collabdesk.TestcontainersConfiguration;
 import collabdesk.auth.entity.AuthIdentity;
 import collabdesk.auth.repository.AuthIdentityRepository;
+import collabdesk.auth.verification.VerificationChallengeRepository;
 import collabdesk.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,6 +27,9 @@ class RegistrationRollbackTest {
     @Autowired
     private UserRepository userRepository;
 
+    @Autowired
+    private VerificationChallengeRepository challengeRepository;
+
     @MockitoBean
     private AuthIdentityRepository authIdentityRepository;
 
@@ -48,5 +52,6 @@ class RegistrationRollbackTest {
 
         verify(authIdentityRepository).save(any(AuthIdentity.class));
         assertEquals(0, userRepository.count());
+        assertEquals(0, challengeRepository.count());
     }
 }

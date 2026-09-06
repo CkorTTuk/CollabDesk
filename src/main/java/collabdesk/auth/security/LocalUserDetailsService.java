@@ -33,6 +33,9 @@ public class LocalUserDetailsService implements UserDetailsService {
                         email
                 ).orElseThrow(() -> new UsernameNotFoundException("Invalid credentials"));
         User user = authIdentity.getUser();
+        if (!user.isEmailVerified()) {
+            throw new UsernameNotFoundException("Invalid credentials");
+        }
         return new AuthenticatedUserPrincipal(
                 user.getId(),
                 user.getEmail(),

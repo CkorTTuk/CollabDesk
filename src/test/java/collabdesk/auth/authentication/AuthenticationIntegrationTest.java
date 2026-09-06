@@ -19,6 +19,8 @@ import org.springframework.security.web.context.HttpSessionSecurityContextReposi
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.time.Instant;
+
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -54,6 +56,7 @@ class AuthenticationIntegrationTest {
                 "  Student@Example.com  ",
                 PASSWORD
         );
+        verifyEmail("student@example.com");
 
         MvcResult loginResult = login(
                 " STUDENT@example.com ",
@@ -88,6 +91,7 @@ class AuthenticationIntegrationTest {
                 "bad-password@example.com",
                 PASSWORD
         );
+        verifyEmail("bad-password@example.com");
 
         MvcResult result = login(
                 "bad-password@example.com",
@@ -117,6 +121,7 @@ class AuthenticationIntegrationTest {
         );
         User user = userRepository.findByEmail("disabled@example.com")
                 .orElseThrow();
+        user.markEmailVerified(Instant.now());
         user.disable();
         userRepository.saveAndFlush(user);
 
@@ -135,6 +140,7 @@ class AuthenticationIntegrationTest {
                 "no-csrf@example.com",
                 PASSWORD
         );
+        verifyEmail("no-csrf@example.com");
 
         MvcResult result = mockMvc.perform(
                 post(LOGIN_URL)
@@ -153,6 +159,7 @@ class AuthenticationIntegrationTest {
                 "logout@example.com",
                 PASSWORD
         );
+        verifyEmail("logout@example.com");
         MockHttpSession session = sessionFrom(
                 login("logout@example.com", PASSWORD)
                         .andExpect(status().isNoContent())
@@ -174,6 +181,7 @@ class AuthenticationIntegrationTest {
                 "logout-no-csrf@example.com",
                 PASSWORD
         );
+        verifyEmail("logout-no-csrf@example.com");
         MockHttpSession session = sessionFrom(
                 login("logout-no-csrf@example.com", PASSWORD)
                         .andExpect(status().isNoContent())
@@ -188,6 +196,23 @@ class AuthenticationIntegrationTest {
         mockMvc.perform(get(ME_URL).session(session))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.email").value("logout-no-csrf@example.com"));
+    }
+
+    @Test
+    void unverifiedLocalAccountCannotLoginWithCorrectPassword() throws Exception {
+        registrationService.register("unverified@example.com", PASSWORD);
+
+        MvcResult result = login("unverified@example.com", PASSWORD)
+                .andExpect(status().isUnauthorized())
+                .andReturn();
+
+        assertNotAuthenticated(result);
+    }
+
+    private void verifyEmail(String email) {
+        User user = userRepository.findByEmail(email).orElseThrow();
+        user.markEmailVerified(Instant.now());
+        userRepository.saveAndFlush(user);
     }
 
     private org.springframework.test.web.servlet.ResultActions login(

@@ -44,7 +44,10 @@ class HttpExceptionTest {
                 1L,
                 "student@example.com",
                 "Student",
-                UserStatus.ACTIVE
+                UserStatus.ACTIVE,
+                true,
+                null,
+                null
         ));
 
         mockMvc.perform(post(REGISTER_URL)

@@ -240,6 +240,72 @@
   gap: 19px;
 }
 
+.email-verification-page {
+  display: grid;
+  min-height: 100svh;
+  place-items: center;
+  padding: 32px 20px;
+  color: #172033;
+  background:
+    radial-gradient(circle at 15% 15%, rgba(85, 126, 255, .14), transparent 30%),
+    radial-gradient(circle at 85% 80%, rgba(63, 194, 159, .12), transparent 28%),
+    #f4f6fa;
+}
+
+.email-verification-card {
+  width: min(100%, 440px);
+  padding: clamp(28px, 5vw, 44px);
+  border: 1px solid #dfe4ec;
+  border-radius: 20px;
+  background: #fff;
+  box-shadow: 0 22px 60px rgba(28, 45, 72, .12);
+}
+
+.email-verification-card > .brand {
+  margin-bottom: 36px;
+}
+
+.email-verification-card h1 {
+  margin: 6px 0 12px;
+  color: #101828;
+  font-size: 32px;
+  letter-spacing: -.035em;
+}
+
+.email-verification-card > p:not(.eyebrow) {
+  margin: 0 0 28px;
+  color: #687487;
+  line-height: 1.55;
+}
+
+.email-verification-card > .email-verification-expiry {
+  margin-top: -18px;
+  font-size: 13px;
+}
+
+.email-verification-actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 22px;
+}
+
+.email-verification-actions button {
+  padding: 6px 0;
+  border: 0;
+  color: #285b9e;
+  background: transparent;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.email-verification-actions button:disabled {
+  color: #929baa;
+  cursor: wait;
+}
+
 .onboarding-page {
   min-height: 100svh;
   color: #172033;

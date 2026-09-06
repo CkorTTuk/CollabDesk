@@ -3,6 +3,9 @@ package collabdesk.common.web;
 import collabdesk.account.onboarding.OnboardingAccountUnavailableException;
 import collabdesk.auth.registration.EmailAlreadyExistsException;
 import collabdesk.auth.registration.PasswordsDoNotMatchException;
+import collabdesk.auth.verification.InvalidVerificationCodeException;
+import collabdesk.auth.verification.VerificationAttemptsExhaustedException;
+import collabdesk.auth.verification.VerificationResendTooSoonException;
 import collabdesk.project.member.service.ProjectMemberAlreadyExistsException;
 import collabdesk.project.member.service.ProjectMemberNotFoundException;
 import collabdesk.project.role.service.AccessRoleAlreadyExistsException;
@@ -30,6 +33,42 @@ import java.util.Map;
 
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler(InvalidVerificationCodeException.class)
+    public ProblemDetail handleInvalidVerificationCode() {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.UNPROCESSABLE_CONTENT,
+                "The verification code is invalid or expired"
+        );
+        problem.setTitle("Email verification failed");
+        problem.setProperty("code", "invalid_or_expired_code");
+        return problem;
+    }
+
+    @ExceptionHandler(VerificationAttemptsExhaustedException.class)
+    public ProblemDetail handleVerificationAttemptsExhausted() {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.TOO_MANY_REQUESTS,
+                "Too many incorrect verification attempts. Request a new code."
+        );
+        problem.setTitle("Verification attempts exhausted");
+        problem.setProperty("code", "verification_attempts_exhausted");
+        return problem;
+    }
+
+    @ExceptionHandler(VerificationResendTooSoonException.class)
+    public ProblemDetail handleVerificationResendTooSoon(
+            VerificationResendTooSoonException exception
+    ) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.TOO_MANY_REQUESTS,
+                "Wait before requesting another verification code"
+        );
+        problem.setTitle("Verification resend requested too soon");
+        problem.setProperty("code", "verification_resend_too_soon");
+        problem.setProperty("retryAfterSeconds", exception.getRetryAfterSeconds());
+        return problem;
+    }
+
     @ExceptionHandler(PasswordsDoNotMatchException.class)
     public ProblemDetail handlePasswordsDoNotMatch() {
         ProblemDetail problem = ProblemDetail.forStatus(HttpStatus.BAD_REQUEST);

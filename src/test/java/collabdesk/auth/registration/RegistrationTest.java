@@ -5,15 +5,21 @@ import collabdesk.auth.config.PasswordEncoderConfig;
 import collabdesk.auth.entity.AuthIdentity;
 import collabdesk.auth.entity.AuthProvider;
 import collabdesk.auth.repository.AuthIdentityRepository;
+import collabdesk.auth.verification.VerificationChallengeService;
+import collabdesk.auth.verification.VerificationIssueResult;
 import collabdesk.user.entity.User;
 import collabdesk.user.entity.UserStatus;
 import collabdesk.user.repository.UserRepository;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.data.jpa.test.autoconfigure.DataJpaTest;
 import org.springframework.boot.jdbc.test.autoconfigure.AutoConfigureTestDatabase;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+
+import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -40,6 +46,22 @@ class RegistrationTest {
     private RegistrationService registrationService;
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @MockitoBean
+    private VerificationChallengeService verificationChallengeService;
+
+    @BeforeEach
+    void setUpVerification() {
+        Instant now = Instant.parse("2026-09-06T10:00:00Z");
+        org.mockito.Mockito.when(
+                verificationChallengeService.issueEmailVerification(
+                        org.mockito.ArgumentMatchers.any(User.class)
+                )
+        ).thenReturn(new VerificationIssueResult(
+                now.plusSeconds(600),
+                now.plusSeconds(60)
+        ));
+    }
     @Test
     void correctRegistrationCreatesOneUserAndOneLocalIdentity() {
         RegistrationResult registrationResult = registrationService.register("  eMAAIILL@GmAiL.CoM", "password");
@@ -60,7 +82,7 @@ class RegistrationTest {
             assertEquals(UserStatus.ACTIVE, registrationResult.status());
             assertEquals("emaaiill@gmail.com",user.getEmail());
             assertEquals("emaaiill", user.getDisplayName());
-            assertTrue(user.isEmailVerified());
+            assertFalse(user.isEmailVerified());
             assertFalse(user.isOnboardingCompleted());
             assertNull(user.getFirstName());
             assertEquals(user.getId(), authIdentity.getUser().getId());
@@ -68,6 +90,7 @@ class RegistrationTest {
             assertEquals("emaaiill@gmail.com", authIdentity.getProviderSubject());
             assertTrue( passwordEncoder.matches("password",authIdentity.getPasswordHash()));
             assertNotEquals("password", authIdentity.getPasswordHash());
+            assertTrue(registrationResult.verificationRequired());
         });
     }
     @Test

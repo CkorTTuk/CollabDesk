@@ -1,9 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import {
+  confirmEmailVerification,
   getCurrentUser,
   loginUser,
   logoutUser,
   registerUser,
+  resendEmailVerification,
 } from './api/authApi.js'
 import {
   createWorkspace,
@@ -55,6 +57,18 @@ const EMPTY_REGISTRATION = {
   email: '',
   password: '',
   passwordConfirmation: '',
+}
+
+const EMAIL_VERIFICATION_STORAGE_KEY = 'collabdesk.emailVerification'
+
+function loadPendingEmailVerification() {
+  try {
+    const stored = sessionStorage.getItem(EMAIL_VERIFICATION_STORAGE_KEY)
+    return stored ? JSON.parse(stored) : null
+  } catch {
+    sessionStorage.removeItem(EMAIL_VERIFICATION_STORAGE_KEY)
+    return null
+  }
 }
 
 const TASK_COLUMNS = [
@@ -446,6 +460,9 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('')
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [emailVerification, setEmailVerification] = useState(
+    loadPendingEmailVerification,
+  )
 
   const isLogin = mode === 'login'
 
@@ -473,6 +490,19 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
     setMessage('')
     setMessageType('')
     onModeChange(nextMode)
+  }
+
+  function rememberEmailVerification(nextVerification) {
+    setEmailVerification(nextVerification)
+    sessionStorage.setItem(
+      EMAIL_VERIFICATION_STORAGE_KEY,
+      JSON.stringify(nextVerification),
+    )
+  }
+
+  function clearEmailVerification() {
+    setEmailVerification(null)
+    sessionStorage.removeItem(EMAIL_VERIFICATION_STORAGE_KEY)
   }
 
   async function handleLogin(event) {
@@ -510,33 +540,39 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
 
     setIsSubmitting(true)
 
-    let registeredEmail = ''
     try {
       const account = await registerUser(registrationForm)
-      registeredEmail = account.email
-      const user = await loginUser({
-        email: registrationForm.email,
-        password: registrationForm.password,
-      })
       setRegistrationForm(EMPTY_REGISTRATION)
-      onAuthenticated(user)
+      rememberEmailVerification({
+        email: account.email,
+        expiresAt: account.expiresAt,
+        resendAvailableAt: account.resendAvailableAt,
+      })
     } catch (error) {
-      if (registeredEmail) {
-        setRegistrationForm(EMPTY_REGISTRATION)
-        setLoginForm({ email: registeredEmail, password: '' })
-        onModeChange('login')
-        setMessage(
-          'Account created, but automatic sign-in failed. Please sign in to continue onboarding.',
-        )
-        setMessageType('error')
-        return
-      }
       setFieldErrors(error.fieldErrors ?? {})
       setMessage(error.message || 'Unable to create the account.')
       setMessageType('error')
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  if (emailVerification) {
+    return (
+      <EmailVerificationScreen
+        verification={emailVerification}
+        onVerificationChange={rememberEmailVerification}
+        onVerified={(user) => {
+          clearEmailVerification()
+          onAuthenticated(user)
+        }}
+        onBack={() => {
+          clearEmailVerification()
+          setLoginForm({ email: emailVerification.email, password: '' })
+          onModeChange('login')
+        }}
+      />
+    )
   }
 
   return (
@@ -723,6 +759,161 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
               {isLogin ? 'Create account' : 'Sign in'}
             </button>
           </p>
+        </div>
+      </section>
+    </main>
+  )
+}
+
+function secondsUntil(timestamp) {
+  if (!timestamp) return 0
+  const milliseconds = new Date(timestamp).getTime() - Date.now()
+  return Math.max(0, Math.ceil(milliseconds / 1000))
+}
+
+function maskEmail(email) {
+  const [localPart, domain] = email.split('@')
+  if (!domain) return email
+  if (localPart.length <= 2) {
+    return `${localPart.slice(0, 1)}***@${domain}`
+  }
+  return `${localPart[0]}***${localPart.at(-1)}@${domain}`
+}
+
+function EmailVerificationScreen({
+  verification,
+  onVerificationChange,
+  onVerified,
+  onBack,
+}) {
+  const [code, setCode] = useState('')
+  const [error, setError] = useState('')
+  const [message, setMessage] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isResending, setIsResending] = useState(false)
+  const [resendSeconds, setResendSeconds] = useState(() =>
+    secondsUntil(verification.resendAvailableAt),
+  )
+  const [expirySeconds, setExpirySeconds] = useState(() =>
+    secondsUntil(verification.expiresAt),
+  )
+
+  useEffect(() => {
+    setResendSeconds(secondsUntil(verification.resendAvailableAt))
+    setExpirySeconds(secondsUntil(verification.expiresAt))
+    const timer = window.setInterval(() => {
+      setResendSeconds(secondsUntil(verification.resendAvailableAt))
+      setExpirySeconds(secondsUntil(verification.expiresAt))
+    }, 1000)
+    return () => window.clearInterval(timer)
+  }, [verification.expiresAt, verification.resendAvailableAt])
+
+  async function handleConfirm(event) {
+    event.preventDefault()
+    if (!/^\d{6}$/.test(code)) {
+      setError('Enter the six-digit code from the email.')
+      return
+    }
+    setError('')
+    setMessage('')
+    setIsSubmitting(true)
+    try {
+      const user = await confirmEmailVerification({
+        email: verification.email,
+        code,
+      })
+      setCode('')
+      onVerified(user)
+    } catch (requestError) {
+      setError(
+        requestError.message || 'The code is invalid or has expired.',
+      )
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  async function handleResend() {
+    setError('')
+    setMessage('')
+    setIsResending(true)
+    try {
+      const next = await resendEmailVerification({
+        email: verification.email,
+      })
+      setCode('')
+      onVerificationChange({
+        ...verification,
+        expiresAt: next.expiresAt,
+        resendAvailableAt: next.resendAvailableAt,
+      })
+      setMessage('A new verification code has been sent.')
+    } catch (requestError) {
+      if (requestError.retryAfterSeconds) {
+        setResendSeconds(requestError.retryAfterSeconds)
+      }
+      setError(
+        requestError.message || 'Unable to send another code.',
+      )
+    } finally {
+      setIsResending(false)
+    }
+  }
+
+  return (
+    <main className="email-verification-page">
+      <section className="email-verification-card">
+        <Brand />
+        <p className="eyebrow">Verify your email</p>
+        <h1>Check your inbox</h1>
+        <p>
+          We sent a six-digit code to{' '}
+          <strong>{maskEmail(verification.email)}</strong>.
+        </p>
+        <p className="email-verification-expiry">
+          {expirySeconds > 0
+            ? `The code expires in ${Math.ceil(expirySeconds / 60)} min.`
+            : 'This code has expired. Request a new one.'}
+        </p>
+        <form className="auth-form" onSubmit={handleConfirm}>
+          <label className="form-field" htmlFor="email-verification-code">
+            <span>Verification code</span>
+            <input
+              id="email-verification-code"
+              type="text"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              maxLength={6}
+              value={code}
+              onChange={(event) => {
+                setCode(event.target.value.replace(/\D/g, '').slice(0, 6))
+                setError('')
+              }}
+              autoFocus
+            />
+          </label>
+          {error && <div className="form-message error" role="alert">{error}</div>}
+          {message && <div className="form-message" role="status">{message}</div>}
+          <button
+            className="primary-button"
+            disabled={isSubmitting || code.length !== 6 || expirySeconds === 0}
+          >
+            {isSubmitting ? 'Verifying…' : 'Verify email'}
+          </button>
+        </form>
+        <div className="email-verification-actions">
+          <button
+            type="button"
+            disabled={isResending || resendSeconds > 0}
+            onClick={handleResend}
+          >
+            {isResending
+              ? 'Sending…'
+              : resendSeconds > 0
+                ? `Resend in ${resendSeconds}s`
+                : 'Resend code'}
+          </button>
+          <button type="button" onClick={onBack}>Back to sign in</button>
         </div>
       </section>
     </main>

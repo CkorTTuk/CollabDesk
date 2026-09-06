@@ -2,6 +2,8 @@ package collabdesk.auth.registration;
 
 import collabdesk.auth.entity.AuthIdentity;
 import collabdesk.auth.repository.AuthIdentityRepository;
+import collabdesk.auth.verification.VerificationChallengeService;
+import collabdesk.auth.verification.VerificationIssueResult;
 import collabdesk.user.entity.User;
 import collabdesk.user.repository.UserRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -17,15 +19,18 @@ public class RegistrationService {
     private final UserRepository userRepository;
     private final AuthIdentityRepository authIdentityRepository;
     private final PasswordEncoder passwordEncoder;
+    private final VerificationChallengeService verificationChallengeService;
 
     public RegistrationService(
             UserRepository userRepository,
             AuthIdentityRepository authIdentityRepository,
-            PasswordEncoder passwordEncoder
+            PasswordEncoder passwordEncoder,
+            VerificationChallengeService verificationChallengeService
     ) {
         this.userRepository = userRepository;
         this.authIdentityRepository = authIdentityRepository;
         this.passwordEncoder = passwordEncoder;
+        this.verificationChallengeService = verificationChallengeService;
     }
     @Transactional
     public RegistrationResult register(String email, String rawPassword){
@@ -51,7 +56,18 @@ public class RegistrationService {
         AuthIdentity authIdentity = AuthIdentity.local( savedUser, normalizedEmail, passwordHash);
         authIdentityRepository.save(authIdentity);
 
-        return new RegistrationResult(savedUser.getId(), savedUser.getEmail(), savedUser.getDisplayName(), savedUser.getStatus());
+        VerificationIssueResult verification =
+                verificationChallengeService.issueEmailVerification(savedUser);
+
+        return new RegistrationResult(
+                savedUser.getId(),
+                savedUser.getEmail(),
+                savedUser.getDisplayName(),
+                savedUser.getStatus(),
+                true,
+                verification.expiresAt(),
+                verification.resendAvailableAt()
+        );
 
     }
 

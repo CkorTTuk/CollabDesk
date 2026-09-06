@@ -57,7 +57,7 @@ class MailServiceTest {
                         message.getTo()
                 ),
                 () -> assertEquals(
-                        "Verify your CollabDesk email",
+                        "Verify your email address",
                         message.getSubject()
                 ),
                 () -> assertTrue(text.contains("Hello!")),

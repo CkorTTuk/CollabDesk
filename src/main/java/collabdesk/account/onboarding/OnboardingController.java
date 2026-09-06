@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/** HTTP boundary for reading and completing the first-login profile. */
 @RestController
 @RequestMapping("/api/v1/account/onboarding")
 public class OnboardingController {

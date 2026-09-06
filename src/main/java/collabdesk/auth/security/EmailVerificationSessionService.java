@@ -10,6 +10,10 @@ import org.springframework.security.web.authentication.session.SessionAuthentica
 import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.stereotype.Service;
 
+/**
+ * Implements verification flow variant B: converts the confirmed user into an
+ * authenticated Spring Security context and persists it in the HTTP session.
+ */
 @Service
 public class EmailVerificationSessionService {
     private final SecurityContextRepository securityContextRepository;
@@ -23,6 +27,7 @@ public class EmailVerificationSessionService {
         this.sessionAuthenticationStrategy = sessionAuthenticationStrategy;
     }
 
+    /** Creates a safe principal, applies session-fixation protection and saves it. */
     public AuthenticatedUserPrincipal authenticate(
             User user,
             HttpServletRequest request,

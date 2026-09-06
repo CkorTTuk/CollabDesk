@@ -21,6 +21,10 @@ import java.time.LocalDate;
 import java.util.Locale;
 import java.util.Objects;
 
+/**
+ * Account aggregate shared by every authentication provider. Verification and
+ * onboarding timestamps control which parts of the application are available.
+ */
 @Entity
 @Table(name = "users")
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

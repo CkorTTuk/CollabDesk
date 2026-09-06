@@ -7,6 +7,10 @@ import org.springframework.stereotype.Service;
 
 import java.time.Duration;
 
+/**
+ * SMTP boundary for application email. It formats a verification message and
+ * delegates delivery to Spring's configured {@link JavaMailSender}.
+ */
 @Service
 public class MailService {
     private final String from;
@@ -17,6 +21,7 @@ public class MailService {
         this.mailSender = mailSender;
         this.from = from;
     }
+    /** Sends the raw code; callers are responsible for issuing it after commit. */
     public void sendEmailVerification(String toEmail, String code, Duration validity) {
         SimpleMailMessage message = new SimpleMailMessage();
         message.setFrom(from);

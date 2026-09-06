@@ -10,6 +10,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
+/** Workspace-defined role containing a reusable set of project permissions. */
 @Entity
 @Table(
         name = "access_roles",

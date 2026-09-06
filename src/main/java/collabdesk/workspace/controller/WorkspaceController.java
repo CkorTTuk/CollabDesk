@@ -20,6 +20,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/** HTTP boundary for creating and listing the current user's workspaces. */
 @RestController
 @RequestMapping("/api/v1/workspaces")
 

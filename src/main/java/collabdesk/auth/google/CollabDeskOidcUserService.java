@@ -10,6 +10,10 @@ import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.stereotype.Service;
 
+/**
+ * Extends Spring's Google OIDC loading with CollabDesk account reconciliation
+ * and replaces the provider principal with the application's own principal.
+ */
 @Service
 public class CollabDeskOidcUserService
         implements OAuth2UserService<OidcUserRequest, OidcUser> {

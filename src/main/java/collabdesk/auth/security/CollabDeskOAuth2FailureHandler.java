@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import java.io.IOException;
 import java.util.Set;
 
+/** Maps OAuth failures to safe frontend error codes without exposing details. */
 @Component
 public class CollabDeskOAuth2FailureHandler
         implements AuthenticationFailureHandler {

@@ -5,6 +5,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.cache.Cache;
 import org.springframework.cache.interceptor.CacheErrorHandler;
 
+/**
+ * Makes cache failures non-fatal: reads fall back to the database and failed
+ * writes or evictions are logged without breaking business operations.
+ */
 public final class LenientRedisCacheErrorHandler
         implements CacheErrorHandler {
 

@@ -4,6 +4,7 @@ import org.springframework.stereotype.Component;
 
 import java.security.SecureRandom;
 
+/** Generates zero-padded six-digit codes using a cryptographic RNG. */
 @Component
 public class VerificationCodeGenerator {
     private final SecureRandom secureRandom;

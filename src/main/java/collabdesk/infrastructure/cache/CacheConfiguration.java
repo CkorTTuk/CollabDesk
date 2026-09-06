@@ -18,6 +18,7 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 import java.time.Duration;
 
+/** Configures Redis-backed projections and graceful cache-error handling. */
 @Configuration(proxyBeanMethods = false)
 @EnableCaching
 @Profile("redis")

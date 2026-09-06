@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 import java.util.Objects;
 
+/** Explicit project membership used by restricted access and custom roles. */
 @Entity
 @Table(
         name = "project_members",

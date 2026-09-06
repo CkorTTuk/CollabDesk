@@ -21,6 +21,10 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 import java.util.Objects;
 
+/**
+ * Mutable one-time challenge for one user and purpose. Resend rotates this same
+ * row, resetting expiry, consumption state and failed attempts.
+ */
 @Entity
 @Table(
     name = "verification_challenges",

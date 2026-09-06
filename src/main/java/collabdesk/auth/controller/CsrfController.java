@@ -7,6 +7,7 @@ import org.springframework.security.web.csrf.CsrfToken;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/** Exposes a CSRF token that the browser must echo on state-changing requests. */
 @RestController
 
 @Tag(

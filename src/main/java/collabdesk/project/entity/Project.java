@@ -14,6 +14,7 @@ import org.jspecify.annotations.Nullable;
 import java.time.Instant;
 import java.util.Objects;
 
+/** Project aggregate contained by a workspace with its own visibility policy. */
 @Entity
 @Table(name = "projects")
 

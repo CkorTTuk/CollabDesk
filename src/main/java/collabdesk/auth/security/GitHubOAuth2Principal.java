@@ -11,6 +11,7 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import java.util.ArrayList;
 import java.util.Collection;
 
+/** Combines GitHub OAuth attributes with the linked CollabDesk account. */
 public final class GitHubOAuth2Principal
         extends DefaultOAuth2User
         implements CollabDeskPrincipal {

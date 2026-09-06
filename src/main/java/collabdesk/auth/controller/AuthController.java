@@ -20,6 +20,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+/** HTTP boundary for local registration and the current authenticated session. */
 @RestController
 @RequestMapping("/api/v1/auth")
 

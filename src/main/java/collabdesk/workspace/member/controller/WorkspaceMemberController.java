@@ -33,6 +33,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/** HTTP boundary for workspace membership, roles and member removal. */
 @RestController
 @RequestMapping("/api/v1/workspaces/{workspaceId}/members")
 

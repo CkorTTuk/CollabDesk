@@ -14,6 +14,10 @@ import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 
+/**
+ * Loads a GitHub profile, obtains a verified email when necessary, and maps the
+ * result to a CollabDesk principal through the shared external-account flow.
+ */
 @Service
 public class GitHubOAuth2UserService
         implements OAuth2UserService<OAuth2UserRequest, OAuth2User> {

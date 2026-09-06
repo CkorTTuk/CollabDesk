@@ -9,6 +9,7 @@ import org.springframework.security.core.userdetails.UserDetails;
 
 import java.util.Collection;
 
+/** Spring Security principal used for local password and verified-code sessions. */
 public final class AuthenticatedUserPrincipal
         implements UserDetails, CredentialsContainer, CollabDeskPrincipal {
     @Getter

@@ -9,6 +9,10 @@ import org.springframework.security.oauth2.core.OAuth2Error;
 import org.springframework.security.oauth2.core.oidc.user.OidcUser;
 import org.springframework.stereotype.Service;
 
+/**
+ * Adapts Google's OIDC profile into the provider-independent external-account
+ * flow and returns the CollabDesk account selected for this login.
+ */
 @Service
 public class GoogleAccountService {
     private final ExternalAccountService externalAccountService;
@@ -17,6 +21,7 @@ public class GoogleAccountService {
         this.externalAccountService = externalAccountService;
     }
 
+    /** Extracts trusted Google claims and delegates identity reconciliation. */
     public ExternalAccountResult findOrCreate(OidcUser oidcUser) {
         String subject = requireClaim(oidcUser.getSubject(), "google_subject_missing");
         String email = requireClaim(oidcUser.getEmail(), "google_email_missing");

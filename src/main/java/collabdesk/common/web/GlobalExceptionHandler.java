@@ -31,6 +31,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 import java.util.HashMap;
 import java.util.Map;
 
+/** Converts domain and validation failures into stable, safe HTTP problem details. */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
     @ExceptionHandler(InvalidVerificationCodeException.class)

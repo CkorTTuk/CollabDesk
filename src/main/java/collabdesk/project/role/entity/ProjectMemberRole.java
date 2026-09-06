@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 
 import java.util.Objects;
 
+/** Join entity granting a custom access role to an explicit project member. */
 @Entity
 @Table(name = "project_member_roles")
 @Getter

@@ -13,6 +13,7 @@ import org.jspecify.annotations.Nullable;
 import java.time.Instant;
 import java.util.Objects;
 
+/** Top-level collaboration container owned and administered by its members. */
 @Entity
 @Table(name = "workspaces")
 

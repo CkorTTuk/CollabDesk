@@ -10,6 +10,10 @@ import lombok.NoArgsConstructor;
 import java.sql.Timestamp;
 import java.util.Objects;
 
+/**
+ * A provider-specific way to authenticate one user. LOCAL identities hold a
+ * password hash; external identities store only their provider subject.
+ */
 @Entity
 @Table(name = "auth_identities")
 

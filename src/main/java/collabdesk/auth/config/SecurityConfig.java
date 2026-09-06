@@ -16,6 +16,10 @@ import org.springframework.security.web.authentication.session.SessionAuthentica
 import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
 import org.springframework.security.web.context.SecurityContextRepository;
 
+/**
+ * Defines authentication mechanisms, public endpoints, authorization rules,
+ * logout behavior and persistence of security contexts in HTTP sessions.
+ */
 @Configuration
 public class SecurityConfig {
     @Bean

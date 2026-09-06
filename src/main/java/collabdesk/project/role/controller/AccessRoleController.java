@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
+/** HTTP boundary for workspace-defined access-role administration. */
 @RestController
 @RequestMapping("/api/v1/workspaces/{workspaceId}/access-roles")
 @Tag(name = "Access roles", description = "Custom workspace role management")

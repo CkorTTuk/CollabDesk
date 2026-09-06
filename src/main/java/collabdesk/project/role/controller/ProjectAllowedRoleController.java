@@ -18,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/** Exposes the role allow-list that controls entry to a restricted project. */
 @RestController
 @RequestMapping("/api/v1/workspaces/{workspaceId}/projects/{projectId}/allowed-roles")
 @SecurityRequirement(name = "sessionCookie")

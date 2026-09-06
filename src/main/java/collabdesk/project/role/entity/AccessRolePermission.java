@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 
 import java.util.Objects;
 
+/** Join entity assigning one permission to a workspace-defined access role. */
 @Entity
 @Table(name = "access_role_permissions")
 @Getter

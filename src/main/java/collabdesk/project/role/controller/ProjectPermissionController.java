@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
+/** Returns the current user's effective permissions for a project. */
 @RestController
 @RequestMapping(
         "/api/v1/workspaces/{workspaceId}/projects/{projectId}/permissions"

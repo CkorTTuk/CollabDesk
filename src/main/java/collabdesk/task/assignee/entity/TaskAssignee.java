@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 import java.util.Objects;
 
+/** Single-assignee relation for a task; the database prevents duplicate owners. */
 @Entity
 @Table(
         name = "task_assignees",

@@ -13,6 +13,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+/**
+ * Resolves which projects a user may read or modify from workspace membership,
+ * project visibility and explicit project membership.
+ */
 @Service
 public class ProjectAccessService {
 
@@ -32,6 +36,7 @@ public class ProjectAccessService {
         this.projectAllowedRoleRepository = projectAllowedRoleRepository;
     }
 
+    /** Loads a project only when the user may view it. */
     @Transactional(readOnly = true)
     public AccessibleProject requireAccessibleProject(
             Long workspaceId,
@@ -66,6 +71,7 @@ public class ProjectAccessService {
         );
     }
 
+    /** Loads a project only when the user may mutate project content. */
     @Transactional(readOnly = true)
     public AccessibleProject requireWritableProject(
             Long workspaceId,
@@ -85,6 +91,7 @@ public class ProjectAccessService {
         return access;
     }
 
+    /** Filters a workspace's projects according to the caller's effective access. */
     @Transactional(readOnly = true)
     public List<Project> findAccessibleProjects(
             Long workspaceId,

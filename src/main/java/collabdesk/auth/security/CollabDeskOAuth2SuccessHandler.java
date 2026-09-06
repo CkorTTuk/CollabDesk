@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 
+/** Redirects a successful OAuth login to onboarding or the main application. */
 @Component
 public class CollabDeskOAuth2SuccessHandler
         implements AuthenticationSuccessHandler {

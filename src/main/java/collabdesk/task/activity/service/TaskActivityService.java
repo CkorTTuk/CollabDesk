@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+/** Records task audit events and returns their chronological API projection. */
 @Service
 public class TaskActivityService {
     private final TaskActivityRepository repository;
@@ -25,6 +26,7 @@ public class TaskActivityService {
         this.taskAccessService = taskAccessService;
     }
 
+    /** Appends a business-level task change to the audit trail. */
     public void record(
             Task task,
             User actor,
@@ -35,6 +37,7 @@ public class TaskActivityService {
         repository.save(new TaskActivity(task, actor, type, oldValue, newValue));
     }
 
+    /** Returns activity only after verifying that the task is visible. */
     @Transactional(readOnly = true)
     public List<TaskActivityResponse> findForTask(
             Long workspaceId,

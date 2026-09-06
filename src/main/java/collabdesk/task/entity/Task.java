@@ -14,6 +14,7 @@ import org.jspecify.annotations.Nullable;
 import java.time.Instant;
 import java.util.Objects;
 
+/** Task aggregate whose visibility and state changes are validated by services. */
 @Entity
 @Table(name = "tasks")
 

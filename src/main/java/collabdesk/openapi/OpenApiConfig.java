@@ -21,6 +21,7 @@ import org.springframework.context.annotation.Configuration;
 
 import java.util.List;
 
+/** Describes the public API and shared session/CSRF security schemes. */
 @Configuration
 public class OpenApiConfig {
     @Bean

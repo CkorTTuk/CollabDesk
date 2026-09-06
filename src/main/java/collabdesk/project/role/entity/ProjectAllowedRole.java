@@ -14,6 +14,7 @@ import lombok.NoArgsConstructor;
 
 import java.util.Objects;
 
+/** Join entity allowing holders of a workspace role into a restricted project. */
 @Entity
 @Table(name = "project_allowed_roles")
 @Getter

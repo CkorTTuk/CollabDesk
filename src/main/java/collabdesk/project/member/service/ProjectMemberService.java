@@ -24,6 +24,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Adds and removes project members and replaces their custom access roles while
+ * enforcing workspace and project consistency.
+ */
 @Service
 public class ProjectMemberService {
 
@@ -57,6 +61,7 @@ public class ProjectMemberService {
         this.accessChangePublisher = accessChangePublisher;
     }
 
+    /** Lists explicit members of a project after an access check. */
     @Transactional(readOnly = true)
     public List<ProjectMemberResponse> findAll(
             Long workspaceId,
@@ -75,6 +80,7 @@ public class ProjectMemberService {
                 .toList();
     }
 
+    /** Grants explicit project membership to an existing workspace member. */
     @Transactional
     public ProjectMemberResponse add(
             Long workspaceId,
@@ -125,6 +131,7 @@ public class ProjectMemberService {
         }
     }
 
+    /** Atomically replaces the member's custom project roles. */
     @Transactional
     public ProjectMemberResponse replaceRoles(
             Long workspaceId,
@@ -155,6 +162,7 @@ public class ProjectMemberService {
         return toResponse(member);
     }
 
+    /** Revokes explicit project membership and all dependent role assignments. */
     @Transactional
     public void remove(
             Long workspaceId,

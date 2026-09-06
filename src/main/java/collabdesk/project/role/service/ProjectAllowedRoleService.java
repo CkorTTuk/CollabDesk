@@ -15,6 +15,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Controls which workspace access roles are allowed to grant entry to a
+ * restricted project and publishes changes for cache invalidation.
+ */
 @Service
 public class ProjectAllowedRoleService {
     private final ProjectAllowedRoleRepository allowedRoleRepository;
@@ -37,6 +41,7 @@ public class ProjectAllowedRoleService {
         this.accessChangePublisher = accessChangePublisher;
     }
 
+    /** Lists workspace roles currently allowed into the project. */
     @Transactional(readOnly = true)
     public List<AccessRoleSummaryResponse> findAll(
             Long workspaceId,
@@ -47,6 +52,7 @@ public class ProjectAllowedRoleService {
         return responses(projectId);
     }
 
+    /** Replaces the full allow-list and invalidates derived access data. */
     @Transactional
     public List<AccessRoleSummaryResponse> replace(
             Long workspaceId,
@@ -78,6 +84,7 @@ public class ProjectAllowedRoleService {
         return responses(projectId);
     }
 
+    /** Adds one validated role to the project's allow-list. */
     @Transactional
     public void addAllowed(
             Long workspaceId,

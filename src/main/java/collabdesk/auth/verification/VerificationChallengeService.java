@@ -12,6 +12,10 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 
+/**
+ * Owns the email-code lifecycle: issue, rotate, validate, consume, cooldown and
+ * failed-attempt limits. Database locks serialize resend and confirmation.
+ */
 @Service
 public class VerificationChallengeService {
     public static final Duration CODE_TTL = Duration.ofMinutes(10);
@@ -59,6 +63,7 @@ public class VerificationChallengeService {
         this.clock = clock;
     }
 
+    /** Creates the first challenge inside the registration transaction. */
     public VerificationIssueResult issueEmailVerification(User user) {
         if (user.getId() == null) {
             throw new IllegalArgumentException("user must be persisted first");
@@ -69,6 +74,7 @@ public class VerificationChallengeService {
         return issueOrRotate(user, false);
     }
 
+    /** Replaces the old code and restarts its ten-minute lifetime. */
     @Transactional
     public VerificationIssueResult resendEmailVerification(String email) {
         Instant now = clock.instant();
@@ -83,6 +89,10 @@ public class VerificationChallengeService {
         return issueOrRotate(user, true);
     }
 
+    /**
+     * Consumes a correct code or records a failed attempt. Selected failures do
+     * not roll back because their counters are part of the security policy.
+     */
     @Transactional(noRollbackFor = {
             InvalidVerificationCodeException.class,
             VerificationAttemptsExhaustedException.class

@@ -12,6 +12,10 @@ import org.springframework.web.client.RestClientException;
 import java.time.Duration;
 import java.util.Arrays;
 
+/**
+ * Small GitHub API client used only to select the primary verified email when
+ * that address is absent from the standard OAuth profile response.
+ */
 @Component
 public class GitHubEmailClient {
     private static final String EMAILS_PATH = "/user/emails";
@@ -40,6 +44,7 @@ public class GitHubEmailClient {
         this.restClient = restClient;
     }
 
+    /** Returns GitHub's primary verified email or fails the login safely. */
     public String findPrimaryVerifiedEmail(String accessToken) {
         if (accessToken == null || accessToken.isBlank()) {
             throw authenticationFailure("github_email_lookup_failed");

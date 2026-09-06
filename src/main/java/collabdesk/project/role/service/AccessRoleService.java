@@ -19,6 +19,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * Manages workspace-defined access roles and their permission sets. It prevents
+ * duplicate names and deletion of roles that are still assigned.
+ */
 @Service
 public class AccessRoleService {
 
@@ -49,6 +53,7 @@ public class AccessRoleService {
         this.accessChangePublisher = accessChangePublisher;
     }
 
+    /** Lists custom roles defined by the workspace. */
     @Transactional(readOnly = true)
     public List<AccessRoleResponse> findAll(
             Long workspaceId,
@@ -69,6 +74,7 @@ public class AccessRoleService {
                 .toList();
     }
 
+    /** Creates a named role and its permission set. */
     @Transactional
     public AccessRoleResponse create(
             Long workspaceId,
@@ -96,6 +102,7 @@ public class AccessRoleService {
         }
     }
 
+    /** Replaces a role's editable data and permissions. */
     @Transactional
     public AccessRoleResponse update(
             Long workspaceId,
@@ -131,6 +138,7 @@ public class AccessRoleService {
         }
     }
 
+    /** Deletes an unused role after checking workspace ownership. */
     @Transactional
     public void delete(
             Long workspaceId,

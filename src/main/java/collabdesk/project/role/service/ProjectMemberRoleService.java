@@ -10,6 +10,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * Replaces and loads custom roles attached to a project member. Replacement is
+ * transactional so callers never observe a partially updated role set.
+ */
 @Service
 public class ProjectMemberRoleService {
 
@@ -27,6 +31,7 @@ public class ProjectMemberRoleService {
         this.projectMemberRoleRepository = projectMemberRoleRepository;
     }
 
+    /** Replaces all custom roles assigned to one explicit project member. */
     @Transactional
     public void replace(
             ProjectMember projectMember,
@@ -56,6 +61,7 @@ public class ProjectMemberRoleService {
         );
     }
 
+    /** Loads role IDs and effective permissions used by authorization checks. */
     @Transactional(readOnly = true)
     public ProjectMemberRoleSnapshot loadFor(
             Collection<Long> projectMemberIds

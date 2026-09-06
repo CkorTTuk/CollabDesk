@@ -8,6 +8,10 @@ import collabdesk.workspace.member.repository.WorkspaceMemberRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Central authorization guard for workspace-level operations. Each method
+ * returns the caller's membership or fails before protected data is changed.
+ */
 @Service
 public class WorkspaceAccessService {
     private final WorkspaceMemberRepository workspaceMemberRepository;
@@ -16,6 +20,7 @@ public class WorkspaceAccessService {
         this.workspaceMemberRepository = workspaceMemberRepository;
     }
 
+    /** Requires any active workspace membership. */
     @Transactional(readOnly = true)
     public WorkspaceMember requireMember(
             Long workspaceId,
@@ -27,6 +32,7 @@ public class WorkspaceAccessService {
                         "Workspace membership not found"
                 ));
     }
+    /** Requires the built-in OWNER role for destructive administration. */
     @Transactional(readOnly = true)
     public WorkspaceMember requireOwner(
             Long workspaceId,
@@ -43,6 +49,7 @@ public class WorkspaceAccessService {
 
         return membership;
     }
+    /** Requires a role that may contribute content to the workspace. */
     @Transactional(readOnly = true)
     public WorkspaceMember requireContributor(
             Long workspaceId,
@@ -60,6 +67,7 @@ public class WorkspaceAccessService {
         return membership;
     }
 
+    /** Requires OWNER or ADMIN authority over members and projects. */
     @Transactional(readOnly = true)
     public WorkspaceMember requireManager(
             Long workspaceId,

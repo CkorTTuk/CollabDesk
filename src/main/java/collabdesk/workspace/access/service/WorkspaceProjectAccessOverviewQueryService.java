@@ -19,6 +19,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * Builds the complete project-access projection from database state. This is
+ * the authoritative query used when no cached overview is available.
+ */
 @Service
 public class WorkspaceProjectAccessOverviewQueryService {
     private final ProjectAccessService projectAccessService;
@@ -38,6 +42,7 @@ public class WorkspaceProjectAccessOverviewQueryService {
         this.allowedRoleRepository = allowedRoleRepository;
     }
 
+    /** Calculates the overview directly from current database associations. */
     @Transactional(readOnly = true)
     public WorkspaceProjectAccessOverviewResponse findForWorkspace(
             Long workspaceId,

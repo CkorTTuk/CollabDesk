@@ -20,6 +20,10 @@ import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Assigns, claims and releases a task's single assignee. Permission and race
+ * checks keep concurrent claims from silently overwriting each other.
+ */
 @Service
 public class TaskAssigneeService {
 
@@ -49,6 +53,7 @@ public class TaskAssigneeService {
         this.projectPermissionService = projectPermissionService;
     }
 
+    /** Assigns or clears the task's assignee after management checks. */
     @Transactional
     public TaskResponse assign(
             Long workspaceId,
@@ -110,6 +115,7 @@ public class TaskAssigneeService {
         return response(access, saved);
     }
 
+    /** Lets the caller claim an unassigned task without overwriting another claim. */
     @Transactional
     public TaskResponse claim(
             Long workspaceId,
@@ -153,6 +159,7 @@ public class TaskAssigneeService {
         }
     }
 
+    /** Releases the caller's own assignment while preserving concurrent changes. */
     @Transactional
     public TaskResponse release(
             Long workspaceId,

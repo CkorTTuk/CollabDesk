@@ -8,6 +8,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
 import org.springframework.transaction.event.TransactionalEventListener;
 
+/**
+ * Delivers a newly issued raw code only after its challenge is committed. SMTP
+ * failure is contained so the saved account can recover through resend.
+ */
 @Component
 public class VerificationMailListener {
     private static final Logger LOGGER = LoggerFactory.getLogger(

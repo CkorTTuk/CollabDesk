@@ -16,6 +16,10 @@ import org.springframework.security.oauth2.core.user.OAuth2User;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Reads and completes the profile required after first authentication. It is
+ * also the boundary that decides whether the current account may onboard.
+ */
 @Service
 public class OnboardingService {
     private final UserRepository userRepository;
@@ -24,12 +28,14 @@ public class OnboardingService {
         this.userRepository = userRepository;
     }
 
+    /** Returns the current incomplete profile and provider suggestions. */
     @Transactional(readOnly = true)
     public OnboardingResponse getOnboarding(CollabDeskPrincipal principal) {
         User user = requireActiveUser(principal.getUserId());
         return OnboardingResponse.from(user, principal);
     }
 
+    /** Validates and stores the profile, then unlocks normal application access. */
     @Transactional
     public OnboardingResponse completeOnboarding(
             CollabDeskPrincipal principal,

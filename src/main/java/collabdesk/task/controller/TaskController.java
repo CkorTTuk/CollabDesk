@@ -36,6 +36,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+/**
+ * HTTP boundary for task lifecycle, visibility, assignment and activity. All
+ * authorization remains in the underlying services rather than the controller.
+ */
 @RestController
 @RequestMapping(
         "/api/v1/workspaces/{workspaceId}/projects/{projectId}/tasks"

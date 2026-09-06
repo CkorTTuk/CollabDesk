@@ -22,6 +22,10 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+/**
+ * Manages workspace membership and built-in roles while protecting owner-only
+ * invariants. Membership changes also invalidate derived access information.
+ */
 @Service
 public class WorkspaceMemberService {
     private final WorkspaceMemberRepository workspaceMemberRepository;
@@ -43,6 +47,7 @@ public class WorkspaceMemberService {
         this.memberAccessRoleService = memberAccessRoleService;
         this.accessChangePublisher = accessChangePublisher;
     }
+    /** Lists workspace members after checking the caller's membership. */
     @Transactional(readOnly = true)
     public List<WorkspaceMemberResponse> findForWorkspace(
             Long workspaceId,
@@ -62,6 +67,7 @@ public class WorkspaceMemberService {
                 .toList();
     }
 
+    /** Adds an existing user to a workspace and applies optional custom roles. */
     @Transactional
     public WorkspaceMemberResponse add(
             Long workspaceId,
@@ -99,6 +105,7 @@ public class WorkspaceMemberService {
         return toResponse(workspaceMemberRepository.save(membership), List.of());
     }
 
+    /** Changes a built-in role without allowing the owner's role to be changed. */
     @Transactional
     public WorkspaceMemberResponse changeRole(
             Long workspaceId,
@@ -124,6 +131,7 @@ public class WorkspaceMemberService {
         );
     }
 
+    /** Removes a member and dependent project access, but never the owner. */
     @Transactional
     public void remove(
             Long workspaceId,

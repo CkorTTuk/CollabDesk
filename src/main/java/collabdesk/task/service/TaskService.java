@@ -20,6 +20,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Implements task creation and edits, including status and visibility changes.
+ * It coordinates access checks, assignment rules and activity recording.
+ */
 @Service
 public class TaskService {
 
@@ -49,6 +53,7 @@ public class TaskService {
         this.taskActivityService = taskActivityService;
     }
 
+    /** Creates a task after validating project write access and assignment. */
     @Transactional
     public TaskResponse create(
             Long workspaceId,
@@ -90,6 +95,7 @@ public class TaskService {
         );
     }
 
+    /** Lists only tasks visible to the caller within an accessible project. */
     @Transactional(readOnly = true)
     public List<TaskResponse> findForProject(
             Long workspaceId,
@@ -127,6 +133,7 @@ public class TaskService {
         );
     }
 
+    /** Updates editable task fields and records the resulting activity. */
     @Transactional
     public TaskResponse edit(
             Long workspaceId,
@@ -169,6 +176,7 @@ public class TaskService {
         );
     }
 
+    /** Applies a validated status transition and records it in task activity. */
     @Transactional
     public TaskResponse changeStatus(
             Long workspaceId,
@@ -207,6 +215,7 @@ public class TaskService {
         );
     }
 
+    /** Changes visibility while preventing conflicts with the current assignee. */
     @Transactional
     public TaskResponse changeVisibility(
             Long workspaceId,

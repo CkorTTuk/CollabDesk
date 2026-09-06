@@ -14,6 +14,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.ArrayList;
 import java.util.List;
 
+/**
+ * Creates workspaces and lists those visible to a user. Creation also assigns
+ * the creator as the workspace owner in the same transaction.
+ */
 @Service
 public class WorkspaceService {
     private final WorkspaceRepository workspaceRepository;
@@ -28,6 +32,7 @@ public class WorkspaceService {
         this.workspaceMemberRepository = workspaceMemberRepository;
         this.userRepository = userRepository;
     }
+    /** Creates a workspace and its immutable OWNER membership together. */
     @Transactional
     public WorkspaceResponse create(
             Long currentUserId,
@@ -55,6 +60,7 @@ public class WorkspaceService {
 
     }
 
+    /** Returns only workspaces in which the user currently has membership. */
     @Transactional(readOnly = true)
     public List<WorkspaceResponse> findForUser(Long currentUserId){
         if(!userRepository.existsById(currentUserId)){

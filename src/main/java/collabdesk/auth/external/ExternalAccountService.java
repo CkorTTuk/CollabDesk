@@ -15,6 +15,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Objects;
 
+/**
+ * Reconciles a verified external identity with local users and identities. It
+ * either reuses a safe match or creates the pending profile atomically.
+ */
 @Service
 public class ExternalAccountService {
     private static final Logger log = LoggerFactory.getLogger(
@@ -33,6 +37,7 @@ public class ExternalAccountService {
         this.userRepository = userRepository;
     }
 
+    /** Resolves or creates the user represented by one trusted provider identity. */
     @Transactional
     public ExternalAccountResult findOrCreate(ExternalIdentity externalIdentity) {
         Objects.requireNonNull(externalIdentity, "externalIdentity is required");

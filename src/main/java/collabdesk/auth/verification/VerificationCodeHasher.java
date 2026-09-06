@@ -11,6 +11,10 @@ import java.security.MessageDigest;
 import java.util.HexFormat;
 import java.util.Objects;
 
+/**
+ * Converts short verification codes to keyed HMAC values before persistence.
+ * User, purpose and destination bind a code to its exact security context.
+ */
 @Component
 public class VerificationCodeHasher {
     private static final String ALGORITHM = "HmacSHA256";

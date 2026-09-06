@@ -11,6 +11,7 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 import java.util.Objects;
 
+/** Links a user to a workspace and stores the member's built-in workspace role. */
 @Entity
 @Table(name = "workspace_members")
 

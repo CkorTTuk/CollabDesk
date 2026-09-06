@@ -11,6 +11,10 @@ import collabdesk.workspace.service.exceptions.WorkspaceOperationForbiddenExcept
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+/**
+ * Resolves readable, writable and manageable tasks while combining project
+ * access, task visibility and effective permissions.
+ */
 @Service
 public class TaskAccessService {
 
@@ -28,6 +32,7 @@ public class TaskAccessService {
         this.taskAssigneeRepository = taskAssigneeRepository;
     }
 
+    /** Loads a task only when project and task visibility allow reading it. */
     @Transactional(readOnly = true)
     public AccessibleTask requireAccessibleTask(
             Long workspaceId,
@@ -64,6 +69,7 @@ public class TaskAccessService {
         );
     }
 
+    /** Loads a task only when the caller may change its work state. */
     @Transactional(readOnly = true)
     public AccessibleTask requireWritableTask(
             Long workspaceId,
@@ -86,6 +92,7 @@ public class TaskAccessService {
         return access;
     }
 
+    /** Loads a task only when the caller may administer assignment/visibility. */
     @Transactional(readOnly = true)
     public AccessibleTask requireManageableTask(
             Long workspaceId,

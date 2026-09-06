@@ -12,6 +12,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Locale;
 
+/**
+ * Loads credentials for password login only. Unverified local accounts are
+ * deliberately reported as invalid credentials and cannot receive a session.
+ */
 @Service
 public class LocalUserDetailsService implements UserDetailsService {
     private final AuthIdentityRepository authIdentityRepository;

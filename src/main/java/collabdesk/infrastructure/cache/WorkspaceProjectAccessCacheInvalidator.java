@@ -8,6 +8,10 @@ import org.springframework.transaction.event.TransactionalEventListener;
 
 import static collabdesk.infrastructure.cache.CacheConfiguration.WORKSPACE_PROJECT_ACCESS_OVERVIEW;
 
+/**
+ * Evicts stale access projections after commit. A rolled-back transaction
+ * therefore cannot remove a still-valid cache entry.
+ */
 @Component
 @Profile("redis")
 public class WorkspaceProjectAccessCacheInvalidator {

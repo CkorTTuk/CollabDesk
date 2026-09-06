@@ -12,6 +12,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 
 
+/** Combines Google's OIDC attributes with the linked CollabDesk account. */
 public final class GoogleOidcPrincipal
         extends DefaultOidcUser
         implements CollabDeskPrincipal {

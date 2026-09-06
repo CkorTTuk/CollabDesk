@@ -13,6 +13,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.Locale;
 
 
+/**
+ * Registers a local account as one transaction: unverified user, BCrypt-backed
+ * LOCAL identity, and the first email-verification challenge.
+ */
 @Service
 
 public class RegistrationService {
@@ -32,6 +36,7 @@ public class RegistrationService {
         this.passwordEncoder = passwordEncoder;
         this.verificationChallengeService = verificationChallengeService;
     }
+    /** Creates every database record required before the verification email is sent. */
     @Transactional
     public RegistrationResult register(String email, String rawPassword){
         if( email == null || rawPassword == null){

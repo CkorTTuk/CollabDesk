@@ -20,6 +20,7 @@ import lombok.NoArgsConstructor;
 import java.time.Instant;
 import java.util.Objects;
 
+/** Immutable-style audit entry describing a meaningful task state change. */
 @Entity
 @Table(name = "task_activities")
 @Getter

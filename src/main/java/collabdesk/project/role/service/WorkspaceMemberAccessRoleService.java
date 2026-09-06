@@ -22,6 +22,10 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+/**
+ * Assigns custom access roles to workspace members. It validates that every
+ * assigned role belongs to the same workspace before replacing associations.
+ */
 @Service
 public class WorkspaceMemberAccessRoleService {
     private final WorkspaceMemberAccessRoleRepository assignmentRepository;
@@ -44,6 +48,7 @@ public class WorkspaceMemberAccessRoleService {
         this.accessChangePublisher = accessChangePublisher;
     }
 
+    /** Validates and replaces all custom access roles of a workspace member. */
     @Transactional
     public List<AccessRoleSummaryResponse> replace(
             Long workspaceId,
@@ -67,6 +72,7 @@ public class WorkspaceMemberAccessRoleService {
         return findForMember(member.getId());
     }
 
+    /** Internal replacement entry point for callers that already checked access. */
     @Transactional
     public void replaceValidated(
             Long workspaceId,
@@ -89,6 +95,7 @@ public class WorkspaceMemberAccessRoleService {
                 .toList());
     }
 
+    /** Lists custom access roles attached to one workspace member. */
     @Transactional(readOnly = true)
     public List<AccessRoleSummaryResponse> findForMember(Long memberId) {
         return assignmentRepository.findByWorkspaceMember_Id(memberId).stream()
@@ -97,6 +104,7 @@ public class WorkspaceMemberAccessRoleService {
                 .toList();
     }
 
+    /** Batch-loads role summaries to avoid per-member queries in overview screens. */
     @Transactional(readOnly = true)
     public Map<Long, List<AccessRoleSummaryResponse>> findForMembers(Collection<Long> memberIds) {
         if (memberIds.isEmpty()) {

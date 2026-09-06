@@ -22,6 +22,10 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.*;
 
+/**
+ * Handles project creation and listing. It coordinates workspace authorization,
+ * initial access rules and cache invalidation as one use case.
+ */
 @Service
 public class ProjectService {
     private final ProjectRepository projectRepository;
@@ -49,6 +53,7 @@ public class ProjectService {
         this.workspaceMemberRepository = workspaceMemberRepository;
         this.accessChangePublisher = accessChangePublisher;
     }
+    /** Creates a project and initializes its access model in one transaction. */
     @Transactional
     public ProjectResponse create(
             Long workspaceId,
@@ -113,6 +118,7 @@ public class ProjectService {
         accessChangePublisher.publish(workspaceId);
         return toResponse(savedProject, isRestricted(savedProject.getId()));
     }
+    /** Lists only projects the caller can access inside the workspace. */
     @Transactional(readOnly = true)
     public List<ProjectResponse> findForWorkspace(
             Long workspaceId,

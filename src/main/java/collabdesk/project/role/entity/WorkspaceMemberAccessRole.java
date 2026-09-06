@@ -14,6 +14,7 @@ import lombok.NoArgsConstructor;
 
 import java.util.Objects;
 
+/** Join entity attaching a reusable custom role to a workspace member. */
 @Entity
 @Table(name = "workspace_member_access_roles")
 @Getter

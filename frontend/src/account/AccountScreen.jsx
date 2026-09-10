@@ -142,8 +142,6 @@ export default function AccountScreen({ account, onAccountChange, onBack }) {
         </section>
 
         <section className="account-section"><div><h2>{t('account.providers.title')}</h2><p>{t('account.providers.help')}</p></div><SignInMethods providers={account.providers} t={t} /></section>
-        <section className="account-section"><div><h2>{t('account.security.title')}</h2><p>{t('account.security.pending')}</p></div></section>
-        <section className="account-section danger"><div><h2>{t('account.danger.title')}</h2><p>{t('account.danger.pending')}</p></div></section>
       </div>
     </main>
   )

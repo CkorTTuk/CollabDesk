@@ -61,6 +61,9 @@ public class User {
     @Column(name = "avatar_key", length = MAX_AVATAR_KEY_LENGTH)
     private String avatarKey;
 
+    @Column(name = "preferred_locale", nullable = false, length = 10)
+    private String preferredLocale = SupportedLocale.EN.tag();
+
     @Nullable
     @Column(name = "email_verified_at")
     private Instant emailVerifiedAt;
@@ -171,6 +174,15 @@ public class User {
             return;
         }
         this.avatarKey = normalizedAvatarKey;
+        touch();
+    }
+
+    public void changePreferredLocale(String locale) {
+        String canonicalLocale = SupportedLocale.fromTag(locale).tag();
+        if (Objects.equals(this.preferredLocale, canonicalLocale)) {
+            return;
+        }
+        this.preferredLocale = canonicalLocale;
         touch();
     }
 

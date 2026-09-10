@@ -1,6 +1,8 @@
 package collabdesk.account.onboarding;
 
 import collabdesk.auth.security.CollabDeskPrincipal;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
@@ -31,11 +33,15 @@ public class OnboardingController {
     public OnboardingResponse completeOnboarding(
             @AuthenticationPrincipal CollabDeskPrincipal principal,
             Authentication authentication,
+            HttpServletRequest servletRequest,
+            HttpServletResponse servletResponse,
             @Valid @RequestBody CompleteOnboardingRequest request
     ) {
         return onboardingService.completeOnboarding(
                 principal,
                 authentication,
+                servletRequest,
+                servletResponse,
                 request
         );
     }

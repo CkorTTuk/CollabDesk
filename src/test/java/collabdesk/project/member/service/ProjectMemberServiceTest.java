@@ -74,6 +74,7 @@ class ProjectMemberServiceTest {
                 memberAccessRoleService,
                 projectAllowedRoleService,
                 projectPermissionService,
+                new collabdesk.account.AvatarUrlFactory(),
                 accessChangePublisher
         );
 

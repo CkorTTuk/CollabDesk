@@ -55,7 +55,8 @@ class WorkspaceProjectAccessOverviewQueryServiceTest {
                 projectAccessService,
                 projectMemberRepository,
                 memberAccessRoleService,
-                projectAllowedRoleRepository
+                projectAllowedRoleRepository,
+                new collabdesk.account.AvatarUrlFactory()
         );
     }
 

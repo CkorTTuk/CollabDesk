@@ -65,6 +65,7 @@ class WorkspaceMemberServiceTest {
                 workspaceAccessService,
                 userRepository,
                 memberAccessRoleService,
+                new collabdesk.account.AvatarUrlFactory(),
                 accessChangePublisher
         );
         owner = user(7L, "owner@test.com", "Owner");
@@ -81,6 +82,7 @@ class WorkspaceMemberServiceTest {
     @Test
     void findForWorkspaceChecksAccessAndReturnsImmutableMappedList() {
         User member = user(8L, "member@test.com", "Member");
+        member.changeAvatar("member-avatar.jpg");
         WorkspaceMember memberMembership = membership(
                 22L,
                 WorkspaceMember.member(workspace, member)
@@ -106,6 +108,8 @@ class WorkspaceMemberServiceTest {
                         result.stream().map(WorkspaceMemberResponse::id).toList()),
                 () -> assertEquals(List.of("owner@test.com", "member@test.com"),
                         result.stream().map(WorkspaceMemberResponse::email).toList()),
+                () -> assertEquals("/api/v1/avatars/member-avatar.jpg",
+                        result.get(1).avatarUrl()),
                 () -> assertThrows(
                         UnsupportedOperationException.class,
                         () -> result.add(result.getFirst())

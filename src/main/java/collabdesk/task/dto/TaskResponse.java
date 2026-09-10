@@ -20,6 +20,7 @@ public record TaskResponse(
         Long createdById,
         String createdByDisplayName,
         String createdByEmail,
+        String createdByAvatarUrl,
         Instant createdAt,
         Instant updatedAt,
         TaskAssigneeResponse assignee,

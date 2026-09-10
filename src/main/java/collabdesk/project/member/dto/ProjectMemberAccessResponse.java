@@ -13,6 +13,7 @@ public record ProjectMemberAccessResponse(
         Long userId,
         String displayName,
         String email,
+        String avatarUrl,
         WorkspaceRole workspaceRole,
         boolean grantsAccess,
         List<AccessRoleSummaryResponse> roles

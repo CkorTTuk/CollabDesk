@@ -1,5 +1,6 @@
 package collabdesk.project.member.service;
 
+import collabdesk.account.AvatarUrlFactory;
 import collabdesk.infrastructure.cache.WorkspaceProjectAccessChangePublisher;
 import collabdesk.project.role.dto.AccessRoleSummaryResponse;
 import collabdesk.project.role.entity.ProjectPermission;
@@ -38,6 +39,7 @@ public class ProjectMemberService {
     private final WorkspaceMemberAccessRoleService memberAccessRoleService;
     private final ProjectAllowedRoleService projectAllowedRoleService;
     private final ProjectPermissionService projectPermissionService;
+    private final AvatarUrlFactory avatarUrlFactory;
 
     private final WorkspaceProjectAccessChangePublisher accessChangePublisher;
 
@@ -49,6 +51,7 @@ public class ProjectMemberService {
             WorkspaceMemberAccessRoleService memberAccessRoleService,
             ProjectAllowedRoleService projectAllowedRoleService,
             ProjectPermissionService projectPermissionService,
+            AvatarUrlFactory avatarUrlFactory,
             WorkspaceProjectAccessChangePublisher accessChangePublisher
     ) {
         this.projectMemberRepository = projectMemberRepository;
@@ -58,6 +61,7 @@ public class ProjectMemberService {
         this.memberAccessRoleService = memberAccessRoleService;
         this.projectAllowedRoleService = projectAllowedRoleService;
         this.projectPermissionService = projectPermissionService;
+        this.avatarUrlFactory = avatarUrlFactory;
         this.accessChangePublisher = accessChangePublisher;
     }
 
@@ -198,6 +202,7 @@ public class ProjectMemberService {
                 workspaceMember.getUser().getId(),
                 workspaceMember.getUser().getEmail(),
                 workspaceMember.getUser().getDisplayName(),
+                avatarUrlFactory.create(workspaceMember.getUser().getAvatarKey()),
                 workspaceMember.getRole(),
                 member.getJoinedAt(),
                 member.isGrantsAccess(),

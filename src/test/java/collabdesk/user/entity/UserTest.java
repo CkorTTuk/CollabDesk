@@ -22,8 +22,28 @@ class UserTest {
                 () -> assertEquals("member@example.com", user.getEmail()),
                 () -> assertEquals("Existing User", user.getDisplayName()),
                 () -> assertEquals("Existing User", user.getFirstName()),
+                () -> assertEquals("en", user.getPreferredLocale()),
                 () -> assertTrue(user.isEmailVerified()),
                 () -> assertTrue(user.isOnboardingCompleted())
+        );
+    }
+
+    @Test
+    void changesOnlyToSupportedCanonicalLocales() {
+        User user = new User("member@example.com", "Member");
+
+        user.changePreferredLocale("sk");
+
+        assertAll(
+                () -> assertEquals("sk", user.getPreferredLocale()),
+                () -> assertThrows(
+                        IllegalArgumentException.class,
+                        () -> user.changePreferredLocale("sk-SK")
+                ),
+                () -> assertThrows(
+                        IllegalArgumentException.class,
+                        () -> user.changePreferredLocale("english")
+                )
         );
     }
 

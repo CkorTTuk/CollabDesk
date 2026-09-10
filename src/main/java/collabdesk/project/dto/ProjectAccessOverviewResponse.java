@@ -16,6 +16,7 @@ public record ProjectAccessOverviewResponse(
         ProjectStatus status,
         Long createdById,
         String createdByDisplayName,
+        String createdByAvatarUrl,
         Instant createdAt,
         boolean restricted,
         List<AccessRoleSummaryResponse> allowedRoles,

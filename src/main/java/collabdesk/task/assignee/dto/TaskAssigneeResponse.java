@@ -7,6 +7,7 @@ public record TaskAssigneeResponse(
         Long projectMemberId,
         Long userId,
         String email,
-        String displayName
+        String displayName,
+        String avatarUrl
 ) {
 }

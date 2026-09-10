@@ -13,6 +13,7 @@ public record WorkspaceMemberResponse(
         Long userId,
         String email,
         String displayName,
+        String avatarUrl,
         WorkspaceRole role,
         Instant joinedAt,
         List<AccessRoleSummaryResponse> accessRoles

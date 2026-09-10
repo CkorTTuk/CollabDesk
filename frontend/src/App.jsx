@@ -46,6 +46,13 @@ import {
   replaceWorkspaceMemberAccessRoles,
 } from './api/memberApi.js'
 import OnboardingScreen from './OnboardingScreen.jsx'
+import AccountScreen from './account/AccountScreen.jsx'
+import { getAccount, updateLocale } from './api/accountApi.js'
+import { useI18n } from './i18n/I18nProvider.jsx'
+import {
+  LOCALE_EXPLICIT_STORAGE_KEY,
+  SUPPORTED_LOCALES,
+} from './i18n/locale.js'
 import './App.css'
 
 const EMPTY_LOGIN = {
@@ -129,10 +136,6 @@ function roleBadgeClassName(role, extraClass = '') {
   return `role-badge role-${role.toLowerCase()} ${extraClass}`.trim()
 }
 
-function formatRole(role) {
-  return `${role.charAt(0)}${role.slice(1).toLowerCase()}`
-}
-
 function memberInitials(displayName = '') {
   return displayName
     .trim()
@@ -140,6 +143,12 @@ function memberInitials(displayName = '') {
     .slice(0, 2)
     .map((part) => part.charAt(0).toUpperCase())
     .join('') || '?'
+}
+
+function AvatarContent({ avatarUrl, displayName }) {
+  return avatarUrl
+    ? <img src={avatarUrl} alt="" />
+    : memberInitials(displayName)
 }
 
 function readPinnedIds(storageKey) {
@@ -243,6 +252,54 @@ function ThemeToggle({ theme, onToggle }) {
   )
 }
 
+function LanguageSwitcher() {
+  const { locale, setLocale, t } = useI18n()
+  const [isOpen, setIsOpen] = useState(false)
+  const switcherRef = useRef(null)
+
+  useEffect(() => {
+    if (!isOpen) return undefined
+    function closeOutside(event) {
+      if (!switcherRef.current?.contains(event.target)) setIsOpen(false)
+    }
+    function closeOnEscape(event) {
+      if (event.key === 'Escape') setIsOpen(false)
+    }
+    document.addEventListener('pointerdown', closeOutside)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [isOpen])
+
+  function chooseLanguage(nextLocale) {
+    setLocale(nextLocale)
+    setIsOpen(false)
+  }
+
+  return (
+    <div className="language-switcher" ref={switcherRef}>
+      <button type="button" className="language-switcher-trigger" aria-haspopup="menu" aria-expanded={isOpen} aria-label={t('language.label')} onClick={() => setIsOpen((current) => !current)}>
+        <span className="language-switcher-icon" aria-hidden="true">{'\uD83C\uDF10'}</span>
+        <span>{locale.toUpperCase()}</span>
+        <span className="language-switcher-chevron" aria-hidden="true">⌄</span>
+      </button>
+      {isOpen && (
+        <div className="language-switcher-menu" role="menu" aria-label={t('language.label')}>
+          {SUPPORTED_LOCALES.map((item) => (
+            <button type="button" role="menuitemradio" aria-checked={locale === item} className={locale === item ? 'selected' : ''} key={item} onClick={() => chooseLanguage(item)}>
+              <span>{item.toUpperCase()}</span>
+              <span>{t(`language.${item}`)}</span>
+              <span aria-hidden="true">{locale === item ? '✓' : ''}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function PageBackButton({ label, current, onClick }) {
   return (
     <nav className="page-breadcrumb" aria-label="Breadcrumb">
@@ -260,6 +317,7 @@ function RolePicker({
   disabled = false,
   compact = false,
 }) {
+  const { t } = useI18n()
   const [isOpen, setIsOpen] = useState(false)
   const pickerRef = useRef(null)
   const selectedRole =
@@ -318,7 +376,7 @@ function RolePicker({
           className={`role-dot role-dot-${selectedRole.value.toLowerCase()}`}
           aria-hidden="true"
         />
-        <span>{selectedRole.label}</span>
+        <span>{t(`role.${selectedRole.value.toLowerCase()}`)}</span>
         <span className="role-picker-chevron" aria-hidden="true">
           {isOpen ? '↑' : '↓'}
         </span>
@@ -339,8 +397,8 @@ function RolePicker({
                 aria-hidden="true"
               />
               <span>
-                <strong>{role.label}</strong>
-                <small>{role.description}</small>
+                <strong>{t(`role.${role.value.toLowerCase()}`)}</strong>
+                <small>{t(`role.${role.value.toLowerCase()}.help`)}</small>
               </span>
               {role.value === value && (
                 <span className="role-picker-check" aria-hidden="true">
@@ -356,6 +414,7 @@ function RolePicker({
 }
 
 function TaskStatusPicker({ value, onChange, disabled = false }) {
+  const { t } = useI18n()
   const [isOpen, setIsOpen] = useState(false)
   const pickerRef = useRef(null)
   const selectedStatus =
@@ -403,7 +462,7 @@ function TaskStatusPicker({ value, onChange, disabled = false }) {
         className={`task-status-trigger task-status-trigger-${selectedClass}`}
         type="button"
         disabled={disabled}
-        aria-label={`Task status: ${selectedStatus.title}`}
+        aria-label={t('task.status')}
         aria-haspopup="listbox"
         aria-expanded={isOpen}
         onClick={() => setIsOpen((current) => !current)}
@@ -412,14 +471,14 @@ function TaskStatusPicker({ value, onChange, disabled = false }) {
           className={`task-status-dot task-status-dot-${selectedClass}`}
           aria-hidden="true"
         />
-        <span>{selectedStatus.title}</span>
+        <span>{t(`task.status.${selectedStatus.status.toLowerCase()}`)}</span>
         <span className="task-status-chevron" aria-hidden="true">
           {isOpen ? '↑' : '↓'}
         </span>
       </button>
 
       {isOpen && (
-        <div className="task-status-menu" role="listbox" aria-label="Task status">
+        <div className="task-status-menu" role="listbox" aria-label={t('task.status')}>
           {TASK_COLUMNS.map((status) => {
             const statusClass = status.status.toLowerCase()
             const isSelected = status.status === value
@@ -437,7 +496,7 @@ function TaskStatusPicker({ value, onChange, disabled = false }) {
                   className={`task-status-dot task-status-dot-${statusClass}`}
                   aria-hidden="true"
                 />
-                <span>{status.title}</span>
+                <span>{t(`task.status.${status.status.toLowerCase()}`)}</span>
                 {isSelected && (
                   <span className="task-status-check" aria-hidden="true">
                     ✓
@@ -453,6 +512,7 @@ function TaskStatusPicker({ value, onChange, disabled = false }) {
 }
 
 function AuthShell({ mode, onModeChange, onAuthenticated }) {
+  const { t } = useI18n()
   const [loginForm, setLoginForm] = useState(EMPTY_LOGIN)
   const [registrationForm, setRegistrationForm] =
     useState(EMPTY_REGISTRATION)
@@ -581,12 +641,9 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
         <Brand />
 
         <div className="intro-copy">
-          <p className="eyebrow">Focused teamwork, without the noise</p>
-          <h1>Projects, people, and progress in one clear workspace.</h1>
-          <p className="intro-text">
-            CollabDesk keeps your teams, projects, and tasks connected. Plan
-            work, track progress, and manage access without losing context.
-          </p>
+          <p className="eyebrow">{t('auth.intro.eyebrow')}</p>
+          <h1>{t('auth.intro.title')}</h1>
+          <p className="intro-text">{t('auth.intro.text')}</p>
         </div>
 
         <div className="feature-list" aria-label="Highlights">
@@ -595,8 +652,8 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
               01
             </span>
             <div>
-              <strong>Private by default</strong>
-              <span>Controlled access for every workspace</span>
+              <strong>{t('auth.feature.private.title')}</strong>
+              <span>{t('auth.feature.private.help')}</span>
             </div>
           </div>
           <div className="feature">
@@ -604,13 +661,13 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
               02
             </span>
             <div>
-              <strong>Built for teams</strong>
-              <span>Workspaces, projects, tasks, and roles</span>
+              <strong>{t('auth.feature.teams.title')}</strong>
+              <span>{t('auth.feature.teams.help')}</span>
             </div>
           </div>
         </div>
 
-        <p className="intro-footer">Organize · Collaborate · Deliver</p>
+        <p className="intro-footer">{t('auth.feature.footer')}</p>
       </section>
 
       <section className="auth-panel">
@@ -620,12 +677,12 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
           </div>
 
           <div className="auth-heading">
-            <p className="eyebrow">{isLogin ? 'Welcome back' : 'New account'}</p>
-            <h2>{isLogin ? 'Sign in to CollabDesk' : 'Create your account'}</h2>
+            <p className="eyebrow">{isLogin ? t('auth.welcome') : t('auth.newAccount')}</p>
+            <h2>{isLogin ? t('auth.signIn.title') : t('auth.register.title')}</h2>
             <p>
               {isLogin
-                ? 'Enter the credentials you used when registering.'
-                : 'Create your credentials, then finish your profile.'}
+                ? t('auth.login.help')
+                : t('auth.register.help')}
             </p>
           </div>
 
@@ -645,20 +702,20 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
           <div className="oauth-buttons">
             <a className="oauth-auth-button" href="/oauth2/authorization/google">
               <GoogleIcon />
-              Continue with Google
+              {t('auth.google')}
             </a>
             <a
               className="oauth-auth-button github-auth-button"
               href="/oauth2/authorization/github"
             >
               <GitHubIcon />
-              Continue with GitHub
+              {t('auth.github')}
             </a>
           </div>
 
           <div className="auth-divider" aria-hidden="true">
             <span />
-            <small>or continue with email</small>
+            <small>{t('auth.orEmail')}</small>
             <span />
           </div>
 
@@ -666,7 +723,7 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
             <form className="auth-form" onSubmit={handleLogin}>
               <FormField
                 id="login-email"
-                label="Email"
+                label={t('auth.email')}
                 type="email"
                 autoComplete="email"
                 placeholder="you@example.com"
@@ -678,7 +735,7 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
               />
               <FormField
                 id="login-password"
-                label="Password"
+                label={t('auth.password')}
                 type="password"
                 autoComplete="current-password"
                 placeholder="At least 8 characters"
@@ -689,14 +746,14 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
                 error={fieldErrors.password}
               />
               <button className="primary-button" disabled={isSubmitting}>
-                {isSubmitting ? 'Signing in…' : 'Sign in'}
+                {isSubmitting ? t('auth.signingIn') : t('auth.signIn')}
               </button>
             </form>
           ) : (
             <form className="auth-form" onSubmit={handleRegistration}>
               <FormField
                 id="register-email"
-                label="Email"
+                label={t('auth.email')}
                 type="email"
                 autoComplete="email"
                 placeholder="you@example.com"
@@ -712,7 +769,7 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
               />
               <FormField
                 id="register-password"
-                label="Password"
+                label={t('auth.password')}
                 type="password"
                 autoComplete="new-password"
                 placeholder="8 to 64 characters"
@@ -729,7 +786,7 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
               />
               <FormField
                 id="register-password-confirmation"
-                label="Confirm password"
+                label={t('auth.confirmPassword')}
                 type="password"
                 autoComplete="new-password"
                 placeholder="Enter the same password again"
@@ -745,18 +802,18 @@ function AuthShell({ mode, onModeChange, onAuthenticated }) {
                 error={fieldErrors.passwordConfirmation}
               />
               <button className="primary-button" disabled={isSubmitting}>
-                {isSubmitting ? 'Creating account…' : 'Create account'}
+                {isSubmitting ? t('auth.creating') : t('auth.create')}
               </button>
             </form>
           )}
 
           <p className="mode-switch">
-            {isLogin ? 'New to CollabDesk?' : 'Already have an account?'}
+            {isLogin ? t('auth.newHere') : t('auth.hasAccount')}
             <button
               type="button"
               onClick={() => changeMode(isLogin ? 'register' : 'login')}
             >
-              {isLogin ? 'Create account' : 'Sign in'}
+              {isLogin ? t('auth.create') : t('auth.signIn')}
             </button>
           </p>
         </div>
@@ -786,6 +843,7 @@ function EmailVerificationScreen({
   onVerified,
   onBack,
 }) {
+  const { t } = useI18n()
   const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
@@ -811,7 +869,7 @@ function EmailVerificationScreen({
   async function handleConfirm(event) {
     event.preventDefault()
     if (!/^\d{6}$/.test(code)) {
-      setError('Enter the six-digit code from the email.')
+      setError(t('verify.invalidFormat'))
       return
     }
     setError('')
@@ -847,7 +905,7 @@ function EmailVerificationScreen({
         expiresAt: next.expiresAt,
         resendAvailableAt: next.resendAvailableAt,
       })
-      setMessage('A new verification code has been sent.')
+      setMessage(t('verify.sentAgain'))
     } catch (requestError) {
       if (requestError.retryAfterSeconds) {
         setResendSeconds(requestError.retryAfterSeconds)
@@ -864,20 +922,17 @@ function EmailVerificationScreen({
     <main className="email-verification-page">
       <section className="email-verification-card">
         <Brand />
-        <p className="eyebrow">Verify your email</p>
-        <h1>Check your inbox</h1>
-        <p>
-          We sent a six-digit code to{' '}
-          <strong>{maskEmail(verification.email)}</strong>.
-        </p>
+        <p className="eyebrow">{t('verify.eyebrow')}</p>
+        <h1>{t('verify.title')}</h1>
+        <p>{t('verify.sent', { email: maskEmail(verification.email) })}</p>
         <p className="email-verification-expiry">
           {expirySeconds > 0
-            ? `The code expires in ${Math.ceil(expirySeconds / 60)} min.`
-            : 'This code has expired. Request a new one.'}
+            ? t('verify.expiry', { minutes: Math.ceil(expirySeconds / 60) })
+            : t('verify.expired')}
         </p>
         <form className="auth-form" onSubmit={handleConfirm}>
           <label className="form-field" htmlFor="email-verification-code">
-            <span>Verification code</span>
+            <span>{t('verify.code')}</span>
             <input
               id="email-verification-code"
               type="text"
@@ -898,7 +953,7 @@ function EmailVerificationScreen({
             className="primary-button"
             disabled={isSubmitting || code.length !== 6 || expirySeconds === 0}
           >
-            {isSubmitting ? 'Verifying…' : 'Verify email'}
+            {isSubmitting ? t('verify.submitting') : t('verify.submit')}
           </button>
         </form>
         <div className="email-verification-actions">
@@ -908,12 +963,12 @@ function EmailVerificationScreen({
             onClick={handleResend}
           >
             {isResending
-              ? 'Sending…'
+              ? t('verify.resending')
               : resendSeconds > 0
-                ? `Resend in ${resendSeconds}s`
-                : 'Resend code'}
+                ? t('verify.resendIn', { seconds: resendSeconds })
+                : t('verify.resend')}
           </button>
-          <button type="button" onClick={onBack}>Back to sign in</button>
+          <button type="button" onClick={onBack}>{t('verify.back')}</button>
         </div>
       </section>
     </main>
@@ -953,11 +1008,33 @@ function FormField({
   )
 }
 
-function Dashboard({ user, onLogout, theme, onToggleTheme }) {
+function Dashboard({ user, onLogout, onOpenAccount, onAccountChange, theme, onToggleTheme }) {
+  const { locale, setLocale, t } = useI18n()
   const [isLoggingOut, setIsLoggingOut] = useState(false)
-  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isLanguageOpen, setIsLanguageOpen] = useState(false)
+  const [isLanguageSaving, setIsLanguageSaving] = useState(false)
   const [workspaceHomeRequest, setWorkspaceHomeRequest] = useState(0)
   const [error, setError] = useState('')
+  const languageMenuRef = useRef(null)
+
+  useEffect(() => {
+    if (!isLanguageOpen) return undefined
+
+    function closeOutside(event) {
+      if (!languageMenuRef.current?.contains(event.target)) setIsLanguageOpen(false)
+    }
+
+    function closeOnEscape(event) {
+      if (event.key === 'Escape') setIsLanguageOpen(false)
+    }
+
+    document.addEventListener('pointerdown', closeOutside)
+    document.addEventListener('keydown', closeOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeOutside)
+      document.removeEventListener('keydown', closeOnEscape)
+    }
+  }, [isLanguageOpen])
 
   async function handleLogout() {
     setError('')
@@ -972,13 +1049,26 @@ function Dashboard({ user, onLogout, theme, onToggleTheme }) {
     }
   }
 
-  const initials = user.displayName
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase()
+  async function handleLanguageChange(nextLocale) {
+    if (nextLocale === locale || isLanguageSaving) {
+      setIsLanguageOpen(false)
+      return
+    }
+    setError('')
+    setLocale(nextLocale)
+    setIsLanguageSaving(true)
+    try {
+      const updated = await updateLocale(nextLocale)
+      onAccountChange({ ...updated, onboardingCompleted: true })
+      setLocale(updated.preferredLocale, { explicit: false })
+      setIsLanguageOpen(false)
+    } catch (languageError) {
+      setLocale(user.preferredLocale, { explicit: false })
+      setError(languageError.message || 'Unable to change language.')
+    } finally {
+      setIsLanguageSaving(false)
+    }
+  }
 
   return (
     <div className="dashboard-page">
@@ -986,47 +1076,69 @@ function Dashboard({ user, onLogout, theme, onToggleTheme }) {
         <div className="dashboard-sidebar-top">
           <Brand />
         </div>
-        <nav className="dashboard-nav" aria-label="Main navigation">
+        <nav className="dashboard-nav" aria-label={t('nav.main')}>
           <button className="active" type="button" onClick={() => setWorkspaceHomeRequest((current) => current + 1)}>
             <span aria-hidden="true">◇</span>
-            Workspaces
+            {t('nav.workspaces')}
           </button>
           <button type="button" onClick={() => document.querySelector('.content-search input')?.focus()}>
             <span aria-hidden="true">⌕</span>
-            Quick search
+            {t('nav.search')}
           </button>
           <button type="button" onClick={onToggleTheme}>
             <span aria-hidden="true">{theme === 'dark' ? '☀' : '☾'}</span>
-            {theme === 'dark' ? 'Light theme' : 'Dark theme'}
+            {theme === 'dark' ? t('nav.lightTheme') : t('nav.darkTheme')}
           </button>
-          <button className={isSettingsOpen ? 'active' : ''} type="button" onClick={() => setIsSettingsOpen((current) => !current)}>
-            <span aria-hidden="true">⚙</span>
-            Preferences
+          <button className="mobile-account-nav" type="button" onClick={onOpenAccount}>
+            <span aria-hidden="true">◎</span>
+            {t('nav.account')}
           </button>
         </nav>
-        {isSettingsOpen && (
-          <section className="sidebar-settings" aria-label="Interface preferences">
-            <div>
-              <strong>Preferences</strong>
-              <span>There are no settings here yet.</span>
-            </div>
-          </section>
-        )}
         <div className="user-menu">
-          <div className="avatar" aria-hidden="true">
-            {initials}
+          <div className="sidebar-language-menu" ref={languageMenuRef}>
+            <button
+              className="sidebar-language-trigger"
+              type="button"
+              aria-haspopup="menu"
+              aria-expanded={isLanguageOpen}
+              onClick={() => setIsLanguageOpen((current) => !current)}
+            >
+              <span className="sidebar-language-icon" aria-hidden="true">{'\uD83C\uDF10'}</span>
+              <span className="sidebar-language-copy"><strong>{t('language.label')}</strong><small>{t(`language.${locale}`)}</small></span>
+              <span className="sidebar-language-chevron" aria-hidden="true">⌃</span>
+            </button>
+            {isLanguageOpen && (
+              <div className="sidebar-language-popover" role="menu" aria-label={t('language.label')}>
+                {SUPPORTED_LOCALES.map((item) => (
+                  <button
+                    type="button"
+                    role="menuitemradio"
+                    aria-checked={locale === item}
+                    className={locale === item ? 'selected' : ''}
+                    disabled={isLanguageSaving}
+                    key={item}
+                    onClick={() => handleLanguageChange(item)}
+                  >
+                    <span className="sidebar-language-code">{item.toUpperCase()}</span>
+                    <span>{t(`language.${item}`)}</span>
+                    <span className="sidebar-language-check" aria-hidden="true">{locale === item ? '✓' : ''}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
-          <div className="user-summary">
-            <strong>{user.displayName}</strong>
-            <span>{user.email}</span>
-          </div>
+          <button className="user-account-trigger" type="button" onClick={onOpenAccount} title={t('nav.account')}>
+            <span className="avatar" aria-hidden="true"><AvatarContent avatarUrl={user.avatarUrl} displayName={user.displayName} /></span>
+            <span className="user-summary"><strong>{user.displayName}</strong><span>{user.email}</span></span>
+            <span className="user-account-arrow" aria-hidden="true">›</span>
+          </button>
           <button
             className="ghost-button"
             type="button"
             onClick={handleLogout}
             disabled={isLoggingOut}
           >
-            {isLoggingOut ? 'Signing out…' : 'Sign out'}
+            {isLoggingOut ? t('nav.signingOut') : t('nav.signOut')}
           </button>
         </div>
       </header>
@@ -1045,6 +1157,7 @@ function Dashboard({ user, onLogout, theme, onToggleTheme }) {
 }
 
 function WorkspaceSection({ user, homeRequest }) {
+  const { t } = useI18n()
   const [workspaces, setWorkspaces] = useState([])
   const [selectedWorkspace, setSelectedWorkspace] = useState(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -1125,7 +1238,7 @@ function WorkspaceSection({ user, homeRequest }) {
     return (
       <section className="workspace-panel workspace-loading">
         <span className="loading-spinner" aria-hidden="true" />
-        <p>Loading workspaces…</p>
+        <p>{t('workspace.loading')}</p>
       </section>
     )
   }
@@ -1168,9 +1281,9 @@ function WorkspaceSection({ user, homeRequest }) {
     <section className="workspace-panel workspace-selector-panel">
       <div className="workspace-panel-header">
         <div>
-          <p className="eyebrow">Workspace hub</p>
-          <h2>Good {new Date().getHours() < 12 ? 'morning' : new Date().getHours() < 18 ? 'afternoon' : 'evening'}, {user.displayName.split(' ')[0]}</h2>
-          <p>Pick up where your team left off or create a focused space for new work.</p>
+          <p className="eyebrow">{t('workspace.hub')}</p>
+          <h2>{t(new Date().getHours() < 12 ? 'workspace.greeting.morning' : new Date().getHours() < 18 ? 'workspace.greeting.afternoon' : 'workspace.greeting.evening', { name: user.displayName.split(' ')[0] })}</h2>
+          <p>{t('workspace.greeting.help')}</p>
         </div>
         <button
           className="secondary-button"
@@ -1181,15 +1294,15 @@ function WorkspaceSection({ user, homeRequest }) {
             setIsFormOpen((current) => !current)
           }}
         >
-          {isFormOpen ? 'Cancel' : '+ New workspace'}
+          {isFormOpen ? t('common.cancel') : t('workspace.new')}
         </button>
       </div>
 
       <div className="workspace-overview-strip">
-        <div className="workspace-list-title"><strong>All workspaces</strong><span>{workspaces.length}</span></div>
+        <div className="workspace-list-title"><strong>{t('workspace.all')}</strong><span>{workspaces.length}</span></div>
         <label className="content-search">
           <span aria-hidden="true">⌕</span>
-          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search workspaces…" />
+          <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder={t('workspace.search')} />
         </label>
       </div>
 
@@ -1202,11 +1315,11 @@ function WorkspaceSection({ user, homeRequest }) {
           <div className="workspace-form-grid">
             <FormField
               id="workspace-name"
-              label="Workspace name"
+              label={t('workspace.name')}
               type="text"
               name="new-workspace-name"
               autoComplete="off"
-              placeholder="For example, Product Team"
+              placeholder={t('workspace.name.placeholder')}
               minLength={2}
               maxLength={100}
               value={form.name}
@@ -1216,7 +1329,7 @@ function WorkspaceSection({ user, homeRequest }) {
               error={fieldErrors.name}
             />
             <label className="form-field" htmlFor="workspace-description">
-              <span>Description <em>optional</em></span>
+              <span>{t('common.description')} <em>{t('common.optional')}</em></span>
               <textarea
                 id="workspace-description"
                 name="new-workspace-description"
@@ -1245,9 +1358,9 @@ function WorkspaceSection({ user, homeRequest }) {
             </div>
           )}
           <div className="workspace-form-actions">
-            <span>You will automatically become the workspace owner.</span>
+            <span>{t('workspace.ownerHint')}</span>
             <button className="primary-button" disabled={isCreating}>
-              {isCreating ? 'Creating…' : 'Create workspace'}
+              {isCreating ? t('common.creating') : t('workspace.create')}
             </button>
           </div>
         </form>
@@ -1266,8 +1379,8 @@ function WorkspaceSection({ user, homeRequest }) {
             <span />
             <span />
           </div>
-          <h3>No workspaces yet</h3>
-          <p>Create a workspace to bring your first team together.</p>
+          <h3>{t('workspace.empty.title')}</h3>
+          <p>{t('workspace.empty.help')}</p>
         </div>
       ) : (
         <div className="workspace-grid">
@@ -1284,17 +1397,16 @@ function WorkspaceSection({ user, homeRequest }) {
                   {workspace.name.trim().charAt(0).toUpperCase()}
                 </div>
                 <span className={roleBadgeClassName(workspace.role)}>
-                  {formatRole(workspace.role)}
+                  {t(`role.${workspace.role.toLowerCase()}`)}
                 </span>
               </div>
               <div className="workspace-card-body">
                 <h3>{workspace.name}</h3>
                 <p>
-                  {workspace.description ||
-                    'No workspace description has been added yet.'}
+                  {workspace.description || t('workspace.description.empty')}
                 </p>
                 <div className="workspace-card-footer">
-                  <span>Open workspace →</span>
+                  <span>{t('workspace.open')} →</span>
                 </div>
               </div>
             </button>
@@ -1306,6 +1418,7 @@ function WorkspaceSection({ user, homeRequest }) {
 }
 
 function AccessRoleManager({ workspace, onChange }) {
+  const { t } = useI18n()
   const emptyForm = {
     name: '',
     color: ACCESS_ROLE_COLORS[0],
@@ -1421,8 +1534,8 @@ function AccessRoleManager({ workspace, onChange }) {
     <section className="members-panel access-role-panel">
       <div className="members-panel-heading">
         <div>
-          <p className="eyebrow">Project permissions</p>
-          <h3>Custom roles</h3>
+          <p className="eyebrow">{t('roles.permissions')}</p>
+          <h3>{t('roles.custom')}</h3>
         </div>
         {isManager && (
           <button
@@ -1436,7 +1549,7 @@ function AccessRoleManager({ workspace, onChange }) {
               }
             }}
           >
-            {isOpen ? 'Cancel' : '+ New role'}
+            {isOpen ? t('common.cancel') : t('roles.new')}
           </button>
         )}
       </div>
@@ -1445,11 +1558,11 @@ function AccessRoleManager({ workspace, onChange }) {
         <form className="access-role-form" onSubmit={handleSave}>
           <FormField
             id="access-role-name"
-            label="Role name"
+            label={t('roles.name')}
             type="text"
             minLength={2}
             maxLength={60}
-            placeholder="For example, Developer"
+            placeholder={t('roles.name.placeholder')}
             value={form.name}
             onChange={(name) =>
               setForm((current) => ({ ...current, name }))
@@ -1458,7 +1571,7 @@ function AccessRoleManager({ workspace, onChange }) {
           />
 
           <fieldset className="role-color-fieldset">
-            <legend>Color</legend>
+            <legend>{t('roles.color')}</legend>
             <div className="role-color-palette">
               {ACCESS_ROLE_COLORS.map((color) => (
                 <label key={color} title={color}>
@@ -1478,7 +1591,7 @@ function AccessRoleManager({ workspace, onChange }) {
           </fieldset>
 
           <fieldset className="permission-fieldset">
-            <legend>Permissions</legend>
+            <legend>{t('roles.permissions')}</legend>
             {PROJECT_PERMISSIONS.map((permission) => (
               <label className="permission-option" key={permission.value}>
                 <input
@@ -1487,8 +1600,8 @@ function AccessRoleManager({ workspace, onChange }) {
                   onChange={() => togglePermission(permission.value)}
                 />
                 <span>
-                  <strong>{permission.label}</strong>
-                  <small>{permission.description}</small>
+                  <strong>{t(`permission.${permission.value.toLowerCase()}`)}</strong>
+                  <small>{t(`permission.${permission.value.toLowerCase()}.help`)}</small>
                 </span>
               </label>
             ))}
@@ -1496,10 +1609,10 @@ function AccessRoleManager({ workspace, onChange }) {
 
           <button className="primary-button" disabled={isSaving}>
             {isSaving
-              ? 'Saving…'
+              ? t('common.saving')
               : editingRoleId
-                ? 'Save role'
-                : 'Create role'}
+                ? t('roles.save')
+                : t('roles.create')}
           </button>
         </form>
       )}
@@ -1511,10 +1624,10 @@ function AccessRoleManager({ workspace, onChange }) {
       )}
 
       {isLoading ? (
-        <p className="project-team-state">Loading roles…</p>
+        <p className="project-team-state">{t('roles.loading')}</p>
       ) : roles.length === 0 ? (
         <p className="project-team-state">
-          No custom roles. Project members use default permissions.
+          {t('roles.empty')}
         </p>
       ) : (
         <div className="access-role-list">
@@ -1530,10 +1643,8 @@ function AccessRoleManager({ workspace, onChange }) {
               </div>
               <small>
                 {role.permissions.length === 0
-                  ? 'No write permissions'
-                  : `${role.permissions.length} permission${
-                      role.permissions.length === 1 ? '' : 's'
-                    }`}
+                  ? t('roles.noWrite')
+                  : t('roles.permissionCount', { count: role.permissions.length })}
               </small>
               {isManager && (
                 <div className="access-role-actions">
@@ -1542,7 +1653,7 @@ function AccessRoleManager({ workspace, onChange }) {
                     type="button"
                     onClick={() => startEdit(role)}
                   >
-                    Edit
+                    {t('common.edit')}
                   </button>
                   <button
                     className="danger-button"
@@ -1550,7 +1661,7 @@ function AccessRoleManager({ workspace, onChange }) {
                     disabled={deletingRoleId === role.id}
                     onClick={() => handleDelete(role)}
                   >
-                    {deletingRoleId === role.id ? 'Deleting…' : 'Delete'}
+                    {deletingRoleId === role.id ? t('common.deleting') : t('common.delete')}
                   </button>
                 </div>
               )}
@@ -1574,6 +1685,7 @@ function ProjectAccessDialog({
   onSave,
   onClose,
 }) {
+  const { t } = useI18n()
   const dialogRef = useRef(null)
 
   useEffect(() => {
@@ -1608,9 +1720,9 @@ function ProjectAccessDialog({
       >
         <header className="access-dialog-header">
           <div>
-            <span className="access-dialog-kicker">Project access</span>
-            <h3 id="project-access-title">Who can open {project.name}?</h3>
-            <p>Leave both lists empty to keep this project open to the whole workspace.</p>
+            <span className="access-dialog-kicker">{t('members.projectAccess')}</span>
+            <h3 id="project-access-title">{t('access.who', { project: project.name })}</h3>
+            <p>{t('access.emptyHelp')}</p>
           </div>
           <button type="button" aria-label="Close project access" onClick={onClose} disabled={saving}>×</button>
         </header>
@@ -1618,15 +1730,15 @@ function ProjectAccessDialog({
         <div className={`access-mode-summary ${isOpen ? 'restricted' : 'open'}`}>
           <span aria-hidden="true">{isOpen ? '●' : '○'}</span>
           <div>
-            <strong>{isOpen ? 'Restricted project' : 'Open to workspace'}</strong>
-            <small>{isOpen ? 'Owners, admins and selected people or roles can open it.' : 'Every workspace member can open this project.'}</small>
+            <strong>{isOpen ? t('access.restricted') : t('access.open')}</strong>
+            <small>{isOpen ? t('access.restricted.help') : t('access.open.help')}</small>
           </div>
         </div>
 
         <div className="access-dialog-body">
           <fieldset className="access-dialog-section">
-            <legend>Roles</legend>
-            <p>Anyone with a selected custom role receives access.</p>
+            <legend>{t('roles.custom')}</legend>
+            <p>{t('access.roles.help')}</p>
             <div className="access-choice-grid">
               {roles.map((role) => (
                 <label className={draft.roleIds.includes(role.id) ? 'selected' : ''} key={role.id}>
@@ -1635,26 +1747,26 @@ function ProjectAccessDialog({
                   <span className="custom-role-chip" style={{ '--role-color': role.color }}>{role.name}</span>
                 </label>
               ))}
-              {roles.length === 0 && <small className="access-dialog-empty">No custom roles have been created yet.</small>}
+              {roles.length === 0 && <small className="access-dialog-empty">{t('roles.noneYet')}</small>}
             </div>
           </fieldset>
 
           <fieldset className="access-dialog-section">
-            <legend>People</legend>
-            <p>Give access directly, without changing a person’s workspace role.</p>
+            <legend>{t('members.title')}</legend>
+            <p>{t('access.people.help')}</p>
             <div className="access-people-list">
               {members.map((member) => {
                 const selected = draft.memberIds.includes(member.id)
                 return (
                   <label className={selected ? 'selected' : ''} key={member.id}>
                     <input type="checkbox" checked={selected} onChange={() => onToggleMember(member.id)} />
-                    <span className="access-person-avatar" aria-hidden="true">{memberInitials(member.displayName)}</span>
+                    <span className="access-person-avatar" aria-hidden="true"><AvatarContent avatarUrl={member.avatarUrl} displayName={member.displayName} /></span>
                     <span><strong>{member.displayName}</strong><small>{member.email}</small></span>
                     <span className="access-choice-check" aria-hidden="true">{selected ? '✓' : ''}</span>
                   </label>
                 )
               })}
-              {members.length === 0 && <small className="access-dialog-empty">There are no other members to select.</small>}
+              {members.length === 0 && <small className="access-dialog-empty">{t('access.people.empty')}</small>}
             </div>
           </fieldset>
         </div>
@@ -1662,10 +1774,10 @@ function ProjectAccessDialog({
         {error && <div className="form-message error" role="alert">{error}</div>}
 
         <footer className="access-dialog-footer">
-          <small>Changes take effect as soon as you save.</small>
+          <small>{t('access.saveHint')}</small>
           <div>
-            <button className="secondary-button" type="button" onClick={onClose} disabled={saving}>Cancel</button>
-            <button className="primary-button" type="button" onClick={onSave} disabled={saving}>{saving ? 'Saving…' : 'Save access'}</button>
+            <button className="secondary-button" type="button" onClick={onClose} disabled={saving}>{t('common.cancel')}</button>
+            <button className="primary-button" type="button" onClick={onSave} disabled={saving}>{saving ? t('common.saving') : t('access.save')}</button>
           </div>
         </footer>
       </section>
@@ -1674,6 +1786,7 @@ function ProjectAccessDialog({
 }
 
 function ProjectSection({ workspace, user, onBack }) {
+  const { t } = useI18n()
   const [projects, setProjects] = useState([])
   const [projectTeams, setProjectTeams] = useState({})
   const [accessRoles, setAccessRoles] = useState([])
@@ -1709,6 +1822,7 @@ function ProjectSection({ workspace, user, onBack }) {
     new Map(projects.map((project) => [project.createdById, {
       id: project.createdById,
       name: project.createdByDisplayName,
+      avatarUrl: project.createdByAvatarUrl,
     }])).values(),
   )
   const activeProjectFilterCount =
@@ -1769,6 +1883,9 @@ function ProjectSection({ workspace, user, onBack }) {
         restricted: project.restricted,
         createdById: project.createdById,
         createdByDisplayName: project.createdByDisplayName,
+        createdByAvatarUrl: project.createdById === user.id
+          ? user.avatarUrl
+          : project.createdByAvatarUrl,
         createdAt: project.createdAt,
         allowedRoles: project.allowedRoles ?? [],
       }))
@@ -1776,12 +1893,16 @@ function ProjectSection({ workspace, user, onBack }) {
         project.projectId,
         project.members.map((member) => ({
           ...member,
+          avatarUrl: member.userId === user.id ? user.avatarUrl : member.avatarUrl,
           id: member.projectMemberId,
         })),
       ])
       setProjects(loadedProjects)
       setAccessRoles(loadedRoles)
-      setWorkspaceMembers(loadedMembers)
+      setWorkspaceMembers(loadedMembers.map((member) => ({
+        ...member,
+        avatarUrl: member.userId === user.id ? user.avatarUrl : member.avatarUrl,
+      })))
       setProjectTeams(Object.fromEntries(loadedTeams))
       setSelectedProject(null)
     } catch (loadError) {
@@ -1792,7 +1913,7 @@ function ProjectSection({ workspace, user, onBack }) {
     } finally {
       setIsLoading(false)
     }
-  }, [workspace.id, canManageRoles])
+  }, [workspace.id, canManageRoles, user.id, user.avatarUrl])
 
   useEffect(() => {
     loadWorkspaceAccess()
@@ -1957,7 +2078,7 @@ function ProjectSection({ workspace, user, onBack }) {
                 'context-role-badge',
               )}
             >
-              {formatRole(workspace.role)}
+                  {t(`role.${workspace.role.toLowerCase()}`)}
             </span>
           )}
           {canManageRoles && (
@@ -1970,7 +2091,7 @@ function ProjectSection({ workspace, user, onBack }) {
                 setIsFormOpen((current) => !current)
               }}
             >
-              {isFormOpen ? 'Cancel' : '+ New project'}
+              {isFormOpen ? t('common.cancel') : t('project.new')}
             </button>
           )}
         </div>
@@ -1980,13 +2101,13 @@ function ProjectSection({ workspace, user, onBack }) {
 
       <div className="project-toolbar">
         <div className="project-view-tabs" aria-label="Project views">
-          <button className="active" type="button">Active projects <span>{filteredProjects.length}</span></button>
-          <button type="button" disabled>Archived</button>
+          <button className="active" type="button">{t('project.activePlural')} <span>{filteredProjects.length}</span></button>
+          <button type="button" disabled>{t('project.archived')}</button>
         </div>
         <div className="project-toolbar-tools">
           <div className="content-search compact project-search">
             <span aria-hidden="true">⌕</span>
-            <input aria-label="Search projects" value={projectQuery} onChange={(event) => setProjectQuery(event.target.value)} placeholder="Search projects…" />
+            <input aria-label={t('project.search')} value={projectQuery} onChange={(event) => setProjectQuery(event.target.value)} placeholder={t('project.search')} />
             <div className="task-filter-wrap" ref={projectFilterRef}>
             <button
               className={`task-filter-trigger ${isProjectFilterOpen || activeProjectFilterCount > 0 ? 'active' : ''}`}
@@ -2003,53 +2124,53 @@ function ProjectSection({ workspace, user, onBack }) {
             {isProjectFilterOpen && (
               <div className="task-filter-popover project-filter-popover">
                 <div className="task-filter-heading">
-                  <div><strong>Filter projects</strong><span>Refine this workspace</span></div>
+                  <div><strong>{t('project.filters.title')}</strong><span>{t('project.filters.help')}</span></div>
                   {activeProjectFilterCount > 0 && (
                     <button type="button" onClick={() => {
                       setProjectDateFilter('ALL')
                       setProjectCreatorFilter('ALL')
                       setProjectAccessFilter('ALL')
-                    }}>Clear</button>
+                    }}>{t('filters.clear')}</button>
                   )}
                 </div>
                 <fieldset>
-                  <legend>Created</legend>
+                  <legend>{t('filters.created')}</legend>
                   <div className="task-filter-options compact-options">
                     {[
-                      ['ALL', 'Any time'],
-                      ['TODAY', 'Today'],
-                      ['LAST_7_DAYS', '7 days'],
-                      ['LAST_30_DAYS', '30 days'],
+                      ['ALL', 'filters.anyTime'],
+                      ['TODAY', 'filters.today'],
+                      ['LAST_7_DAYS', 'filters.last7'],
+                      ['LAST_30_DAYS', 'filters.last30'],
                     ].map(([value, label]) => (
-                      <button className={projectDateFilter === value ? 'selected' : ''} type="button" key={value} onClick={() => setProjectDateFilter(value)}>{label}</button>
+                      <button className={projectDateFilter === value ? 'selected' : ''} type="button" key={value} onClick={() => setProjectDateFilter(value)}>{t(label)}</button>
                     ))}
                   </div>
                 </fieldset>
                 <fieldset>
-                  <legend>Created by</legend>
+                  <legend>{t('filters.createdBy')}</legend>
                   <div className="task-filter-options project-creator-options">
-                    <button className={projectCreatorFilter === 'ALL' ? 'selected' : ''} type="button" onClick={() => setProjectCreatorFilter('ALL')}>Everyone</button>
+                    <button className={projectCreatorFilter === 'ALL' ? 'selected' : ''} type="button" onClick={() => setProjectCreatorFilter('ALL')}>{t('filters.everyone')}</button>
                     {projectCreators.map((creator) => (
                       <button className={projectCreatorFilter === String(creator.id) ? 'selected' : ''} type="button" key={creator.id} onClick={() => setProjectCreatorFilter(String(creator.id))}>
-                        <span className="filter-avatar">{memberInitials(creator.name)}</span>{creator.name}
+                        <span className="filter-avatar"><AvatarContent avatarUrl={creator.avatarUrl} displayName={creator.name} /></span>{creator.name}
                       </button>
                     ))}
                   </div>
                 </fieldset>
                 <fieldset>
-                  <legend>Access</legend>
+                  <legend>{t('filters.access')}</legend>
                   <div className="task-filter-options compact-options">
-                    <button className={projectAccessFilter === 'ALL' ? 'selected' : ''} type="button" onClick={() => setProjectAccessFilter('ALL')}>Any access</button>
-                    <button className={projectAccessFilter === 'WORKSPACE' ? 'selected' : ''} type="button" onClick={() => setProjectAccessFilter('WORKSPACE')}>Workspace</button>
-                    <button className={projectAccessFilter === 'RESTRICTED' ? 'selected' : ''} type="button" onClick={() => setProjectAccessFilter('RESTRICTED')}>Restricted</button>
+                    <button className={projectAccessFilter === 'ALL' ? 'selected' : ''} type="button" onClick={() => setProjectAccessFilter('ALL')}>{t('filters.anyAccess')}</button>
+                    <button className={projectAccessFilter === 'WORKSPACE' ? 'selected' : ''} type="button" onClick={() => setProjectAccessFilter('WORKSPACE')}>{t('project.workspaceAccess')}</button>
+                    <button className={projectAccessFilter === 'RESTRICTED' ? 'selected' : ''} type="button" onClick={() => setProjectAccessFilter('RESTRICTED')}>{t('project.restricted')}</button>
                   </div>
                 </fieldset>
                 <fieldset>
-                  <legend>Order by</legend>
+                  <legend>{t('filters.order')}</legend>
                   <div className="task-filter-options compact-options">
-                    <button className={projectSortOrder === 'RECENT' ? 'selected' : ''} type="button" onClick={() => setProjectSortOrder('RECENT')}>Newest first</button>
-                    <button className={projectSortOrder === 'OLDEST' ? 'selected' : ''} type="button" onClick={() => setProjectSortOrder('OLDEST')}>Oldest first</button>
-                    <button className={projectSortOrder === 'NAME' ? 'selected' : ''} type="button" onClick={() => setProjectSortOrder('NAME')}>Name A–Z</button>
+                    <button className={projectSortOrder === 'RECENT' ? 'selected' : ''} type="button" onClick={() => setProjectSortOrder('RECENT')}>{t('filters.newest')}</button>
+                    <button className={projectSortOrder === 'OLDEST' ? 'selected' : ''} type="button" onClick={() => setProjectSortOrder('OLDEST')}>{t('filters.oldest')}</button>
+                    <button className={projectSortOrder === 'NAME' ? 'selected' : ''} type="button" onClick={() => setProjectSortOrder('NAME')}>{t('filters.name')}</button>
                   </div>
                 </fieldset>
               </div>
@@ -2068,7 +2189,7 @@ function ProjectSection({ workspace, user, onBack }) {
           <div className="workspace-form-grid">
             <FormField
               id="project-name"
-              label="Project name"
+              label={t('project.name')}
               type="text"
               name="new-project-name"
               autoComplete="off"
@@ -2083,7 +2204,7 @@ function ProjectSection({ workspace, user, onBack }) {
             />
             <label className="form-field" htmlFor="project-description">
               <span>
-                Description <em>optional</em>
+                {t('common.description')} <em>{t('common.optional')}</em>
               </span>
               <textarea
                 id="project-description"
@@ -2109,7 +2230,7 @@ function ProjectSection({ workspace, user, onBack }) {
           </div>
 
           <fieldset className="project-create-access">
-            <legend>Allowed roles</legend>
+            <legend>{t('project.allowedRoles')}</legend>
             <p>
               Choose roles only when this project should be restricted. With no
               selection, every workspace member can open it.
@@ -2132,12 +2253,12 @@ function ProjectSection({ workspace, user, onBack }) {
                   </span>
                 </label>
               ))}
-              {accessRoles.length === 0 && <small>No custom roles yet.</small>}
+              {accessRoles.length === 0 && <small>{t('roles.noneYet')}</small>}
             </div>
           </fieldset>
 
           <fieldset className="project-create-access">
-            <legend>Allowed people</legend>
+            <legend>{t('project.allowedPeople')}</legend>
             <div className="project-create-access-options">
               {workspaceMembers
                 .filter((member) => member.role !== 'OWNER' && member.userId !== user.id)
@@ -2154,7 +2275,7 @@ function ProjectSection({ workspace, user, onBack }) {
                       }))}
                     />
                     <span>{member.displayName}</span>
-                    <small>{formatRole(member.role)}</small>
+                    <small>{t(`role.${member.role.toLowerCase()}`)}</small>
                   </label>
                 ))}
             </div>
@@ -2167,9 +2288,9 @@ function ProjectSection({ workspace, user, onBack }) {
           )}
 
           <div className="workspace-form-actions">
-            <span>The project will be created in {workspace.name}.</span>
+            <span>{t('project.createHint', { workspace: workspace.name })}</span>
             <button className="primary-button" disabled={isCreating}>
-              {isCreating ? 'Creating…' : 'Create project'}
+              {isCreating ? t('common.creating') : t('project.create')}
             </button>
           </div>
         </form>
@@ -2189,27 +2310,27 @@ function ProjectSection({ workspace, user, onBack }) {
       {isLoading ? (
         <div className="project-loading">
           <span className="loading-spinner" aria-hidden="true" />
-          <p>Loading projects…</p>
+          <p>{t('project.loading')}</p>
         </div>
       ) : projects.length === 0 && !error ? (
         <div className="workspace-empty project-empty">
           <div className="project-empty-mark" aria-hidden="true">
             P
           </div>
-          <h3>No projects in this workspace</h3>
-          <p>Create the first project to start organizing work.</p>
+          <h3>{t('project.empty.title')}</h3>
+          <p>{t('project.empty.help')}</p>
         </div>
       ) : filteredProjects.length === 0 ? (
         <div className="workspace-empty project-empty project-filter-empty">
           <div className="project-empty-mark" aria-hidden="true">⌕</div>
-          <h3>No matching projects</h3>
-          <p>Change the search text or clear one of the active filters.</p>
+          <h3>{t('project.noMatches')}</h3>
+          <p>{t('project.noMatches.help')}</p>
           <button className="secondary-button" type="button" onClick={() => {
             setProjectQuery('')
             setProjectDateFilter('ALL')
             setProjectCreatorFilter('ALL')
             setProjectAccessFilter('ALL')
-          }}>Clear filters</button>
+          }}>{t('filters.clear')}</button>
         </div>
       ) : (
         <div className="project-grid">
@@ -2223,7 +2344,7 @@ function ProjectSection({ workspace, user, onBack }) {
               <div className="project-card-top">
                 <span className="project-status">
                   <span aria-hidden="true" />
-                  {project.status === 'ACTIVE' ? 'Active' : project.status}
+                  {project.status === 'ACTIVE' ? t('project.active') : project.status}
                 </span>
                 <div className="project-card-access-controls">
                   <button
@@ -2237,7 +2358,7 @@ function ProjectSection({ workspace, user, onBack }) {
                     <svg viewBox="0 0 20 20" aria-hidden="true"><path d="m7 3 6 0-.8 4 2.3 2.3v1.2h-3.7L10 17l-.8-6.5H5.5V9.3L7.8 7 7 3Z" /></svg>
                   </button>
                   <span className={`visibility-badge visibility-${project.restricted ? 'restricted' : 'workspace'}`}>
-                    {project.restricted ? 'Restricted' : 'Workspace'}
+                    {project.restricted ? t('project.restricted') : t('project.workspaceAccess')}
                   </span>
                   {canManageRoles && (
                     <button
@@ -2270,19 +2391,20 @@ function ProjectSection({ workspace, user, onBack }) {
               >
                 <button className="project-card-copy" type="button" onClick={() => openProject(project)}>
                   <h3>{project.name}</h3>
-                  <p>{project.description || 'No project description has been added yet.'}</p>
+                  <p>{project.description || t('project.description.empty')}</p>
                 </button>
                 <span className="project-card-footer">
                   <CreatorProfile
                     creator={{
                       displayName: project.createdByDisplayName,
+                      avatarUrl: project.createdByAvatarUrl,
                       email: workspaceMembers.find((member) => member.userId === project.createdById)?.email,
                       role: workspaceMembers.find((member) => member.userId === project.createdById)?.role,
                     }}
                     createdAt={project.createdAt}
-                    entityLabel="Project creator"
+                    entityLabel={t('project.creator')}
                   />
-                  <button className="project-open-link" type="button" onClick={() => openProject(project)}>Open project <span aria-hidden="true">→</span></button>
+                  <button className="project-open-link" type="button" onClick={() => openProject(project)}>{t('project.open')} <span aria-hidden="true">→</span></button>
                 </span>
               </div>
             </article>
@@ -2336,6 +2458,7 @@ function ProjectSection({ workspace, user, onBack }) {
 }
 
 function CreatorProfile({ creator, createdAt, entityLabel, compact = false }) {
+  const { t } = useI18n()
   const [isOpen, setIsOpen] = useState(false)
   const rootRef = useRef(null)
 
@@ -2370,21 +2493,21 @@ function CreatorProfile({ creator, createdAt, entityLabel, compact = false }) {
         aria-expanded={isOpen}
         onClick={() => setIsOpen((current) => !current)}
       >
-        <span aria-hidden="true">{memberInitials(creator.displayName)}</span>
+        <span aria-hidden="true"><AvatarContent avatarUrl={creator.avatarUrl} displayName={creator.displayName} /></span>
         {!compact && (
-          <span><small>Created by</small><strong>{creator.displayName}</strong></span>
+          <span><small>{t('common.createdBy')}</small><strong>{creator.displayName}</strong></span>
         )}
       </button>
       {isOpen && (
         <section className="task-creator-popover" role="dialog" aria-label={`${creator.displayName} profile`}>
-          <span className="task-creator-popover-avatar" aria-hidden="true">{memberInitials(creator.displayName)}</span>
+          <span className="task-creator-popover-avatar" aria-hidden="true"><AvatarContent avatarUrl={creator.avatarUrl} displayName={creator.displayName} /></span>
           <div>
             <strong>{creator.displayName}</strong>
-            <span>{creator.email || 'Workspace member'}</span>
+            <span>{creator.email || t('members.workspaceMember')}</span>
           </div>
           <button type="button" aria-label="Close profile" onClick={() => setIsOpen(false)}>×</button>
           <footer>
-            <span>{creator.role ? formatRole(creator.role) : entityLabel}</span>
+            <span>{creator.role ? t(`role.${creator.role.toLowerCase()}`) : entityLabel}</span>
             <time dateTime={createdAt}>{new Date(createdAt).toLocaleDateString()}</time>
           </footer>
         </section>
@@ -2394,11 +2517,12 @@ function CreatorProfile({ creator, createdAt, entityLabel, compact = false }) {
 }
 
 function TaskCreatorProfile({ task, compact = false }) {
+  const { t } = useI18n()
   return (
     <CreatorProfile
-      creator={{ displayName: task.createdByDisplayName, email: task.createdByEmail }}
+      creator={{ displayName: task.createdByDisplayName, email: task.createdByEmail, avatarUrl: task.createdByAvatarUrl }}
       createdAt={task.createdAt}
-      entityLabel="Task creator"
+      entityLabel={t('task.creator')}
       compact={compact}
     />
   )
@@ -2410,6 +2534,7 @@ function TaskBoard({
   project,
   onBack,
 }) {
+  const { locale, t } = useI18n()
   const [tasks, setTasks] = useState([])
   const [projectMembers, setProjectMembers] = useState([])
   const [isLoading, setIsLoading] = useState(true)
@@ -2486,14 +2611,25 @@ function TaskBoard({
         getTasks(workspace.id, project.id),
         getProjectMembers(workspace.id, project.id),
       ])
-      setTasks(loadedTasks)
-      setProjectMembers(loadedMembers)
+      setTasks(loadedTasks.map((task) => ({
+        ...task,
+        createdByAvatarUrl: task.createdById === user.id
+          ? user.avatarUrl
+          : task.createdByAvatarUrl,
+        assignee: task.assignee
+          ? { ...task.assignee, avatarUrl: task.assignee.userId === user.id ? user.avatarUrl : task.assignee.avatarUrl }
+          : null,
+      })))
+      setProjectMembers(loadedMembers.map((member) => ({
+        ...member,
+        avatarUrl: member.userId === user.id ? user.avatarUrl : member.avatarUrl,
+      })))
     } catch (loadError) {
       setError(loadError.message || 'Unable to load tasks.')
     } finally {
       setIsLoading(false)
     }
-  }, [workspace.id, project.id])
+  }, [workspace.id, project.id, user.id, user.avatarUrl])
 
   useEffect(() => {
     loadTasks()
@@ -2719,21 +2855,21 @@ function TaskBoard({
           </p>
           <h2>{project.name}</h2>
           <p>
-            {project.description ||
-              'Manage project tasks and keep their status up to date.'}
+              {project.description || t('task.projectDescription.empty')}
           </p>
           <div className="project-header-meta">
             <CreatorProfile
               creator={{
                 displayName: project.createdByDisplayName,
+                avatarUrl: project.createdByAvatarUrl,
                 email: projectMembers.find((member) => member.userId === project.createdById)?.email,
                 role: projectMembers.find((member) => member.userId === project.createdById)?.workspaceRole,
               }}
               createdAt={project.createdAt}
-              entityLabel="Project creator"
+              entityLabel={t('project.creator')}
             />
             <span className={`visibility-badge visibility-${project.restricted ? 'restricted' : 'workspace'}`}>
-              {project.restricted ? 'Restricted access' : 'Workspace access'}
+              {project.restricted ? t('project.restrictedAccess') : t('project.workspaceAccessLong')}
             </span>
           </div>
         </div>
@@ -2745,7 +2881,7 @@ function TaskBoard({
                 'context-role-badge',
               )}
             >
-              {formatRole(workspace.role)}
+              {t(`role.${workspace.role.toLowerCase()}`)}
             </span>
           )}
           {canCreateTask && (
@@ -2758,7 +2894,7 @@ function TaskBoard({
                 setIsFormOpen((current) => !current)
               }}
             >
-              {isFormOpen ? 'Cancel' : '+ New task'}
+              {isFormOpen ? t('common.cancel') : t('task.new')}
             </button>
           )}
         </div>
@@ -2773,11 +2909,11 @@ function TaskBoard({
           <div className="workspace-form-grid">
             <FormField
               id="task-title"
-              label="Task title"
+              label={t('task.title')}
               type="text"
               name="new-task-title"
               autoComplete="off"
-              placeholder="For example, add the API client"
+              placeholder={t('task.title.placeholder')}
               minLength={2}
               maxLength={150}
               value={form.title}
@@ -2788,14 +2924,14 @@ function TaskBoard({
             />
             <label className="form-field" htmlFor="task-description">
               <span>
-                Description <em>optional</em>
+                {t('common.description')} <em>{t('common.optional')}</em>
               </span>
               <textarea
                 id="task-description"
                 name="new-task-description"
                 autoComplete="off"
                 maxLength={1000}
-                placeholder="What needs to be done?"
+                placeholder={t('task.description.placeholder')}
                 value={form.description}
                 aria-invalid={Boolean(fieldErrors.description)}
                 onChange={(event) =>
@@ -2820,9 +2956,9 @@ function TaskBoard({
           )}
 
           <div className="workspace-form-actions">
-            <span>New tasks start in the “To do” column.</span>
+            <span>{t('task.createHint')}</span>
             <button className="primary-button" disabled={isCreating}>
-              {isCreating ? 'Creating…' : 'Create task'}
+              {isCreating ? t('common.creating') : t('task.create')}
             </button>
           </div>
         </form>
@@ -2841,8 +2977,8 @@ function TaskBoard({
 
       <div className="task-toolbar">
         <div className="task-view-switcher" aria-label="Task view">
-          <button className={taskView === 'board' ? 'active' : ''} type="button" onClick={() => setTaskView('board')}>Board</button>
-          <button className={taskView === 'list' ? 'active' : ''} type="button" onClick={() => setTaskView('list')}>List</button>
+          <button className={taskView === 'board' ? 'active' : ''} type="button" onClick={() => setTaskView('board')}>{t('task.board')}</button>
+          <button className={taskView === 'list' ? 'active' : ''} type="button" onClick={() => setTaskView('list')}>{t('task.list')}</button>
         </div>
         <div className="content-search compact task-search">
           <span aria-hidden="true">⌕</span>
@@ -2863,54 +2999,54 @@ function TaskBoard({
             {isFilterOpen && (
               <div className="task-filter-popover">
                 <div className="task-filter-heading">
-                  <div><strong>Filter tasks</strong><span>Refine this view</span></div>
+                  <div><strong>{t('task.filters.title')}</strong><span>{t('task.filters.help')}</span></div>
                   {activeFilterCount > 0 && (
-                    <button type="button" onClick={() => { setAssigneeFilter('ALL'); setDateFilter('ALL') }}>Clear</button>
+                    <button type="button" onClick={() => { setAssigneeFilter('ALL'); setDateFilter('ALL') }}>{t('filters.clear')}</button>
                   )}
                 </div>
                 <fieldset>
-                  <legend>Created</legend>
+                  <legend>{t('filters.created')}</legend>
                   <div className="task-filter-options compact-options">
                     {[
-                      ['ALL', 'Any time'],
-                      ['TODAY', 'Today'],
-                      ['LAST_7_DAYS', '7 days'],
-                      ['LAST_30_DAYS', '30 days'],
+                      ['ALL', 'filters.anyTime'],
+                      ['TODAY', 'filters.today'],
+                      ['LAST_7_DAYS', 'filters.last7'],
+                      ['LAST_30_DAYS', 'filters.last30'],
                     ].map(([value, label]) => (
-                      <button className={dateFilter === value ? 'selected' : ''} type="button" key={value} onClick={() => setDateFilter(value)}>{label}</button>
+                      <button className={dateFilter === value ? 'selected' : ''} type="button" key={value} onClick={() => setDateFilter(value)}>{t(label)}</button>
                     ))}
                   </div>
                 </fieldset>
                 <fieldset>
-                  <legend>Assigned to</legend>
+                  <legend>{t('task.assignedTo')}</legend>
                   <div className="task-filter-options assignee-options">
-                    <button className={assigneeFilter === 'ALL' ? 'selected' : ''} type="button" onClick={() => setAssigneeFilter('ALL')}><span className="filter-avatar all">∞</span>Everyone</button>
-                    <button className={assigneeFilter === 'UNASSIGNED' ? 'selected' : ''} type="button" onClick={() => setAssigneeFilter('UNASSIGNED')}><span className="filter-avatar empty">—</span>Unassigned</button>
+                    <button className={assigneeFilter === 'ALL' ? 'selected' : ''} type="button" onClick={() => setAssigneeFilter('ALL')}><span className="filter-avatar all">∞</span>{t('filters.everyone')}</button>
+                    <button className={assigneeFilter === 'UNASSIGNED' ? 'selected' : ''} type="button" onClick={() => setAssigneeFilter('UNASSIGNED')}><span className="filter-avatar empty">—</span>{t('task.unassigned')}</button>
                     {projectMembers.map((member) => (
                       <button className={assigneeFilter === String(member.id) ? 'selected' : ''} type="button" key={member.id} onClick={() => setAssigneeFilter(String(member.id))}>
-                        <span className="filter-avatar">{memberInitials(member.displayName)}</span>{member.displayName}
+                        <span className="filter-avatar"><AvatarContent avatarUrl={member.avatarUrl} displayName={member.displayName} /></span>{member.displayName}
                       </button>
                     ))}
                   </div>
                 </fieldset>
                 <fieldset>
-                  <legend>Order</legend>
+                  <legend>{t('filters.order')}</legend>
                   <div className="task-filter-options compact-options">
-                    <button className={sortOrder === 'RECENT' ? 'selected' : ''} type="button" onClick={() => setSortOrder('RECENT')}>Newest first</button>
-                    <button className={sortOrder === 'OLDEST' ? 'selected' : ''} type="button" onClick={() => setSortOrder('OLDEST')}>Oldest first</button>
+                    <button className={sortOrder === 'RECENT' ? 'selected' : ''} type="button" onClick={() => setSortOrder('RECENT')}>{t('filters.newest')}</button>
+                    <button className={sortOrder === 'OLDEST' ? 'selected' : ''} type="button" onClick={() => setSortOrder('OLDEST')}>{t('filters.oldest')}</button>
                   </div>
                 </fieldset>
               </div>
             )}
           </div>
         </div>
-        <span className="task-result-count">{visibleTasks.length} {visibleTasks.length === 1 ? 'task' : 'tasks'}</span>
+        <span className="task-result-count">{t('task.count', { count: visibleTasks.length })}</span>
       </div>
 
       {isLoading ? (
         <div className="project-loading">
           <span className="loading-spinner" aria-hidden="true" />
-          <p>Loading tasks…</p>
+          <p>{t('task.loading')}</p>
         </div>
       ) : (
         <div className={`task-board task-board-${taskView}`}>
@@ -2927,35 +3063,35 @@ function TaskBoard({
                 <div className="task-column-header">
                   <div>
                     <span aria-hidden="true" />
-                    <h3>{column.title}</h3>
+                    <h3>{t(`task.status.${column.status.toLowerCase()}`)}</h3>
                   </div>
                   <strong>{columnTasks.length}</strong>
                 </div>
 
                 <div className="task-list">
                   {columnTasks.length === 0 ? (
-                    <p className="task-column-empty">No tasks here</p>
+                    <p className="task-column-empty">{t('task.empty')}</p>
                   ) : (
                     columnTasks.map((task) => (
                       <article className={`task-card ${taskView === 'list' ? 'task-list-row' : ''} ${expandedTaskId === task.id ? 'expanded' : ''}`} key={task.id}>
                         {taskView === 'list' && (
                           <div className="task-list-summary">
-                            <span className={`task-list-status status-${task.status.toLowerCase()}`} aria-label={formatRole(task.status)} />
+                            <span className={`task-list-status status-${task.status.toLowerCase()}`} aria-label={t(`task.status.${task.status.toLowerCase()}`)} />
                             <button className="task-list-title" type="button" onClick={() => setExpandedTaskId((current) => current === task.id ? null : task.id)}>
                               <strong>{task.title}</strong>
-                              <small>{task.description || 'No description'}</small>
+                              <small>{task.description || t('common.noDescription')}</small>
                             </button>
                             <div className="task-list-creator">
                               <TaskCreatorProfile task={task} />
                             </div>
                             <div className="task-list-assignee">
                               {task.assignee ? (
-                                <><span aria-hidden="true">{memberInitials(task.assignee.displayName)}</span><strong>{task.assignee.displayName}</strong></>
+                                <><span aria-hidden="true"><AvatarContent avatarUrl={task.assignee.avatarUrl} displayName={task.assignee.displayName} /></span><strong>{task.assignee.displayName}</strong></>
                               ) : (
-                                <><span className="empty" aria-hidden="true">—</span><strong>Unassigned</strong></>
+                                <><span className="empty" aria-hidden="true">—</span><strong>{t('task.unassigned')}</strong></>
                               )}
                             </div>
-                            <time className="task-list-date" dateTime={task.updatedAt}>{formatTaskDate(task.updatedAt)}</time>
+                            <time className="task-list-date" dateTime={task.updatedAt}>{formatTaskDate(task.updatedAt, locale, t)}</time>
                             <button
                               className={`pin-button task-pin-button ${pinnedTaskIds.has(String(task.id)) ? 'active' : ''}`}
                               type="button"
@@ -2981,7 +3117,7 @@ function TaskBoard({
                           <div className="task-board-card-summary">
                             <button className="task-board-card-title" type="button" onClick={() => setExpandedTaskId((current) => current === task.id ? null : task.id)}>
                               <strong>{task.title}</strong>
-                              <small>{task.description || 'No description'}</small>
+                              <small>{task.description || t('common.noDescription')}</small>
                             </button>
                             <div className="task-card-quick-actions">
                               <button
@@ -3008,26 +3144,26 @@ function TaskBoard({
                               <TaskCreatorProfile task={task} compact />
                               <span className="task-board-card-assignee">
                                 {task.assignee ? (
-                                  <><span aria-hidden="true">{memberInitials(task.assignee.displayName)}</span><strong>{task.assignee.displayName}</strong></>
+                                  <><span aria-hidden="true"><AvatarContent avatarUrl={task.assignee.avatarUrl} displayName={task.assignee.displayName} /></span><strong>{task.assignee.displayName}</strong></>
                                 ) : (
-                                  <><span className="empty" aria-hidden="true">—</span><strong>No assignee</strong></>
+                                  <><span className="empty" aria-hidden="true">—</span><strong>{t('task.noAssignee')}</strong></>
                                 )}
                               </span>
-                              <time dateTime={task.updatedAt}>{formatTaskDate(task.updatedAt)}</time>
+                              <time dateTime={task.updatedAt}>{formatTaskDate(task.updatedAt, locale, t)}</time>
                             </div>
                           </div>
                         )}
                         <div className="task-card-details">
                         <div className="task-card-meta">
                           <time dateTime={task.createdAt}>
-                            {formatTaskDate(task.createdAt)}
+                            {formatTaskDate(task.createdAt, locale, t)}
                           </time>
                           <span
                             className={`visibility-badge visibility-${task.visibility?.toLowerCase()}`}
                           >
                             {task.visibility === 'ASSIGNEES'
-                              ? 'Assignee only'
-                              : 'Project team'}
+                              ? t('task.visibility.assignee')
+                              : t('task.visibility.project')}
                           </span>
                           {canManageTask(task) && (
                             <button
@@ -3035,7 +3171,7 @@ function TaskBoard({
                               type="button"
                               onClick={() => startTaskEdit(task)}
                             >
-                              Edit
+                              {t('common.edit')}
                             </button>
                           )}
                         </div>
@@ -3047,7 +3183,7 @@ function TaskBoard({
                             }
                           >
                             <input
-                              aria-label="Task title"
+                              aria-label={t('task.title')}
                               minLength={2}
                               maxLength={150}
                               required
@@ -3060,7 +3196,7 @@ function TaskBoard({
                               }
                             />
                             <textarea
-                              aria-label="Task description"
+                              aria-label={t('common.description')}
                               maxLength={1000}
                               value={editTaskForm.description}
                               onChange={(event) =>
@@ -3076,15 +3212,15 @@ function TaskBoard({
                                 disabled={updatingTaskId === task.id}
                               >
                                 {updatingTaskId === task.id
-                                  ? 'Saving…'
-                                  : 'Save'}
+                                  ? t('common.saving')
+                                  : t('common.save')}
                               </button>
                               <button
                                 className="member-action-button subtle"
                                 type="button"
                                 onClick={() => setEditingTaskId(null)}
                               >
-                                Cancel
+                                {t('common.cancel')}
                               </button>
                             </div>
                           </form>
@@ -3093,7 +3229,7 @@ function TaskBoard({
                             <h4>{task.title}</h4>
                             <p>
                               {task.description ||
-                                'No task description has been added yet.'}
+                                t('task.description.empty')}
                             </p>
                           </>
                         )}
@@ -3113,7 +3249,7 @@ function TaskBoard({
                         />
                         {canManageTask(task) && (
                           <label className="visibility-control task-visibility-control">
-                            <span>Visibility</span>
+                          <span>{t('task.visibility')}</span>
                             <select
                               value={task.visibility ?? 'PROJECT'}
                               disabled={updatingTaskId === task.id}
@@ -3124,13 +3260,13 @@ function TaskBoard({
                                 )
                               }
                             >
-                              <option value="PROJECT">Project team</option>
-                              <option value="ASSIGNEES">Assignee only</option>
+                              <option value="PROJECT">{t('task.visibility.project')}</option>
+                              <option value="ASSIGNEES">{t('task.visibility.assignee')}</option>
                             </select>
                           </label>
                         )}
                         <div className="task-status-control">
-                          <span>Status</span>
+                          <span>{t('task.status')}</span>
                           <TaskStatusPicker
                             value={task.status}
                             disabled={
@@ -3150,21 +3286,21 @@ function TaskBoard({
                               onClick={() => toggleActivity(task.id)}
                             >
                               <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 5v5l3 2M4.8 4.8A7.4 7.4 0 1 1 2.6 10H1m0 0 2.2-2.2M1 10l2.2 2.2" /></svg>
-                              {openActivities[task.id] ? 'Hide history' : 'Show history'}
+                              {openActivities[task.id] ? t('task.history.hide') : t('task.history.show')}
                             </button>
                             {openActivities[task.id] && (
                               <div className="task-activity-list">
                                 {loadingActivityId === task.id ? (
-                                  <small>Loading history…</small>
+                                  <small>{t('task.history.loading')}</small>
                                 ) : (activitiesByTask[task.id] ?? []).length === 0 ? (
-                                  <small>No recorded changes yet.</small>
+                                  <small>{t('task.history.empty')}</small>
                                 ) : (
                                   activitiesByTask[task.id].map((activity) => (
                                     <div className="task-activity-item" key={activity.id}>
                                       <span className="task-activity-dot" aria-hidden="true" />
-                                      <span>{formatTaskActivity(activity)}</span>
+                                      <span>{formatTaskActivity(activity, t)}</span>
                                       <time dateTime={activity.createdAt}>
-                                        {new Date(activity.createdAt).toLocaleString()}
+                                        {new Date(activity.createdAt).toLocaleString(locale)}
                                       </time>
                                     </div>
                                   ))
@@ -3200,6 +3336,7 @@ function TaskAssigneePicker({
   onClaim,
   onRelease,
 }) {
+  const { t } = useI18n()
   const [isOpen, setIsOpen] = useState(false)
   const [selectedId, setSelectedId] = useState(null)
   const [isSaving, setIsSaving] = useState(false)
@@ -3220,7 +3357,7 @@ function TaskAssigneePicker({
 
   return (
     <div className="task-assignees">
-      <span className="task-assignee-label">Assignee</span>
+      <span className="task-assignee-label">{t('task.assignee')}</span>
       <div className="task-assignee-summary">
         <div className={`task-assignee-identity ${task.assignee ? '' : 'unassigned'}`}>
           {task.assignee ? (
@@ -3229,7 +3366,7 @@ function TaskAssigneePicker({
               className="task-assignee-avatar"
               title={task.assignee.displayName}
             >
-              {memberInitials(task.assignee.displayName)}
+              <AvatarContent avatarUrl={task.assignee.avatarUrl} displayName={task.assignee.displayName} />
             </span>
             <span className="task-assignee-name">
               {task.assignee.displayName}
@@ -3238,7 +3375,7 @@ function TaskAssigneePicker({
           ) : (
             <>
               <span className="task-assignee-avatar empty" aria-hidden="true">—</span>
-              <span className="task-unassigned"><strong>No assignee</strong><small>Available for the project team</small></span>
+              <span className="task-unassigned"><strong>{t('task.noAssignee')}</strong><small>{t('task.noAssignee.help')}</small></span>
             </>
           )}
         </div>
@@ -3249,24 +3386,24 @@ function TaskAssigneePicker({
             disabled={busy}
             onClick={() => setIsOpen((current) => !current)}
           >
-            {isOpen ? 'Close' : task.assignee ? 'Change' : 'Choose person'}
+            {isOpen ? t('common.close') : task.assignee ? t('common.change') : t('task.choosePerson')}
           </button>
         )}
         {canClaim && (
           <button className="task-claim-button" type="button" disabled={busy} onClick={onClaim}>
-            {busy ? 'Assigning…' : 'Assign to me'}
+            {busy ? t('task.assigning') : t('task.assignMe')}
           </button>
         )}
         {canRelease && (
           <button className="task-claim-button subtle" type="button" disabled={busy} onClick={onRelease}>
-            {busy ? 'Leaving…' : 'Leave task'}
+            {busy ? t('task.leaving') : t('task.leave')}
           </button>
         )}
       </div>
       {isOpen && (
         <div className="task-assignee-menu">
           <div className="task-assignee-menu-header">
-            <div><strong>Assign task</strong><span>Choose one project member</span></div>
+            <div><strong>{t('task.assign')}</strong><span>{t('task.assign.help')}</span></div>
           </div>
           <label className={`task-assignee-option ${selectedId === null ? 'selected' : ''}`}>
             <input
@@ -3277,8 +3414,8 @@ function TaskAssigneePicker({
             />
             <span className="task-assignee-option-avatar empty" aria-hidden="true">—</span>
             <span className="task-assignee-option-identity">
-              <strong>Unassigned</strong>
-              <small>Leave this task without an owner</small>
+              <strong>{t('task.unassigned')}</strong>
+              <small>{t('task.unassigned.help')}</small>
             </span>
           </label>
           {members.map((member) => (
@@ -3290,7 +3427,7 @@ function TaskAssigneePicker({
                   onChange={() => setSelectedId(member.id)}
                 />
                 <span className="task-assignee-option-avatar" aria-hidden="true">
-                  {memberInitials(member.displayName)}
+                  <AvatarContent avatarUrl={member.avatarUrl} displayName={member.displayName} />
                 </span>
                 <span className="task-assignee-option-identity">
                   <strong title={member.displayName}>
@@ -3306,7 +3443,7 @@ function TaskAssigneePicker({
             disabled={isSaving || selectedId === (task.assignee?.projectMemberId ?? null)}
             onClick={save}
           >
-            {isSaving ? 'Saving…' : 'Confirm assignee'}
+            {isSaving ? t('common.saving') : t('task.confirmAssignee')}
           </button>
         </div>
       )}
@@ -3324,6 +3461,7 @@ function MemberProfilePopover({
   onRemove,
   onClose,
 }) {
+  const { t } = useI18n()
   const dialogRef = useRef(null)
   const closeButtonRef = useRef(null)
   const onCloseRef = useRef(onClose)
@@ -3393,7 +3531,7 @@ function MemberProfilePopover({
       >
         <div className="member-profile-header">
           <span className="member-profile-avatar" aria-hidden="true">
-            {memberInitials(member.displayName)}
+            <AvatarContent avatarUrl={member.avatarUrl} displayName={member.displayName} />
           </span>
           <div>
             <strong id={titleId}>{member.displayName}</strong>
@@ -3411,8 +3549,8 @@ function MemberProfilePopover({
         </div>
 
         <div className="member-profile-meta" id={descriptionId}>
-          <span>Workspace role</span>
-          <strong>{formatRole(member.role)}</strong>
+          <span>{t('members.workspaceRole')}</span>
+          <strong>{t(`role.${member.role.toLowerCase()}`)}</strong>
         </div>
 
         {canManageMember && (
@@ -3424,7 +3562,7 @@ function MemberProfilePopover({
               onClick={onEditRole}
             >
               <span className="member-profile-action-icon" aria-hidden="true">R</span>
-              <span><strong>Workspace role</strong><small>Change member, admin or viewer access</small></span>
+              <span><strong>{t('members.workspaceRole')}</strong><small>{t('members.role.help')}</small></span>
               <span aria-hidden="true">→</span>
             </button>
             <button
@@ -3434,7 +3572,7 @@ function MemberProfilePopover({
               onClick={onEditAccess}
             >
               <span className="member-profile-action-icon" aria-hidden="true">P</span>
-              <span><strong>Project access</strong><small>Choose roles and projects this person can open</small></span>
+              <span><strong>{t('members.projectAccess')}</strong><small>{t('members.projectAccess.help')}</small></span>
               <span aria-hidden="true">→</span>
             </button>
             <button
@@ -3444,7 +3582,7 @@ function MemberProfilePopover({
               onClick={onRemove}
             >
               <span className="member-profile-action-icon" aria-hidden="true">×</span>
-              <span><strong>Remove member</strong><small>Revoke access to this workspace</small></span>
+              <span><strong>{t('members.remove')}</strong><small>{t('members.remove.help')}</small></span>
             </button>
           </div>
         )}
@@ -3462,6 +3600,7 @@ function WorkspaceMembers({
   onMembersChange,
   onProjectTeamChange,
 }) {
+  const { t } = useI18n()
   const [form, setForm] = useState({ email: '', role: 'MEMBER' })
   const [fieldErrors, setFieldErrors] = useState({})
   const [error, setError] = useState('')
@@ -3678,7 +3817,7 @@ function WorkspaceMembers({
     <section className="members-panel">
       <div className="members-panel-heading">
         <div>
-          <h3>Members</h3>
+          <h3>{t('members.title')}</h3>
         </div>
         {isOwner && (
           <button
@@ -3690,7 +3829,7 @@ function WorkspaceMembers({
               setIsAddFormOpen((current) => !current)
             }}
           >
-            {isAddFormOpen ? 'Cancel' : '+ Add member'}
+            {isAddFormOpen ? t('common.cancel') : t('members.add')}
           </button>
         )}
       </div>
@@ -3727,7 +3866,7 @@ function WorkspaceMembers({
             }
           />
           <button className="primary-button" disabled={isSubmitting}>
-            {isSubmitting ? 'Adding…' : 'Add member'}
+            {isSubmitting ? t('common.adding') : t('members.addAction')}
           </button>
         </form>
       )}
@@ -3767,7 +3906,7 @@ function WorkspaceMembers({
                     setProfileMemberId(isProfileOpen ? null : member.id)
                   }}
                 >
-                  {member.displayName.slice(0, 1).toUpperCase()}
+                  <AvatarContent avatarUrl={member.avatarUrl} displayName={member.displayName} />
                 </button>
                 <button
                   className="member-identity member-profile-trigger"
@@ -3787,7 +3926,7 @@ function WorkspaceMembers({
                     'member-role-badge',
                   )}
                 >
-                  {formatRole(member.role)}
+                  {t(`role.${member.role.toLowerCase()}`)}
                 </span>
                 {isProfileOpen && (
                   <MemberProfilePopover
@@ -3830,7 +3969,7 @@ function WorkspaceMembers({
                           handleRoleChange(member.id, pendingRole)
                         }
                       >
-                        {isChanging ? 'Saving…' : 'Save role'}
+                        {isChanging ? t('common.saving') : t('roles.save')}
                       </button>
                       <button
                         className="member-action-button subtle"
@@ -3850,14 +3989,14 @@ function WorkspaceMembers({
                       <div>
                         <strong>Projects for {member.displayName}</strong>
                         <small>
-                          Custom roles belong to the member across the workspace.
+                          {t('members.customRoles.help')}
                           Project selection below grants direct access.
                         </small>
                       </div>
                       <span>{assignedProjects.length} active</span>
                     </div>
                     <fieldset className="project-create-access">
-                      <legend>Custom roles</legend>
+                      <legend>{t('roles.custom')}</legend>
                       <div className="project-create-access-options">
                         {accessRoles.map((role) => (
                           <label key={role.id}>
@@ -3875,12 +4014,12 @@ function WorkspaceMembers({
                           </label>
                         ))}
                         {accessRoles.length === 0 && (
-                          <small>No custom roles yet.</small>
+                          <small>{t('roles.noneYet')}</small>
                         )}
                       </div>
                     </fieldset>
                     {projects.length === 0 ? (
-                      <p>No projects in this workspace.</p>
+                      <p>{t('project.empty.short')}</p>
                     ) : (
                       <div className="workspace-project-access-list">
                         {projects.map((project) => {
@@ -3958,31 +4097,35 @@ function WorkspaceMembers({
   )
 }
 
-function formatTaskActivity(activity) {
+function formatTaskActivity(activity, t) {
   const actor = activity.actorDisplayName
   switch (activity.type) {
     case 'CREATED':
-      return `${actor} created the task`
+      return t('task.activity.created', { actor })
     case 'EDITED':
-      return `${actor} edited the task`
+      return t('task.activity.edited', { actor })
     case 'STATUS_CHANGED':
-      return `${actor} changed status from ${formatRole(activity.oldValue)} to ${formatRole(activity.newValue)}`
+      return t('task.activity.status', { actor, old: t(`task.status.${activity.oldValue.toLowerCase()}`), next: t(`task.status.${activity.newValue.toLowerCase()}`) })
     case 'CLAIMED':
-      return `${actor} took the task`
+      return t('task.activity.claimed', { actor })
     case 'RELEASED':
-      return `${actor} released the task`
+      return t('task.activity.released', { actor })
     case 'ASSIGNEE_CHANGED':
       return activity.newValue
-        ? `${actor} assigned ${activity.newValue}`
-        : `${actor} removed ${activity.oldValue ?? 'the assignee'}`
+        ? t('task.activity.assigned', { actor, assignee: activity.newValue })
+        : t('task.activity.unassigned', { actor, assignee: activity.oldValue ?? t('task.assignee') })
     case 'VISIBILITY_CHANGED':
-      return `${actor} changed visibility from ${formatRole(activity.oldValue)} to ${formatRole(activity.newValue)}`
+      return t('task.activity.visibility', {
+        actor,
+        old: t(activity.oldValue === 'ASSIGNEES' ? 'task.visibility.assignee' : 'task.visibility.project'),
+        next: t(activity.newValue === 'ASSIGNEES' ? 'task.visibility.assignee' : 'task.visibility.project'),
+      })
     default:
-      return `${actor} updated the task`
+      return t('task.activity.updated', { actor })
   }
 }
 
-function formatTaskDate(createdAt, now = new Date()) {
+function formatTaskDate(createdAt, locale, t, now = new Date()) {
   const date = new Date(createdAt)
 
   if (Number.isNaN(date.getTime())) {
@@ -4000,49 +4143,67 @@ function formatTaskDate(createdAt, now = new Date()) {
     now.getDate(),
   )
   const dayDifference = Math.round((dateDay - currentDay) / 86_400_000)
-  const time = new Intl.DateTimeFormat('en-GB', {
+  const time = new Intl.DateTimeFormat(locale, {
     hour: '2-digit',
     minute: '2-digit',
     hourCycle: 'h23',
   }).format(date)
 
   if (dayDifference === 0) {
-    return `Today at ${time}`
+    return t('date.todayAt', { time })
   }
 
   if (dayDifference === -1) {
-    return `Yesterday at ${time}`
+    return t('date.yesterdayAt', { time })
   }
 
   if (dayDifference === 1) {
-    return `Tomorrow at ${time}`
+    return t('date.tomorrowAt', { time })
   }
 
-  const numericDate = [
-    String(date.getDate()).padStart(2, '0'),
-    String(date.getMonth() + 1).padStart(2, '0'),
-    date.getFullYear(),
-  ].join('.')
-
-  return `${numericDate} at ${time}`
+  const numericDate = new Intl.DateTimeFormat(locale).format(date)
+  return t('date.at', { date: numericDate, time })
 }
 
 function LoadingScreen() {
+  const { t } = useI18n()
   return (
     <main className="loading-screen">
       <Brand />
       <span className="loading-spinner" aria-label="Checking session" />
-      <p>Checking your session…</p>
+      <p>{t('session.checking')}</p>
     </main>
   )
 }
 
 function App() {
+  const { locale, setLocale } = useI18n()
   const [user, setUser] = useState(null)
   const [mode, setMode] = useState('login')
   const [isLoading, setIsLoading] = useState(true)
   const [startupError, setStartupError] = useState('')
   const [theme, setTheme] = useState(getInitialTheme)
+  const [path, setPath] = useState(window.location.pathname)
+
+  async function loadSessionAccount(sessionUser) {
+    if (!sessionUser?.onboardingCompleted) {
+      setUser(sessionUser)
+      return sessionUser
+    }
+    let account = await getAccount()
+    const explicitGuestLocale = localStorage.getItem(
+      LOCALE_EXPLICIT_STORAGE_KEY,
+    ) === 'true'
+    if (explicitGuestLocale
+        && account.preferredLocale === 'en'
+        && locale !== 'en') {
+      account = await updateLocale(locale)
+    }
+    setLocale(account.preferredLocale, { explicit: false })
+    const hydrated = { ...account, onboardingCompleted: true }
+    setUser(hydrated)
+    return hydrated
+  }
 
   async function restoreSession() {
     setStartupError('')
@@ -4050,7 +4211,7 @@ function App() {
 
     try {
       clearSavedNavigation()
-      setUser(await getCurrentUser())
+      await loadSessionAccount(await getCurrentUser())
     } catch (error) {
       setStartupError(
         error.message ||
@@ -4063,6 +4224,14 @@ function App() {
 
   useEffect(() => {
     restoreSession()
+    // Session bootstrap intentionally runs once with the locale selected at startup.
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    const onPopState = () => setPath(window.location.pathname)
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
   }, [])
 
   useEffect(() => {
@@ -4075,9 +4244,25 @@ function App() {
     window.scrollTo({ top: 0, behavior: 'auto' })
   }, [user])
 
-  function handleAuthenticated(nextUser) {
+  async function handleAuthenticated(nextUser) {
     clearSavedNavigation()
-    setUser(nextUser)
+    setStartupError('')
+    setIsLoading(true)
+    try {
+      await loadSessionAccount(nextUser)
+    } catch (error) {
+      setStartupError(
+        error.message || 'Unable to load your account after signing in.',
+      )
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  function navigate(nextPath) {
+    window.history.pushState({}, '', nextPath)
+    setPath(nextPath)
+    window.scrollTo({ top: 0, behavior: 'auto' })
   }
 
   function handleLogout() {
@@ -4110,7 +4295,14 @@ function App() {
       <OnboardingScreen
         user={user}
         onCompleted={handleAuthenticated}
-        onLogout={handleLogout}
+      />
+    )
+  } else if (user && path === '/account') {
+    content = (
+      <AccountScreen
+        account={user}
+        onAccountChange={setUser}
+        onBack={() => navigate('/')}
       />
     )
   } else if (user) {
@@ -4118,6 +4310,8 @@ function App() {
       <Dashboard
         user={user}
         onLogout={handleLogout}
+        onOpenAccount={() => navigate('/account')}
+        onAccountChange={setUser}
         theme={theme}
         onToggleTheme={() =>
           setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
@@ -4137,12 +4331,15 @@ function App() {
   return (
     <>
       {!user && (
-        <ThemeToggle
-          theme={theme}
-          onToggle={() =>
-            setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
-          }
-        />
+        <div className="guest-preferences">
+          <LanguageSwitcher />
+          <ThemeToggle
+            theme={theme}
+            onToggle={() =>
+              setTheme((current) => (current === 'dark' ? 'light' : 'dark'))
+            }
+          />
+        </div>
       )}
       {content}
     </>

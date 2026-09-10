@@ -47,7 +47,8 @@ class ProjectServiceTest {
         service = new ProjectService(
                 projectRepository, workspaceAccessService, projectMemberRepository,
                 accessRoleRepository, allowedRoleRepository,
-                workspaceMemberRepository, accessChangePublisher
+                workspaceMemberRepository, new collabdesk.account.AvatarUrlFactory(),
+                accessChangePublisher
         );
     }
 

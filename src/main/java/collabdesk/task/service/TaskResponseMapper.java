@@ -1,5 +1,6 @@
 package collabdesk.task.service;
 
+import collabdesk.account.AvatarUrlFactory;
 import collabdesk.project.role.entity.ProjectPermission;
 import collabdesk.task.dto.TaskResponse;
 import collabdesk.task.entity.Task;
@@ -16,6 +17,11 @@ import java.util.stream.Collectors;
 /** Maps task entities and related assignment data to API-safe responses. */
 @Component
 public class TaskResponseMapper {
+    private final AvatarUrlFactory avatarUrlFactory;
+
+    public TaskResponseMapper(AvatarUrlFactory avatarUrlFactory) {
+        this.avatarUrlFactory = avatarUrlFactory;
+    }
 
     public TaskResponse toResponse(
             Task task,
@@ -32,6 +38,7 @@ public class TaskResponseMapper {
                 task.getCreatedBy().getId(),
                 task.getCreatedBy().getDisplayName(),
                 task.getCreatedBy().getEmail(),
+                avatarUrlFactory.create(task.getCreatedBy().getAvatarKey()),
                 task.getCreatedAt(),
                 task.getUpdatedAt(),
                 assignment == null ? null : toAssigneeResponse(assignment),
@@ -65,7 +72,8 @@ public class TaskResponseMapper {
                 assignment.getProjectMember().getId(),
                 member.getUser().getId(),
                 member.getUser().getEmail(),
-                member.getUser().getDisplayName()
+                member.getUser().getDisplayName(),
+                avatarUrlFactory.create(member.getUser().getAvatarKey())
         );
     }
 }

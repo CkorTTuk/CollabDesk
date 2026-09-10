@@ -14,6 +14,7 @@ public record ProjectResponse(
         ProjectStatus status,
         Long createdById,
         String createdByDisplayName,
+        String createdByAvatarUrl,
         boolean restricted,
         Instant createdAt
 ) {

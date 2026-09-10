@@ -1,5 +1,10 @@
 package collabdesk.common.web;
 
+import collabdesk.account.AccountUnavailableException;
+import collabdesk.account.ProfileUpdateConflictException;
+import collabdesk.account.avatar.AvatarNotFoundException;
+import collabdesk.account.avatar.AvatarTooLargeException;
+import collabdesk.account.avatar.InvalidAvatarException;
 import collabdesk.account.onboarding.OnboardingAccountUnavailableException;
 import collabdesk.auth.registration.EmailAlreadyExistsException;
 import collabdesk.auth.registration.PasswordsDoNotMatchException;
@@ -27,6 +32,7 @@ import org.springframework.http.ProblemDetail;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -34,6 +40,58 @@ import java.util.Map;
 /** Converts domain and validation failures into stable, safe HTTP problem details. */
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+    @ExceptionHandler({AvatarTooLargeException.class, MaxUploadSizeExceededException.class})
+    public ProblemDetail handleAvatarTooLarge() {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.PAYLOAD_TOO_LARGE,
+                "Avatar must not exceed 5 MB"
+        );
+        problem.setTitle("Avatar is too large");
+        problem.setProperty("code", "avatar_too_large");
+        return problem;
+    }
+
+    @ExceptionHandler(InvalidAvatarException.class)
+    public ProblemDetail handleInvalidAvatar(InvalidAvatarException exception) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.UNPROCESSABLE_CONTENT,
+                exception.getMessage()
+        );
+        problem.setTitle("Invalid avatar");
+        problem.setProperty("code", "invalid_avatar");
+        return problem;
+    }
+
+    @ExceptionHandler(AvatarNotFoundException.class)
+    public ProblemDetail handleAvatarNotFound() {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.NOT_FOUND,
+                "Avatar was not found"
+        );
+        problem.setTitle("Avatar not found");
+        return problem;
+    }
+    @ExceptionHandler(AccountUnavailableException.class)
+    public ProblemDetail handleAccountUnavailable() {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.FORBIDDEN,
+                "Account is unavailable"
+        );
+        problem.setTitle("Account unavailable");
+        problem.setProperty("code", "account_unavailable");
+        return problem;
+    }
+
+    @ExceptionHandler(ProfileUpdateConflictException.class)
+    public ProblemDetail handleProfileUpdateConflict() {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(
+                HttpStatus.CONFLICT,
+                "The profile changed in another request. Reload it and try again."
+        );
+        problem.setTitle("Profile update conflict");
+        problem.setProperty("code", "profile_update_conflict");
+        return problem;
+    }
     @ExceptionHandler(InvalidVerificationCodeException.class)
     public ProblemDetail handleInvalidVerificationCode() {
         ProblemDetail problem = ProblemDetail.forStatusAndDetail(

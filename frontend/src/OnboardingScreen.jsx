@@ -1,50 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
-import { getCurrentUser, logoutUser } from './api/authApi.js'
+import { getCurrentUser } from './api/authApi.js'
 import {
   completeOnboarding,
   getOnboarding,
 } from './api/onboardingApi.js'
+import { useI18n } from './i18n/I18nProvider.jsx'
+import {
+  EMPTY_BIRTH_DATE,
+  formatBirthDate,
+  hasPartialBirthDate,
+  parseBirthDate,
+} from './account/birthDate.js'
 
 const EMPTY_PROFILE = {
   firstName: '',
   lastName: '',
-}
-
-const EMPTY_BIRTH_DATE = {
-  month: '',
-  day: '',
-  year: '',
-}
-
-const MONTHS = [
-  'January',
-  'February',
-  'March',
-  'April',
-  'May',
-  'June',
-  'July',
-  'August',
-  'September',
-  'October',
-  'November',
-  'December',
-]
-
-function parseBirthDate(value) {
-  if (!value) return EMPTY_BIRTH_DATE
-
-  const [year, month, day] = value.split('-')
-  return { year, month, day }
-}
-
-function formatBirthDate({ year, month, day }) {
-  return year && month && day ? `${year}-${month}-${day}` : null
-}
-
-function hasPartialBirthDate({ year, month, day }) {
-  const selectedParts = [year, month, day].filter(Boolean).length
-  return selectedParts > 0 && selectedParts < 3
 }
 
 function daysInMonth(year, month) {
@@ -59,6 +29,7 @@ function DateDropdown({
   options,
   invalid,
   numeric,
+  disabled = false,
   onChange,
 }) {
   const [isOpen, setIsOpen] = useState(false)
@@ -102,6 +73,7 @@ function DateDropdown({
           aria-haspopup="listbox"
           aria-expanded={isOpen}
           aria-invalid={invalid}
+          disabled={disabled}
           onClick={() => setIsOpen((current) => !current)}
         >
           <span>{selectedOption?.label ?? placeholder}</span>
@@ -135,7 +107,8 @@ function DateDropdown({
   )
 }
 
-function BirthDatePicker({ value, error, onChange }) {
+export function BirthDatePicker({ value, error, onChange, disabled = false }) {
+  const { locale, t } = useI18n()
   const today = new Date()
   const currentYear = today.getFullYear()
   const selectedYear = Number(value.year)
@@ -151,7 +124,11 @@ function BirthDatePicker({ value, error, onChange }) {
     { length: currentYear - 1899 },
     (_, index) => currentYear - index,
   )
-  const monthOptions = MONTHS.slice(0, monthLimit).map((month, index) => ({
+  const months = Array.from({ length: 12 }, (_, index) => new Intl.DateTimeFormat(
+    locale,
+    { month: 'long', timeZone: 'UTC' },
+  ).format(new Date(Date.UTC(2020, index, 1))))
+  const monthOptions = months.slice(0, monthLimit).map((month, index) => ({
     value: String(index + 1).padStart(2, '0'),
     label: month,
   }))
@@ -188,42 +165,45 @@ function BirthDatePicker({ value, error, onChange }) {
 
   return (
     <fieldset className="onboarding-date-field">
-      <legend>Date of birth <small>Optional</small></legend>
+      <legend>{t('onboarding.birthDate')} <small>{t('common.optional')}</small></legend>
       <div className="onboarding-date-selects">
         <DateDropdown
-          label="Month"
-          placeholder="Month"
+          label={t('onboarding.month')}
+          placeholder={t('onboarding.month')}
           value={value.month}
           options={monthOptions}
           invalid={Boolean(error)}
+          disabled={disabled}
           onChange={(nextValue) => updatePart('month', nextValue)}
         />
         <DateDropdown
-          label="Day"
-          placeholder="Day"
+          label={t('onboarding.day')}
+          placeholder={t('onboarding.day')}
           value={value.day}
           options={dayOptions}
           invalid={Boolean(error)}
+          disabled={disabled}
           numeric
           onChange={(nextValue) => updatePart('day', nextValue)}
         />
         <DateDropdown
-          label="Year"
-          placeholder="Year"
+          label={t('onboarding.year')}
+          placeholder={t('onboarding.year')}
           value={value.year}
           options={yearOptions}
           invalid={Boolean(error)}
+          disabled={disabled}
           numeric
           onChange={(nextValue) => updatePart('year', nextValue)}
         />
       </div>
       <div className="onboarding-date-help">
         <small className="field-hint">
-          Open a field and scroll the compact list.
+          {t('onboarding.dateHint')}
         </small>
         {(value.month || value.day || value.year) && (
-          <button type="button" onClick={() => onChange(EMPTY_BIRTH_DATE)}>
-            Clear date
+          <button type="button" disabled={disabled} onClick={() => onChange(EMPTY_BIRTH_DATE)}>
+            {t('onboarding.clearDate')}
           </button>
         )}
       </div>
@@ -234,18 +214,19 @@ function BirthDatePicker({ value, error, onChange }) {
 
 function OnboardingBrand() {
   return (
-    <a className="brand" href="/" aria-label="CollabDesk">
+    <div className="brand" aria-label="CollabDesk">
       <span className="brand-mark" aria-hidden="true">
         <span />
         <span />
         <span />
       </span>
       <span>CollabDesk</span>
-    </a>
+    </div>
   )
 }
 
-export default function OnboardingScreen({ user, onCompleted, onLogout }) {
+export default function OnboardingScreen({ user, onCompleted }) {
+  const { t } = useI18n()
   const [details, setDetails] = useState(null)
   const [profile, setProfile] = useState(EMPTY_PROFILE)
   const [birthDate, setBirthDate] = useState(EMPTY_BIRTH_DATE)
@@ -253,7 +234,6 @@ export default function OnboardingScreen({ user, onCompleted, onLogout }) {
   const [message, setMessage] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [isLoggingOut, setIsLoggingOut] = useState(false)
 
   useEffect(() => {
     let active = true
@@ -303,7 +283,7 @@ export default function OnboardingScreen({ user, onCompleted, onLogout }) {
 
     if (hasPartialBirthDate(birthDate)) {
       setFieldErrors({
-        birthDate: 'Select month, day, and year, or leave all three empty.',
+        birthDate: t('onboarding.partialDate'),
       })
       return
     }
@@ -330,19 +310,6 @@ export default function OnboardingScreen({ user, onCompleted, onLogout }) {
     }
   }
 
-  async function handleLogout() {
-    setMessage('')
-    setIsLoggingOut(true)
-
-    try {
-      await logoutUser()
-      onLogout()
-    } catch (error) {
-      setMessage(error.message || 'Unable to sign out.')
-      setIsLoggingOut(false)
-    }
-  }
-
   const suggestion = details?.suggestion
   const avatarUrl = suggestion?.avatarUrl
   const avatarInitial = (profile.firstName || user.email || '?')
@@ -354,28 +321,17 @@ export default function OnboardingScreen({ user, onCompleted, onLogout }) {
     <main className="onboarding-page">
       <header className="onboarding-header">
         <OnboardingBrand />
-        <button
-          className="onboarding-logout"
-          type="button"
-          disabled={isLoggingOut}
-          onClick={handleLogout}
-        >
-          {isLoggingOut ? 'Signing out…' : 'Log out'}
-        </button>
       </header>
 
       <section className="onboarding-layout">
         <div className="onboarding-copy">
-          <p className="eyebrow">One last step</p>
-          <h1>Make CollabDesk yours.</h1>
-          <p>
-            Choose the name teammates will see. You can update these profile
-            details later from your account settings.
-          </p>
+          <p className="eyebrow">{t('onboarding.eyebrow')}</p>
+          <h1>{t('onboarding.title')}</h1>
+          <p>{t('onboarding.intro')}</p>
           <ol aria-label="Registration progress">
-            <li className="complete"><span>✓</span> Account connected</li>
-            <li className="active"><span>2</span> Complete your profile</li>
-            <li><span>3</span> Open your workspace</li>
+            <li className="complete"><span>✓</span> {t('onboarding.connected')}</li>
+            <li className="active"><span>2</span> {t('onboarding.complete')}</li>
+            <li><span>3</span> {t('onboarding.workspace')}</li>
           </ol>
         </div>
 
@@ -387,10 +343,10 @@ export default function OnboardingScreen({ user, onCompleted, onLogout }) {
               ) : avatarInitial}
             </div>
             <div>
-              <strong>Profile details</strong>
+              <strong>{t('onboarding.details')}</strong>
               <span>{user.email}</span>
             </div>
-            {suggestion && <small>Suggested by your sign-in provider</small>}
+            {suggestion && <small>{t('onboarding.suggested')}</small>}
           </div>
 
           {message && (
@@ -400,12 +356,12 @@ export default function OnboardingScreen({ user, onCompleted, onLogout }) {
           {isLoading ? (
             <div className="onboarding-loading">
               <span className="loading-spinner" aria-hidden="true" />
-              Loading your profile…
+              {t('onboarding.loading')}
             </div>
           ) : details ? (
             <form className="onboarding-form" onSubmit={handleSubmit}>
               <label className="form-field" htmlFor="onboarding-email">
-                <span>Email</span>
+                  <span>{t('auth.email')}</span>
                 <input
                   id="onboarding-email"
                   type="email"
@@ -413,12 +369,12 @@ export default function OnboardingScreen({ user, onCompleted, onLogout }) {
                   readOnly
                   aria-readonly="true"
                 />
-                <small className="field-hint">Connected to this account</small>
+                <small className="field-hint">{t('onboarding.emailHint')}</small>
               </label>
 
               <div className="onboarding-name-grid">
                 <label className="form-field" htmlFor="onboarding-first-name">
-                  <span>First name</span>
+                  <span>{t('onboarding.firstName')}</span>
                   <input
                     id="onboarding-first-name"
                     type="text"
@@ -438,7 +394,7 @@ export default function OnboardingScreen({ user, onCompleted, onLogout }) {
                 </label>
 
                 <label className="form-field" htmlFor="onboarding-last-name">
-                  <span>Last name <small>Optional</small></span>
+                  <span>{t('onboarding.lastName')} <small>{t('common.optional')}</small></span>
                   <input
                     id="onboarding-last-name"
                     type="text"
@@ -470,12 +426,12 @@ export default function OnboardingScreen({ user, onCompleted, onLogout }) {
               />
 
               <button className="primary-button" disabled={isSubmitting}>
-                {isSubmitting ? 'Finishing registration…' : 'Finish registration'}
+                {isSubmitting ? t('onboarding.finishing') : t('onboarding.finish')}
               </button>
             </form>
           ) : (
             <button className="primary-button" type="button" onClick={() => window.location.reload()}>
-              Try again
+              {t('onboarding.retry')}
             </button>
           )}
         </div>

@@ -16,6 +16,7 @@ public record ProjectMemberResponse(
         Long userId,
         String email,
         String displayName,
+        String avatarUrl,
         WorkspaceRole workspaceRole,
         Instant joinedAt,
         boolean grantsAccess,

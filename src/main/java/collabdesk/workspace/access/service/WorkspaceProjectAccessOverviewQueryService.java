@@ -1,5 +1,6 @@
 package collabdesk.workspace.access.service;
 
+import collabdesk.account.AvatarUrlFactory;
 import collabdesk.project.dto.ProjectAccessOverviewResponse;
 import collabdesk.project.dto.WorkspaceProjectAccessOverviewResponse;
 import collabdesk.project.entity.Project;
@@ -29,17 +30,20 @@ public class WorkspaceProjectAccessOverviewQueryService {
     private final ProjectMemberRepository projectMemberRepository;
     private final WorkspaceMemberAccessRoleService memberAccessRoleService;
     private final ProjectAllowedRoleRepository allowedRoleRepository;
+    private final AvatarUrlFactory avatarUrlFactory;
 
     public WorkspaceProjectAccessOverviewQueryService(
             ProjectAccessService projectAccessService,
             ProjectMemberRepository projectMemberRepository,
             WorkspaceMemberAccessRoleService memberAccessRoleService,
-            ProjectAllowedRoleRepository allowedRoleRepository
+            ProjectAllowedRoleRepository allowedRoleRepository,
+            AvatarUrlFactory avatarUrlFactory
     ) {
         this.projectAccessService = projectAccessService;
         this.projectMemberRepository = projectMemberRepository;
         this.memberAccessRoleService = memberAccessRoleService;
         this.allowedRoleRepository = allowedRoleRepository;
+        this.avatarUrlFactory = avatarUrlFactory;
     }
 
     /** Calculates the overview directly from current database associations. */
@@ -101,6 +105,7 @@ public class WorkspaceProjectAccessOverviewQueryService {
                 project.getStatus(),
                 project.getCreatedBy().getId(),
                 project.getCreatedBy().getDisplayName(),
+                avatarUrlFactory.create(project.getCreatedBy().getAvatarKey()),
                 project.getCreatedAt(),
                 members.stream().anyMatch(ProjectMember::isGrantsAccess)
                         || !allowedRoles.isEmpty(),
@@ -128,6 +133,7 @@ public class WorkspaceProjectAccessOverviewQueryService {
                 workspaceMember.getUser().getId(),
                 workspaceMember.getUser().getDisplayName(),
                 workspaceMember.getUser().getEmail(),
+                avatarUrlFactory.create(workspaceMember.getUser().getAvatarKey()),
                 workspaceMember.getRole(),
                 member.isGrantsAccess(),
                 memberRoles.getOrDefault(workspaceMember.getId(), List.of())

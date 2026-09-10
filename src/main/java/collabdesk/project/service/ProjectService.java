@@ -1,5 +1,6 @@
 package collabdesk.project.service;
 
+import collabdesk.account.AvatarUrlFactory;
 import collabdesk.infrastructure.cache.WorkspaceProjectAccessChangePublisher;
 import collabdesk.project.dto.ProjectResponse;
 import collabdesk.project.entity.Project;
@@ -34,6 +35,7 @@ public class ProjectService {
     private final AccessRoleRepository accessRoleRepository;
     private final ProjectAllowedRoleRepository projectAllowedRoleRepository;
     private final WorkspaceMemberRepository workspaceMemberRepository;
+    private final AvatarUrlFactory avatarUrlFactory;
 
     private final WorkspaceProjectAccessChangePublisher accessChangePublisher;
 
@@ -44,6 +46,7 @@ public class ProjectService {
             AccessRoleRepository accessRoleRepository,
             ProjectAllowedRoleRepository projectAllowedRoleRepository,
             WorkspaceMemberRepository workspaceMemberRepository,
+            AvatarUrlFactory avatarUrlFactory,
             WorkspaceProjectAccessChangePublisher accessChangePublisher) {
         this.projectRepository = projectRepository;
         this.workspaceAccessService = workspaceAccessService;
@@ -51,6 +54,7 @@ public class ProjectService {
         this.accessRoleRepository = accessRoleRepository;
         this.projectAllowedRoleRepository = projectAllowedRoleRepository;
         this.workspaceMemberRepository = workspaceMemberRepository;
+        this.avatarUrlFactory = avatarUrlFactory;
         this.accessChangePublisher = accessChangePublisher;
     }
     /** Creates a project and initializes its access model in one transaction. */
@@ -148,6 +152,7 @@ public class ProjectService {
                 project.getStatus(),
                 project.getCreatedBy().getId(),
                 project.getCreatedBy().getDisplayName(),
+                avatarUrlFactory.create(project.getCreatedBy().getAvatarKey()),
                 restricted,
                 project.getCreatedAt()
         );

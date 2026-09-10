@@ -66,7 +66,7 @@ class TaskServiceTest {
                 taskRepository,
                 projectAccessService,
                 taskAssigneeRepository,
-                new TaskResponseMapper(),
+                new TaskResponseMapper(new collabdesk.account.AvatarUrlFactory()),
                 taskAccessService,
                 projectPermissionService,
                 taskActivityService

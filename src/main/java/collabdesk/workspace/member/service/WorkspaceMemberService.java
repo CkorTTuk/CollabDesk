@@ -1,5 +1,6 @@
 package collabdesk.workspace.member.service;
 
+import collabdesk.account.AvatarUrlFactory;
 import collabdesk.infrastructure.cache.WorkspaceProjectAccessChangePublisher;
 import collabdesk.project.role.dto.AccessRoleSummaryResponse;
 import collabdesk.project.role.service.WorkspaceMemberAccessRoleService;
@@ -32,6 +33,7 @@ public class WorkspaceMemberService {
     private final WorkspaceAccessService workspaceAccessService;
     private final UserRepository userRepository;
     private final WorkspaceMemberAccessRoleService memberAccessRoleService;
+    private final AvatarUrlFactory avatarUrlFactory;
 
     private final WorkspaceProjectAccessChangePublisher accessChangePublisher;
     public WorkspaceMemberService(
@@ -39,12 +41,14 @@ public class WorkspaceMemberService {
             WorkspaceAccessService workspaceAccessService,
             UserRepository userRepository,
             WorkspaceMemberAccessRoleService memberAccessRoleService,
+            AvatarUrlFactory avatarUrlFactory,
             WorkspaceProjectAccessChangePublisher accessChangePublisher
     ) {
         this.workspaceMemberRepository = workspaceMemberRepository;
         this.workspaceAccessService = workspaceAccessService;
         this.userRepository = userRepository;
         this.memberAccessRoleService = memberAccessRoleService;
+        this.avatarUrlFactory = avatarUrlFactory;
         this.accessChangePublisher = accessChangePublisher;
     }
     /** Lists workspace members after checking the caller's membership. */
@@ -176,6 +180,7 @@ public class WorkspaceMemberService {
                 membership.getUser().getId(),
                 membership.getUser().getEmail(),
                 membership.getUser().getDisplayName(),
+                avatarUrlFactory.create(membership.getUser().getAvatarKey()),
                 membership.getRole(),
                 membership.getJoinedAt(),
                 List.copyOf(accessRoles)

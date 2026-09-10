@@ -69,14 +69,15 @@ class WorkspaceProjectAccessRedisIntegrationTest {
         when(queryService.findForWorkspace(42L, 9L)).thenReturn(response);
         when(queryService.findForWorkspace(51L, 9L)).thenReturn(response);
 
+        String firstKey = KEY_PREFIX + "42:7";
+        String secondKey = KEY_PREFIX + "42:9";
+        String otherWorkspaceKey = KEY_PREFIX + "51:9";
         cacheService.findForWorkspace(42L, 7L);
+        await(() -> redisTemplate.hasKey(firstKey), Duration.ofSeconds(2));
         cacheService.findForWorkspace(42L, 7L);
         cacheService.findForWorkspace(42L, 9L);
         cacheService.findForWorkspace(51L, 9L);
 
-        String firstKey = KEY_PREFIX + "42:7";
-        String secondKey = KEY_PREFIX + "42:9";
-        String otherWorkspaceKey = KEY_PREFIX + "51:9";
         assertTrue(redisTemplate.hasKey(firstKey));
         assertTrue(redisTemplate.hasKey(secondKey));
         assertTrue(redisTemplate.hasKey(otherWorkspaceKey));
